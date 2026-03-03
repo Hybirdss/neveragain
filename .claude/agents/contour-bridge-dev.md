@@ -9,7 +9,7 @@
 
 ## Reference Documents (반드시 읽고 구현)
 - `docs/technical/WAVE_PROPAGATION.md` — P/S파 속도, 깊이 보정, 링 생명주기
-- `docs/design/GLOBE_LAYERS.md` — globe.gl Ring Layer + Polygon Layer 매핑
+- `docs/design/GLOBE_LAYERS.md` — CesiumJS Entity/DataSource Ring + Polygon 매핑
 - `docs/reference/EQUATIONS.md` — 파동 전파 수식, 등진도선 좌표 변환 수식
 - `docs/reference/JMA_INTENSITY_COLORS.md` — 등진도선 색상
 
@@ -92,7 +92,7 @@ Coordinate Transform (pixel → lat/lng)
 GeoJSON Feature[] (geographic coordinates)
     │  각 feature에 JMA class + color 속성 추가
     ▼
-globe.gl polygonsData input
+CesiumJS Entity/DataSource polygons input
 ```
 
 ### Coordinate Transform Functions
@@ -143,7 +143,7 @@ const CONTOUR_THRESHOLDS = [0.5, 1.5, 2.5, 3.5, 4.5, 5.0, 5.5, 6.0, 6.5];
 ```
 
 ## Hard Rules
-1. **wavePropagation.ts는 순수 함수**. DOM 접근 없음, globe.gl 의존 없음.
+1. **wavePropagation.ts는 순수 함수**. DOM 접근 없음, CesiumJS 의존 없음.
 2. **d3-contour만 사용**. 커스텀 marching squares 구현 금지.
 3. **좌표 변환 정확도**: 격자 중심 ±0.01° 이내 오차.
 4. **등진도선 색상은 JMA 공식 색상표** (`src/types.ts`의 `JMA_COLORS`) 사용.

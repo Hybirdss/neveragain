@@ -11,9 +11,10 @@
 | 기관 | 中央防災会議 (Central Disaster Management Council, CDMC) |
 | 발표 연도 | 2012 |
 | 모멘트 규모 (Mw) | 9.0 - 9.1 |
-| 총 subfault 수 | 5,773 |
-| subfault 크기 | 5 km × 5 km |
-| 총 단층 면적 | ~144,000 km² (≈ 5,773 × 25 km²) |
+| 총 subfault 수 (CDMC 원본) | 5,773 |
+| **현재 구현 subfault 수** | **200 (대표 subfault 간소화 모델)** |
+| subfault 크기 | 5 km × 5 km (CDMC) / 가변 (현재 구현) |
+| 총 단층 면적 | ~144,000 km² (CDMC) / ~5,000 km² (현재 구현 근사치) |
 | 시나리오 변종 수 | 11 (very-large-slip area 위치 변화) |
 
 ### 1.2 Fault Geometry
@@ -76,7 +77,7 @@ interface Subfault {
 
 ```
 M₀ = μ · A · D
-Mw = (2/3) · log₁₀(M₀) - 10.7
+Mw = (2/3) · log₁₀(M₀) - 6.07
 ```
 
 | 변수 | 값 | 설명 |
@@ -99,12 +100,22 @@ Mw = (2/3) · log₁₀(M₀) - 10.7
 
 ### 4.1 Scale of Computation
 
+> **현재 구현**: 200개 대표 subfault를 사용합니다 (CDMC 원본 5,773개 대비 간소화).
+> 아래 수치는 CDMC 원본 기준이며, 현재 구현의 실제 계산량은 약 1/29 수준입니다.
+
 ```
-Subfaults:     5,773
-Grid points:   ~12,000 (일본 육지 + 연안만 필터링)
-Total GMPE calls: 5,773 × 12,000 = 69,276,000 (~69.2M)
-Per call:      ~20 float operations
-Total ops:     ~1.4 × 10⁹
+CDMC 원본:
+  Subfaults:     5,773
+  Grid points:   ~12,000 (일본 육지 + 연안만 필터링)
+  Total GMPE calls: 5,773 × 12,000 = 69,276,000 (~69.2M)
+  Per call:      ~20 float operations
+  Total ops:     ~1.4 × 10⁹
+
+현재 구현 (간소화 모델):
+  Subfaults:     200
+  Grid points:   ~62,000 (전체 일본 그리드)
+  Total GMPE calls: 200 × 62,000 = 12,400,000 (~12.4M)
+  Expected time: Desktop 8-worker ~3-5s, 4-worker ~6-10s
 ```
 
 ### 4.2 Web Worker Pool
@@ -127,21 +138,25 @@ const workers: Worker[] = Array.from(
 
 ```typescript
 // Main thread
-const gridSize = 500 * 500; // 격자 크기
-const sharedBuffer = new SharedArrayBuffer(gridSize * Float32Array.BYTES_PER_ELEMENT);
-const resultGrid = new Float32Array(sharedBuffer);
+const gridSize = 221 * 281; // 62,101 points (0.1° grid, lat 24-46, lng 122-150)
+const sharedBuffer = new SharedArrayBuffer(gridSize * Int32Array.BYTES_PER_ELEMENT);
+const resultView = new Int32Array(sharedBuffer);
 
 // Worker에 전달
 worker.postMessage({
   type: 'compute-chunk',
-  subfaults: subfaultChunk,      // 이 Worker가 처리할 subfault 배열
-  sharedBuffer: sharedBuffer,    // 공유 결과 버퍼
-  gridSpec: { rows, cols, latMin, lngMin, step },
+  subfaults: subfaultChunk,
+  sharedBuffer: sharedBuffer,
+  gridSpec: { rows: 221, cols: 281, latMin: 24.0, lngMin: 122.0, step: 0.1 },
 }, []);
 
-// Worker 내부: Atomics로 누적
-// PGV 에너지 합산을 위해 제곱합을 누적한다
-Atomics.add(resultView, gridIndex, pgv_squared_scaled);
+// Worker 내부: Int32Array + SCALE로 정수 누적 (Atomics.add는 정수 타입만 지원)
+const SCALE = 1000;
+const pgvSquaredScaled = Math.round(pgv * pgv * SCALE);
+Atomics.add(resultView, gridIndex, pgvSquaredScaled);
+
+// Main thread: 최종 변환 (모든 Worker 완료 후)
+// totalPGV = sqrt(resultView[i] / SCALE) * VS30_AMP
 ```
 
 ### 4.4 PGV Superposition (PGV 중첩)

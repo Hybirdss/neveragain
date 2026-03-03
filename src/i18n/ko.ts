@@ -1,0 +1,136 @@
+/**
+ * NeverAgain — Korean locale strings
+ */
+
+const ko: Record<string, string> = {
+  // Sidebar
+  'sidebar.title': '\uc9c0\uc9c4 \ubaa8\ub2c8\ud130',
+  'sidebar.totalQuakes': '\ucd1d \uc9c0\uc9c4 \uc218',
+  'sidebar.maxMag': '\ucd5c\ub300 \uaddc\ubaa8',
+  'sidebar.avgMag': '\ud3c9\uade0 \uaddc\ubaa8',
+  'sidebar.latest': '\ucd5c\uadfc',
+  'sidebar.magDistribution': '\uaddc\ubaa8 \ubd84\ud3ec',
+
+  // Detail panel / Tooltip shared labels
+  'detail.time': '\uc2dc\uac04',
+  'detail.location': '\uc704\uce58',
+  'detail.depth': '\uae4a\uc774',
+  'detail.faultType': '\ub2e8\uce35 \uc720\ud615',
+  'detail.jmaIntensity': 'JMA \uc9c4\ub3c4',
+  'detail.tsunami': '\uc4f0\ub098\ubbf8',
+
+  // Timeline
+  'timeline.play': '\uc7ac\uc0dd',
+  'timeline.pause': '\uc77c\uc2dc\uc815\uc9c0',
+  'timeline.prev': '\uc774\uc804 \uc9c0\uc9c4',
+  'timeline.next': '\ub2e4\uc74c \uc9c0\uc9c4',
+
+  // Intensity legend
+  'legend.title': 'JMA \uc9c4\ub3c4',
+  'legend.violent': '\uaca9\ub834',
+  'legend.severe': '\ub9f9\ub834',
+  'legend.strongPlus': '\ub9e4\uc6b0 \uac15\ud568',
+  'legend.veryStrong': '\uac15\ud568+',
+  'legend.ratherStrong': '\uac15\ud568-',
+  'legend.strong': '\uc911\uac04+',
+  'legend.moderate': '\uc911\uac04',
+  'legend.weak': '\uc57d\ud568',
+  'legend.slight': '\ubbf8\uc57d',
+  'legend.notFelt': '\ubb34\uac10',
+
+  // Scenario picker
+  'scenario.title': '\uc2dc\ub098\ub9ac\uc624 \uc120\ud0dd',
+
+  // HUD overlay
+  'hud.cam': '\uce74\uba54\ub77c',
+  'hud.time': '\uc2dc\uac04',
+  'hud.zoom': '\uc90c',
+
+  // Mode switcher
+  'mode.realtime': '\uc2e4\uc2dc\uac04',
+  'mode.timeline': '\ud0c0\uc784\ub77c\uc778',
+  'mode.scenario': '\uc2dc\ub098\ub9ac\uc624',
+  'mode.load': '\ubd88\ub7ec\uc624\uae30',
+  'mode.from': '\uc2dc\uc791',
+  'mode.to': '\uc885\ub8cc',
+  'mode.start': '\uc2dc\uc791\uc77c',
+  'mode.end': '\uc885\ub8cc\uc77c',
+
+  // Layer toggles
+  'layer.title': '\ub808\uc774\uc5b4',
+  'layer.plates': '\ud310 \uacbd\uacc4',
+  'layer.quakes': '\uc9c0\uc9c4',
+  'layer.waves': '\ud30c\ub3d9',
+  'layer.contours': '\ub4f1\uc9c4\ub3c4\uc120',
+  'layer.shakeMap': 'ShakeMap',
+  'layer.slab2': 'Slab2',
+  'layer.labels': '\ub77c\ubca8',
+
+  // Alert bar
+  'alert.prefix': '\uc9c0\uc9c4 \uacbd\ubcf4',
+
+  // Tsunami
+  'tsunami.warning': '\uacbd\uace0',
+
+  // Fault types
+  'faultType.crustal': '\uc9c0\uac01',
+  'faultType.interface': '\ud574\uad6c\ud615',
+  'faultType.intraslab': '\uc2ac\ub798\ube0c \ub0b4',
+
+  // Sidebar extras
+  'sidebar.cinematic': '\uc2dc\ub124\ub9c8\ud2f1',
+  'sidebar.scenarios': '\uc2dc\ub098\ub9ac\uc624',
+
+  // Detail panel — intensity source
+  'detail.intensitySource': '\uc9c4\ub3c4 \uc18c\uc2a4',
+  'detail.source.shakemap': 'USGS ShakeMap',
+  'detail.source.gmpe': '\ucd94\uc815 (GMPE)',
+
+  // PLATEAU 3D Buildings
+  'layer.plateau': '3D 건물',
+  'plateau.none': '없음',
+  'plateau.chiyoda': '치요다구',
+  'plateau.chuo': '주오구',
+  'plateau.minato': '미나토구',
+  'plateau.shinjuku': '신주쿠구',
+  'plateau.shibuya': '시부야구',
+  'plateau.yokohama': '요코하마',
+  'plateau.kawasaki': '가와사키',
+  'plateau.saitama': '사이타마',
+  'plateau.chiba': '치바',
+  'plateau.utsunomiya': '우쓰노미야',
+  'plateau.maebashi': '마에바시',
+  'plateau.kofu': '고후',
+  'plateau.osaka': '오사카',
+  'plateau.kyoto': '교토',
+  'plateau.kobe': '고베',
+  'plateau.wakayama': '와카야마',
+  'plateau.nagoya': '나고야',
+  'plateau.shizuoka': '시즈오카',
+  'plateau.hamamatsu': '하마마쓰',
+  'plateau.niigata': '니가타',
+  'plateau.kanazawa': '가나자와',
+  'plateau.gifu': '기후',
+  'plateau.sapporo': '삿포로',
+  'plateau.sendai': '센다이',
+  'plateau.fukushima': '후쿠시마',
+  'plateau.hiroshima': '히로시마',
+  'plateau.okayama': '오카야마',
+  'plateau.takamatsu': '다카마쓰',
+  'plateau.tottori': '돗토리',
+  'plateau.tokushima': '도쿠시마',
+  'plateau.matsuyama': '마쓰야마',
+  'plateau.kochi': '고치',
+  'plateau.fukuoka': '후쿠오카',
+  'plateau.kitakyushu': '기타큐슈',
+  'plateau.kumamoto': '구마모토',
+  'plateau.naha': '나하',
+  'plateau.loading': '건물 로딩 중...',
+
+  // Locale switcher
+  'locale.en': 'EN',
+  'locale.ko': '한',
+  'locale.ja': '日',
+};
+
+export default ko;

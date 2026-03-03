@@ -92,13 +92,35 @@ export interface TimelineState {
 
 export type AppMode = 'realtime' | 'timeline' | 'scenario';
 
+// ── PLATEAU 3D Buildings ─────────────────────────────────
+
+export type PlateauCityId =
+  | 'chiyoda' | 'chuo' | 'minato' | 'shinjuku' | 'shibuya'
+  | 'yokohama' | 'kawasaki' | 'saitama' | 'chiba'
+  | 'osaka' | 'nagoya' | 'kyoto'
+  | 'sapporo' | 'sendai' | 'hiroshima' | 'fukuoka' | 'kitakyushu'
+  | 'niigata' | 'shizuoka' | 'hamamatsu' | 'kumamoto' | 'naha'
+  | 'kanazawa' | 'gifu' | 'okayama' | 'takamatsu'
+  | 'utsunomiya' | 'maebashi' | 'kofu' | 'fukushima'
+  | 'wakayama' | 'tottori' | 'tokushima' | 'matsuyama' | 'kochi';
+
+export interface PlateauCityConfig {
+  id: PlateauCityId;
+  nameKey: string;
+  tilesetUrl: string;
+  center: { lat: number; lng: number };
+}
+
 export interface AppState {
   mode: AppMode;
   selectedEvent: EarthquakeEvent | null;
   intensityGrid: IntensityGrid | null;
+  intensitySource: IntensitySource;
   waveState: WaveState | null;
   timeline: TimelineState;
   layers: LayerVisibility;
+  viewPreset: ViewPreset;
+  plateauCity: PlateauCityId | null;
 }
 
 export interface LayerVisibility {
@@ -107,7 +129,14 @@ export interface LayerVisibility {
   waveRings: boolean;
   isoseismalContours: boolean;
   labels: boolean;
+  shakeMapContours: boolean;
+  slab2Contours: boolean;
+  crossSection: boolean;
+  plateauBuildings: boolean;
 }
+
+export type ViewPreset = 'default' | 'underground' | 'shakemap' | 'crossSection' | 'cinematic';
+export type IntensitySource = 'none' | 'shakemap' | 'gmpe';
 
 // ============================================================
 // Worker Messages (seismic-engine internal)
@@ -128,15 +157,29 @@ export interface GmpeWorkerResponse {
   grid: IntensityGrid;
 }
 
-export interface NankaiWorkerRequest {
-  type: 'NANKAI_SLICE';
-  subfaults: NankaiSubfault[];
-  gridCols: number;
-  gridRows: number;
-  gridCenter: { lat: number; lng: number };
-  gridRadiusDeg: number;
+/** Compact subfault format matching nankai-subfaults.json */
+export interface SubfaultRaw {
+  la: number;  // latitude
+  lo: number;  // longitude
+  d: number;   // depth km
+  s: number;   // slip m
+  st: number;  // strike deg
+  di: number;  // dip deg
+  ra: number;  // rake deg
 }
 
+export interface NankaiWorkerRequest {
+  type: 'NANKAI_CHUNK';
+  subfaults: SubfaultRaw[];
+  sharedBuffer: SharedArrayBuffer;
+  gridCols: number;
+  gridRows: number;
+  latMin: number;
+  lngMin: number;
+  step: number;
+}
+
+/** Full-name subfault type for documentation / display purposes */
 export interface NankaiSubfault {
   lat: number;
   lng: number;

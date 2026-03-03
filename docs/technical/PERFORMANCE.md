@@ -167,9 +167,9 @@ const chunkSize = Math.ceil(5773 / WORKER_COUNT);
 
 ```typescript
 // Main thread: SharedArrayBuffer 할당
-const GRID_SIZE = 500 * 500; // 250,000 points
-const shared = new SharedArrayBuffer(GRID_SIZE * 4); // Float32
-const resultGrid = new Float32Array(shared);
+const GRID_SIZE = 221 * 281; // 62,101 points (0.1° grid, lat 24-46, lng 122-150)
+const shared = new SharedArrayBuffer(GRID_SIZE * Int32Array.BYTES_PER_ELEMENT); // Int32 (Atomics requires integer types)
+const resultView = new Int32Array(shared);
 
 // 각 Worker에 동일한 shared buffer 전달
 workers.forEach((w, i) => {
@@ -211,14 +211,14 @@ function onWorkerChunkComplete(): void {
 
 | 항목 | 크기 | 산출 근거 |
 |------|------|----------|
-| IntensityGrid (single) | 1.0 MB | 500 × 500 × Float32 (4 bytes) |
-| IntensityGrid (Uint8 class) | 0.25 MB | 500 × 500 × Uint8 (1 byte) |
+| IntensityGrid (single) | 0.24 MB | 221 × 281 × Float32 (4 bytes) |
+| IntensityGrid (Uint8 class) | 0.06 MB | 221 × 281 × Uint8 (1 byte) |
 | Earthquake events (8,000) | 1.6 MB | ~200 bytes/event × 8,000 |
 | Globe textures (GPU) | ~8 MB | 4 textures, decompressed |
 | Plate boundaries (GeoJSON) | ~0.5 MB | 전체 GeoJSON parsed |
 | Nankai subfaults | 0.23 MB | 5,773 × ~40 bytes |
-| Nankai result grid (shared) | 1.0 MB | 250,000 × Float32 |
-| **Total estimated** | **~12.6 MB** | JS heap (GPU 별도) |
+| Nankai result grid (shared) | 0.24 MB | 62,101 × Int32 |
+| **Total estimated** | **~10.9 MB** | JS heap (GPU 별도) |
 
 ### 6.2 Typed Array Usage
 

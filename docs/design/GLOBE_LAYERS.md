@@ -1,6 +1,6 @@
 # Globe Layer Architecture
 
-globe.gl 라이브러리 기반 3D Globe 레이어 구조 명세.
+CesiumJS 기반 3D Globe 레이어 구조 명세. (초기 설계는 globe.gl 기준이었으나, 구현은 CesiumJS로 전환됨)
 각 레이어는 독립적으로 toggle 가능하며, 아래에서 위로 쌓이는 순서대로 렌더링됨.
 
 ---
@@ -171,7 +171,7 @@ globe
   .ringAltitude(0.001)                // 지표면 바로 위
   .ringMaxRadius((d: WaveRing) => d.maxRadius)
   .ringPropagationSpeed((d: WaveRing) => d.speed)
-  .ringRepeatPeriod(0)                // 0 = one-shot (반복 없음)
+  // Ring cleanup: lifetime = MAX_RADIUS_DEG / speed (CesiumJS CallbackProperty 기반)
   .ringColor((d: WaveRing) => d.color)
   .ringResolution(128);               // 부드러운 원
 ```

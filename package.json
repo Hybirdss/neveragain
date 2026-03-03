@@ -3,20 +3,32 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:slab2": "npx tsx tools/build-slab2-contours.ts",
+    "build:catalog": "npx tsx tools/build-historical-catalog.ts",
+    "build:data": "npm run build:slab2 && npm run build:catalog"
   },
   "devDependencies": {
-    "@types/three": "^0.183.1",
+    "@types/d3-contour": "^3.0.6",
+    "@types/d3-scale": "^4.0.9",
+    "@types/geojson": "^7946.0.16",
+    "tsx": "^4.19.0",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
+    "cesium": "^1.139.0",
     "d3-contour": "^4.0.2",
     "d3-scale": "^4.0.2",
-    "globe.gl": "^2.45.0",
-    "three": "^0.183.2"
+    "vite-plugin-cesium": "^1.2.23"
   }
 }

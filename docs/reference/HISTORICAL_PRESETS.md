@@ -222,7 +222,7 @@ interface EarthquakePreset {
   lat: number;
   lng: number;
   depth_km: number;
-  faultType: 'crustal' | 'interface' | 'slab';
+  faultType: 'crustal' | 'interface' | 'intraslab';
   usgsId?: string;
   date?: string;           // ISO 8601
   description: string;

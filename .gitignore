@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.agents/
+workers/tile-proxy/wrangler.toml
 
 # Editor directories and files
 .vscode/*
