@@ -1,0 +1,52 @@
+/* --- Dashboard Grid --- */
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr var(--sidebar-width);
+  grid-template-rows: 1fr var(--timeline-height);
+  grid-template-areas:
+    "globe sidebar"
+    "timeline timeline";
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+/* --- Globe Area --- */
+.globe-area {
+  grid-area: globe;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+#globe-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* CesiumJS viewer isolation — prevent global resets from breaking internals */
+#globe-container .cesium-viewer,
+#globe-container .cesium-widget,
+#globe-container .cesium-widget canvas {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  outline: none;
+}
+
+#globe-container * {
+  /* Restore CesiumJS internal element defaults */
+  box-sizing: content-box;
+}
+
+#globe-container button:active {
+  transform: none;
+  filter: none;
+}
+
+#globe-container :focus-visible {
+  outline: none;
+}

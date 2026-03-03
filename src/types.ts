@@ -133,6 +133,12 @@ export interface LayerVisibility {
   slab2Contours: boolean;
   crossSection: boolean;
   plateauBuildings: boolean;
+  gsiFaults: boolean;
+  gsiRelief: boolean;
+  gsiSlope: boolean;
+  gsiPale: boolean;
+  adminBoundary: boolean;
+  jshisHazard: boolean;
 }
 
 export type ViewPreset = 'default' | 'underground' | 'shakemap' | 'crossSection' | 'cinematic';

@@ -62,6 +62,7 @@ import { initShakeMapOverlay, updateShakeMapOverlay, clearShakeMapOverlay } from
 // Slab2 + ViewPreset
 import { initSlab2Contours } from './globe/features/slab2Contours';
 import { initPlateauBuildings, disposePlateau } from './globe/features/plateauBuildings';
+import { initGsiLayers } from './globe/layers/gsiLayers';
 import { setHistoricalCatalog, setCatalogActive, disposeSeismicPoints } from './globe/layers/seismicPoints';
 import { loadHistoricalCatalog } from './data/historicalCatalog';
 import { applyViewPreset } from './store/viewPresets';
@@ -85,6 +86,7 @@ import { initHudOverlay, updateHud } from './ui/hudOverlay';
 import { initLayerToggles, disposeLayerToggles } from './ui/layerToggles';
 import { initModeSwitcher } from './ui/modeSwitcher';
 import { initLocaleSwitcher, disposeLocaleSwitcher } from './ui/localeSwitcher';
+import { initDepthScale, disposeDepthScale } from './ui/depthScale';
 
 // Data (new)
 import { loadTimelineData } from './data/timelineLoader';
@@ -143,6 +145,7 @@ function createLayout(): LayoutContainers {
       </div>
       <div class="top-bar__divider"></div>
       <span class="top-bar__date mono">${new Date().toISOString().split('T')[0]}</span>
+      <span class="top-bar__clock" id="top-bar-clock"></span>
     </div>
     <div class="top-bar__right">
       <div class="top-bar__live-dot"></div>
@@ -150,6 +153,18 @@ function createLayout(): LayoutContainers {
     </div>
   `;
   globeArea.appendChild(topBar);
+
+  // Live clock
+  const clockEl = topBar.querySelector('#top-bar-clock') as HTMLElement;
+  function updateClock() {
+    const now = new Date();
+    const h = String((now.getUTCHours() + 9) % 24).padStart(2, '0'); // JST = UTC+9
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    clockEl.textContent = `${h}:${m}:${s} JST`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
 
   // Scenario trigger button (globe HUD)
   const scenarioBtn = document.createElement('button');
@@ -607,6 +622,9 @@ async function bootstrap(): Promise<void> {
   // PLATEAU 3D buildings
   initPlateauBuildings(globe);
 
+  // GSI overlay layers (Japan-only raster tiles)
+  initGsiLayers(globe);
+
   // Historical catalog for underground view (async, non-blocking)
   loadHistoricalCatalog().then((events) => {
     if (events.length > 0) setHistoricalCatalog(events);
@@ -620,6 +638,7 @@ async function bootstrap(): Promise<void> {
   initHudOverlay(globeArea);
   initLayerToggles(globeArea, globe);
   initLocaleSwitcher(globeArea);
+  initDepthScale(globeArea);
   initCrossSection(globeArea);
   initModeSwitcher(timelineContainer, {
     onLoadTimeline: (start, end) => {
@@ -684,6 +703,7 @@ async function bootstrap(): Promise<void> {
       disposeLayerToggle();
       disposeLayerToggles();
       disposeLocaleSwitcher();
+      disposeDepthScale();
       disposeSeismicPoints();
       disposeLabels();
       skipCinematic();

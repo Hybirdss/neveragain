@@ -26,6 +26,16 @@ const LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: strin
   { key: 'labels', i18nKey: 'layer.labels', color: '#888' },
 ];
 
+// GSI / J-SHIS overlay layers (Japan-only)
+const GSI_LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: string }[] = [
+  { key: 'gsiFaults', i18nKey: 'layer.gsiFaults', color: '#ff4444' },
+  { key: 'gsiRelief', i18nKey: 'layer.gsiRelief', color: '#22cc44' },
+  { key: 'gsiSlope', i18nKey: 'layer.gsiSlope', color: '#FAC611' },
+  { key: 'gsiPale', i18nKey: 'layer.gsiPale', color: '#888' },
+  { key: 'adminBoundary', i18nKey: 'layer.adminBoundary', color: '#4488ff' },
+  { key: 'jshisHazard', i18nKey: 'layer.jshisHazard', color: '#ff8800' },
+];
+
 let panelEl: HTMLElement | null = null;
 let toggleEls: Map<keyof LayerVisibility, { row: HTMLElement; dot: HTMLElement; label: HTMLElement }> = new Map();
 let unsubscribe: (() => void) | null = null;
@@ -122,11 +132,51 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
   });
 
   panelEl.appendChild(select);
+
+  // Separator (GSI layers)
+  const sep3 = document.createElement('div');
+  sep3.className = 'layer-toggles__separator';
+  panelEl.appendChild(sep3);
+
+  // GSI group title
+  const gsiTitle = document.createElement('div');
+  gsiTitle.className = 'layer-toggles__title';
+  gsiTitle.textContent = t('layer.gsiGroup');
+  panelEl.appendChild(gsiTitle);
+
+  // GSI layer toggles
+  for (const { key, i18nKey, color } of GSI_LAYER_LABELS) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'layer-toggle';
+    if (currentLayers[key]) row.classList.add('layer-toggle--on');
+    if (color) row.style.color = color;
+
+    const dot = document.createElement('div');
+    dot.className = 'layer-toggle__dot';
+    row.appendChild(dot);
+
+    const label = document.createElement('span');
+    label.textContent = t(i18nKey);
+    row.appendChild(label);
+
+    row.addEventListener('click', () => {
+      const layers = store.get('layers');
+      const updated: LayerVisibility = { ...layers, [key]: !layers[key] };
+      store.set('layers', updated);
+    });
+
+    toggleEls.set(key, { row, dot, label });
+    panelEl.appendChild(row);
+  }
+
   container.appendChild(panelEl);
+
+  const ALL_TOGGLE_LABELS = [...LAYER_LABELS, ...GSI_LAYER_LABELS];
 
   // Subscribe to store changes
   unsubscribe = store.subscribe('layers', (layers: LayerVisibility) => {
-    for (const { key } of LAYER_LABELS) {
+    for (const { key } of ALL_TOGGLE_LABELS) {
       const els = toggleEls.get(key);
       if (els) {
         if (layers[key]) {
@@ -141,7 +191,8 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
   // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
     if (titleEl) titleEl.textContent = t('layer.title');
-    for (const { key, i18nKey } of LAYER_LABELS) {
+    if (gsiTitle) gsiTitle.textContent = t('layer.gsiGroup');
+    for (const { key, i18nKey } of ALL_TOGGLE_LABELS) {
       const els = toggleEls.get(key);
       if (els) els.label.textContent = t(i18nKey);
     }

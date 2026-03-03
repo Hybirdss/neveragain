@@ -16,6 +16,14 @@ import { setShakeMapVisible } from '../features/shakeMapOverlay';
 import { setSlab2Visible } from '../features/slab2Contours';
 import { setPlateauVisible } from '../features/plateauBuildings';
 import { setLabelsVisible } from './labels';
+import {
+  setGsiFaultsVisible,
+  setGsiReliefVisible,
+  setGsiSlopeVisible,
+  setGsiPaleVisible,
+  setAdminBoundaryVisible,
+  setJshisHazardVisible,
+} from './gsiLayers';
 
 function applyVisibility(_viewer: GlobeInstance, layers: LayerVisibility): void {
   setPlatesVisible(layers.tectonicPlates);
@@ -26,6 +34,12 @@ function applyVisibility(_viewer: GlobeInstance, layers: LayerVisibility): void 
   setSlab2Visible(layers.slab2Contours);
   setPlateauVisible(layers.plateauBuildings);
   setLabelsVisible(layers.labels);
+  setGsiFaultsVisible(layers.gsiFaults);
+  setGsiReliefVisible(layers.gsiRelief);
+  setGsiSlopeVisible(layers.gsiSlope);
+  setGsiPaleVisible(layers.gsiPale);
+  setAdminBoundaryVisible(layers.adminBoundary);
+  setJshisHazardVisible(layers.jshisHazard);
 }
 
 let unsubscribe: (() => void) | null = null;

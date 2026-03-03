@@ -66,6 +66,15 @@ const en: Record<string, string> = {
   'layer.slab2': 'Slab2',
   'layer.labels': 'Labels',
 
+  // GSI overlay layers
+  'layer.gsiFaults': 'Active Faults',
+  'layer.gsiRelief': 'Elevation',
+  'layer.gsiSlope': 'Slope',
+  'layer.gsiPale': 'Pale Map',
+  'layer.adminBoundary': 'Boundaries',
+  'layer.jshisHazard': 'Seismic Hazard',
+  'layer.gsiGroup': 'GSI Maps',
+
   // Alert bar
   'alert.prefix': 'EARTHQUAKE ALERT',
 
@@ -85,6 +94,7 @@ const en: Record<string, string> = {
   'detail.intensitySource': 'Intensity Source',
   'detail.source.shakemap': 'USGS ShakeMap',
   'detail.source.gmpe': 'Estimated (GMPE)',
+  'detail.crossSection': 'Cross-Section',
 
   // PLATEAU 3D Buildings
   'layer.plateau': '3D Buildings',

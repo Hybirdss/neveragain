@@ -66,8 +66,17 @@ const ko: Record<string, string> = {
   'layer.slab2': 'Slab2',
   'layer.labels': '\ub77c\ubca8',
 
+  // GSI overlay layers
+  'layer.gsiFaults': '활성단층',
+  'layer.gsiRelief': '색별표고',
+  'layer.gsiSlope': '경사도',
+  'layer.gsiPale': '담색지도',
+  'layer.adminBoundary': '행정구역',
+  'layer.jshisHazard': '지진동예측',
+  'layer.gsiGroup': 'GSI 지도',
+
   // Alert bar
-  'alert.prefix': '\uc9c0\uc9c4 \uacbd\ubcf4',
+  'alert.prefix': '지진 경보',
 
   // Tsunami
   'tsunami.warning': '\uacbd\uace0',
@@ -85,6 +94,7 @@ const ko: Record<string, string> = {
   'detail.intensitySource': '\uc9c4\ub3c4 \uc18c\uc2a4',
   'detail.source.shakemap': 'USGS ShakeMap',
   'detail.source.gmpe': '\ucd94\uc815 (GMPE)',
+  'detail.crossSection': '\ub2e8\uba74\ud45c\uc2dc',
 
   // PLATEAU 3D Buildings
   'layer.plateau': '3D 건물',

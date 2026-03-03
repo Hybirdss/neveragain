@@ -1,0 +1,152 @@
+/* ============================================================
+ * NeverAgain — Control Center Theme
+ * "UI는 냉정하고, 데이터가 감동을 주는 구조."
+ *
+ * Token Architecture:
+ *   --surface-*   → background layers (base < panel < card < hover)
+ *   --border-*    → border hierarchy (subtle < default < strong < emphasis)
+ *   --text-*      → text hierarchy (primary > secondary > tertiary > disabled)
+ *   --accent-*    → semantic data colors (danger, warning, positive)
+ *   --color-*     → compat aliases for JS inline styles (→ canonical token)
+ * ============================================================ */
+
+@import url('https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-sans/style.css');
+@import url('https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-mono/style.css');
+@import url('https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css');
+
+/* --- Design Tokens --- */
+:root {
+  /* ── Surface (perceptually distinct 4-step hierarchy) ── */
+  --surface-base: #080808;
+  --surface-panel: #0e0e0e;
+  --surface-card: #151515;
+  --surface-hover: #1c1c1c;
+  --surface-danger-subtle: #1a0808;
+  --surface-overlay: rgba(0, 0, 0, 0.8);
+
+  /* Legacy aliases (consumed by grid layout, globe-area, etc.) */
+  --bg-primary: var(--surface-base);
+  --bg-secondary: var(--surface-panel);
+  --bg-card: var(--surface-card);
+  --bg-panel: var(--surface-panel);
+  --bg-panel-hover: var(--surface-hover);
+  --bg-analysis: #0d0d0d;
+
+  /* ── Border (4-step hierarchy) ── */
+  --border-subtle: #141414;
+  --border-default: #1a1a1a;
+  --border-strong: #222222;
+  --border-emphasis: #333333;
+  --border-danger-subtle: #331111;
+
+  --panel-border: 1px solid var(--border-subtle);
+  --panel-radius: 2px;
+  --glass-border: 1px solid var(--border-subtle);
+
+  /* ── Text (WCAG AA compliant on --surface-base) ── */
+  /* #e0e0e0 on #080808 → 16.5:1  ✓ */
+  /* #888888 on #080808 → 6.6:1   ✓ */
+  /* #606060 on #080808 → 4.7:1   ✓ (AA minimum for normal text) */
+  /* #444444 on #080808 → 3.2:1   ✗ — demoted to decorative-only */
+  --text-primary: #e0e0e0;
+  --text-secondary: #888888;
+  --text-tertiary: #606060;
+  --text-disabled: #444444;
+
+  /* ── Semantic Accent (data-only) ── */
+  --accent-danger: #ff4444;
+  --accent-warning: #FAC611;
+  --accent-positive: #22cc44;
+
+  /* ── Compat Aliases (consumed by JS inline styles — do NOT remove) ── */
+  /* --color-cyan was "active/highlight" → maps to --text-primary */
+  --color-cyan: var(--text-primary);
+  --color-cyan-dim: rgba(224, 224, 224, 0.06);
+  --accent-cyan: var(--text-primary);
+  --color-green: var(--accent-positive);
+  --color-red: var(--accent-danger);
+  --color-text: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-muted: var(--text-tertiary);
+  --color-border: var(--border-subtle);
+  --accent-warning: var(--accent-danger);
+  --accent-red: var(--accent-danger);
+  --accent-yellow: var(--accent-warning);
+  --accent-green: var(--accent-positive);
+
+  /* ── Analysis Panel ── */
+  --grid-line: var(--border-default);
+  --grid-label: #666666;
+  --slab-line: var(--accent-danger);
+
+  /* ── Typography ── */
+  --font-sans: 'Geist Sans', 'Wanted Sans Variable', 'Wanted Sans', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Courier New', Courier, monospace;
+  --text-2xs: 9px;
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 13px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+  --text-3xl: 42px;
+
+  /* ── Spacing (4px grid + intentional exceptions) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --spacing-panel-x: 14px;
+  --spacing-panel-y: 10px;
+
+  /* ── Layout ── */
+  --sidebar-width: 350px;
+  --sidebar-min-width: 320px;
+  --sidebar-max-width: 400px;
+  --timeline-height: 44px;
+  --hud-bottom-offset: 60px;
+  --alert-bar-height: 0px;
+  --hud-padding: var(--spacing-panel-y) var(--spacing-panel-x);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+
+  /* ── Z-Index Hierarchy ── */
+  --z-globe: 0;
+  --z-hud: 10;
+  --z-sidebar: 20;
+  --z-timeline: 30;
+  --z-vignette: 90;
+  --z-modal: 100;
+  --z-alert: 200;
+
+  /* ── Animation ── */
+  --ease-panel: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-ring: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-camera: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-alert: cubic-bezier(0.8, 0, 0.2, 1);
+
+  --duration-panel: 500ms;
+  --duration-hover: 250ms;
+  --duration-camera-slow: 2500ms;
+  --duration-camera-fast: 1200ms;
+  --duration-alert: 800ms;
+  --duration-fade-in: 400ms;
+  --duration-fade-out: 300ms;
+  --duration-data: 150ms;
+
+  /* ── JMA Seismic Intensity Colors ── */
+  --jma-0: #8ab4f8;
+  --jma-1: #669df6;
+  --jma-2: #4285f4;
+  --jma-3: #34a853;
+  --jma-4: #fbbc04;
+  --jma-5l: #f09300;
+  --jma-5u: #ea4335;
+  --jma-6l: #d93025;
+  --jma-6u: #b31412;
+  --jma-7: #801c80;
+  --jma-contour-fill-opacity: 0.45;
+  --jma-contour-stroke-opacity: 0.85;
+}

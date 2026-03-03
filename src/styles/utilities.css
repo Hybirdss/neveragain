@@ -1,0 +1,93 @@
+/* ============================================================
+ * Utilities — shared helper classes, scrollbar, skeleton, etc.
+ * ============================================================ */
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* --- Accent Text Helpers (compat) --- */
+.glow-cyan {
+  color: var(--text-primary);
+}
+
+.glow-red {
+  color: var(--accent-danger);
+}
+
+.panel-shadow {
+  /* removed — no decorative shadows in control center theme */
+}
+
+/* --- Status Indicators --- */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot--live {
+  background: var(--accent-positive);
+}
+
+.status-dot--stale {
+  background: var(--accent-warning);
+}
+
+.status-dot--offline {
+  background: var(--accent-danger);
+}
+
+/* --- Loading Skeleton --- */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-card) 25%,
+    var(--surface-hover) 50%,
+    var(--surface-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-scan 1.5s ease infinite;
+  border-radius: var(--panel-radius);
+}
+
+/* --- Empty State --- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.empty-state__text {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-tertiary);
+}
+
+/* --- Sidebar Toggle (mobile) --- */
+.sidebar-toggle {
+  display: none;
+  position: fixed;
+  right: var(--space-3);
+  top: var(--space-3);
+  z-index: calc(var(--z-sidebar) + 1);
+  width: 36px;
+  height: 36px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-primary);
+  font-size: 18px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Global Scrollbar --- */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }

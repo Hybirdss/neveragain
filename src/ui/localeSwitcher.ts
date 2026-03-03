@@ -58,8 +58,8 @@ export function initLocaleSwitcher(container: HTMLElement): void {
 
   Object.assign(panelEl.style, {
     position: 'absolute',
-    bottom: 'calc(var(--timeline-height) + var(--space-4))',
-    left: 'var(--space-6)',
+    bottom: '16px',
+    right: '16px',
     zIndex: 'var(--z-hud)',
     display: 'flex',
     flexDirection: 'row',

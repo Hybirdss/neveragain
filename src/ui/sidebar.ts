@@ -1,55 +1,47 @@
 /**
- * NeverAgain — Sidebar Component
+ * NeverAgain — Sidebar Component (Reference-quality design)
  *
- * Stats cards, magnitude histogram, and earthquake detail panel.
+ * Event list with rich items, refined detail panel with MMI bar,
+ * and credit footer. Inspired by seismic-japan-ui.jsx reference.
  * Pure DOM manipulation — no frameworks.
  */
 
 import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
-import { JMA_COLORS } from '../types';
 import { computeGmpe } from '../engine/gmpe';
 import { store } from '../store/appState';
 import { t, onLocaleChange } from '../i18n/index';
+import { depthToColor } from './depthScale';
+
+// MMI color palette (Modified Mercalli Intensity)
+const MMI_COLORS: Record<number, string> = {
+  1: '#FFFFFF', 2: '#ACD8E9', 3: '#7BC8E2', 4: '#83D0DA',
+  5: '#7BC87F', 6: '#F9F518', 7: '#FAC611', 8: '#FA8A11',
+  9: '#F7100C', 10: '#C80F0A',
+};
 
 // ---- Internal references ----
 let sidebarEl: HTMLElement;
-let totalQuakesVal: HTMLElement;
-let maxMagVal: HTMLElement;
-let avgMagVal: HTMLElement;
-let latestTimeVal: HTMLElement;
+let headerTitleEl: HTMLElement;
+let headerCountEl: HTMLElement;
+let alertBadgeEl: HTMLElement;
+let eventListEl: HTMLElement;
 
-// Histogram bar elements indexed by bucket key
-const histogramBars: Record<string, { bar: HTMLElement; count: HTMLElement }> = {};
-
-// Detail panel
+// Detail panel elements
 let detailPanel: HTMLElement;
-let detailMag: HTMLElement;
-let detailPlace: HTMLElement;
-let detailTime: HTMLElement;
-let detailCoords: HTMLElement;
-let detailDepth: HTMLElement;
-let detailFault: HTMLElement;
-let detailSource: HTMLElement;
-let detailJmaBadge: HTMLElement;
+let detailMagEl: HTMLElement;
+let detailPlaceEl: HTMLElement;
+let detailMetaEl: HTMLElement;
+let detailSourceTag: HTMLElement;
+let mmiBarContainer: HTMLElement;
+let mmiBarEl: HTMLElement;
+let mmiLevelEl: HTMLElement;
+let crossSectionBtn: HTMLElement;
 let cinematicBtn: HTMLElement;
 
-// Label elements for i18n updates
-let sidebarTitleEl: HTMLElement;
-let totalQuakesLabel: HTMLElement;
-let maxMagLabel: HTMLElement;
-let avgMagLabel: HTMLElement;
-let latestLabel: HTMLElement;
-let histogramTitleEl: HTMLElement;
-let detailKeyEls: Record<string, HTMLElement> = {};
 let unsubLocale: (() => void) | null = null;
 
-const HISTOGRAM_BUCKETS = [
-  { key: 'M3', label: 'M3-4', min: 3, max: 4, cls: '' },
-  { key: 'M4', label: 'M4-5', min: 4, max: 5, cls: 'histogram__bar--m4' },
-  { key: 'M5', label: 'M5-6', min: 5, max: 6, cls: 'histogram__bar--m5' },
-  { key: 'M6', label: 'M6-7', min: 6, max: 7, cls: 'histogram__bar--m6' },
-  { key: 'M7', label: 'M7+', min: 7, max: Infinity, cls: 'histogram__bar--m7' },
-];
+// Track current events for click handlers
+let currentEvents: EarthquakeEvent[] = [];
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -62,177 +54,235 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return e;
 }
 
-function buildStatCards(): HTMLElement {
-  const container = el('div', 'stat-cards');
-
-  // Total earthquakes
-  const cardTotal = el('div', 'stat-card');
-  totalQuakesLabel = el('div', 'stat-card__label', t('sidebar.totalQuakes'));
-  cardTotal.appendChild(totalQuakesLabel);
-  totalQuakesVal = el('div', 'stat-card__value', '0');
-  cardTotal.appendChild(totalQuakesVal);
-  container.appendChild(cardTotal);
-
-  // Max magnitude
-  const cardMax = el('div', 'stat-card stat-card--warning');
-  maxMagLabel = el('div', 'stat-card__label', t('sidebar.maxMag'));
-  cardMax.appendChild(maxMagLabel);
-  maxMagVal = el('div', 'stat-card__value', '--');
-  cardMax.appendChild(maxMagVal);
-  container.appendChild(cardMax);
-
-  // Average magnitude
-  const cardAvg = el('div', 'stat-card');
-  avgMagLabel = el('div', 'stat-card__label', t('sidebar.avgMag'));
-  cardAvg.appendChild(avgMagLabel);
-  avgMagVal = el('div', 'stat-card__value', '--');
-  cardAvg.appendChild(avgMagVal);
-  container.appendChild(cardAvg);
-
-  // Latest time
-  const cardTime = el('div', 'stat-card');
-  latestLabel = el('div', 'stat-card__label', t('sidebar.latest'));
-  cardTime.appendChild(latestLabel);
-  latestTimeVal = el('div', 'stat-card__value', '--');
-  latestTimeVal.style.fontSize = 'var(--text-sm)';
-  cardTime.appendChild(latestTimeVal);
-  container.appendChild(cardTime);
-
-  return container;
+function formatTimeShort(ts: number): string {
+  const d = new Date(ts);
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const m = String(d.getUTCMinutes()).padStart(2, '0');
+  const s = String(d.getUTCSeconds()).padStart(2, '0');
+  return `${h}:${m}:${s}`;
 }
 
-function buildHistogram(): HTMLElement {
-  const container = el('div', 'histogram');
-  histogramTitleEl = el('div', 'histogram__title', t('sidebar.magDistribution'));
-  container.appendChild(histogramTitleEl);
+function magColorClass(mag: number): string {
+  if (mag >= 6) return 'sidebar-item__mag--high';
+  if (mag >= 5) return 'sidebar-item__mag--mid';
+  return 'sidebar-item__mag--low';
+}
 
-  for (const bucket of HISTOGRAM_BUCKETS) {
-    const row = el('div', 'histogram__row');
+function buildHeader(): HTMLElement {
+  const header = el('div', 'sidebar__header');
 
-    row.appendChild(el('div', 'histogram__label', bucket.label));
+  const left = el('div', 'sidebar__header-left');
+  headerTitleEl = el('div', 'sidebar__header-title', t('sidebar.title'));
+  left.appendChild(headerTitleEl);
+  headerCountEl = el('div', 'sidebar__header-count', '0 events / 24h');
+  left.appendChild(headerCountEl);
+  header.appendChild(left);
 
-    const track = el('div', 'histogram__track');
-    const bar = el('div', `histogram__bar ${bucket.cls}`.trim());
-    bar.style.width = '0%';
-    track.appendChild(bar);
-    row.appendChild(track);
+  alertBadgeEl = el('div', 'sidebar__alert-badge', 'M5+ ALERT');
+  alertBadgeEl.style.display = 'none';
+  header.appendChild(alertBadgeEl);
 
-    const count = el('div', 'histogram__count', '0');
-    row.appendChild(count);
+  return header;
+}
 
-    histogramBars[bucket.key] = { bar, count };
-    container.appendChild(row);
+function buildEventList(): HTMLElement {
+  eventListEl = el('div', 'sidebar__event-list');
+  return eventListEl;
+}
+
+function renderEventItem(event: EarthquakeEvent, index: number, isActive: boolean): HTMLElement {
+  const item = el('div', `sidebar-item${isActive ? ' sidebar-item--active' : ''}`);
+  if (isActive) {
+    item.style.borderLeftColor = depthToColor(event.depth_km);
+  }
+  item.style.animation = `fadeUp .4s ease ${index * 0.06}s both`;
+
+  // Top row: mag + location | time
+  const top = el('div', 'sidebar-item__top');
+
+  const left = el('div', 'sidebar-item__left');
+  const mag = el('span', `sidebar-item__mag ${magColorClass(event.magnitude)}`);
+  mag.textContent = event.magnitude.toFixed(1);
+  left.appendChild(mag);
+  const loc = el('span', 'sidebar-item__location', event.place);
+  left.appendChild(loc);
+  top.appendChild(left);
+
+  const time = el('span', 'sidebar-item__time', formatTimeShort(event.time));
+  top.appendChild(time);
+  item.appendChild(top);
+
+  // Meta row: depth + dot + coords + source tag
+  const meta = el('div', 'sidebar-item__meta');
+
+  const depth = el('span', 'sidebar-item__depth', `${event.depth_km}km`);
+  meta.appendChild(depth);
+
+  const dot = el('div', 'sidebar-item__depth-dot');
+  dot.style.background = depthToColor(event.depth_km);
+  meta.appendChild(dot);
+
+  const coords = el('span', 'sidebar-item__coords');
+  coords.textContent = `${event.lat.toFixed(2)}°N ${event.lng.toFixed(2)}°E`;
+  meta.appendChild(coords);
+
+  // Source tag (if ShakeMap data available for M5+)
+  if (event.magnitude >= 5.0) {
+    const tag = el('span', 'source-tag source-tag--shakemap', 'ShakeMap');
+    meta.appendChild(tag);
+  } else if (event.magnitude >= 4.0) {
+    const tag = el('span', 'source-tag source-tag--gmpe', 'GMPE');
+    meta.appendChild(tag);
   }
 
-  return container;
+  item.appendChild(meta);
+
+  // Click handler
+  item.addEventListener('click', () => {
+    store.set('selectedEvent', event);
+  });
+
+  return item;
 }
 
 function buildDetailPanel(): HTMLElement {
   detailPanel = el('div', 'detail-panel detail-panel--hidden');
 
-  const header = el('div', 'detail-panel__header');
-  detailMag = el('span', 'detail-panel__magnitude', '');
-  detailPlace = el('span', 'detail-panel__place', '');
-  header.appendChild(detailMag);
-  header.appendChild(detailPlace);
+  // Header: mag + location on left, source tag on right
+  const header = el('div', 'detail-panel__header-refined');
+
+  const headerLeft = el('div', 'detail-panel__header-left');
+
+  const magRow = el('div', 'detail-panel__mag-row');
+  detailMagEl = el('span', 'detail-panel__magnitude-lg');
+  detailPlaceEl = el('span', 'detail-panel__place-lg');
+  magRow.appendChild(detailMagEl);
+  magRow.appendChild(detailPlaceEl);
+  headerLeft.appendChild(magRow);
+
+  detailMetaEl = el('div', 'detail-panel__meta-row');
+  headerLeft.appendChild(detailMetaEl);
+  header.appendChild(headerLeft);
+
+  detailSourceTag = el('span', 'source-tag');
+  detailSourceTag.style.display = 'none';
+  header.appendChild(detailSourceTag);
+
   detailPanel.appendChild(header);
 
-  // Rows
-  const rows: Array<{ i18nKey: string; ref: 'time' | 'coords' | 'depth' | 'fault' | 'source' | 'jma' }> = [
-    { i18nKey: 'detail.time', ref: 'time' },
-    { i18nKey: 'detail.location', ref: 'coords' },
-    { i18nKey: 'detail.depth', ref: 'depth' },
-    { i18nKey: 'detail.faultType', ref: 'fault' },
-    { i18nKey: 'detail.intensitySource', ref: 'source' },
-    { i18nKey: 'detail.jmaIntensity', ref: 'jma' },
-  ];
+  // MMI Bar
+  mmiBarContainer = el('div');
+  mmiBarContainer.style.marginTop = '10px';
+  mmiBarContainer.style.display = 'none';
 
-  for (const { i18nKey, ref } of rows) {
-    const row = el('div', 'detail-panel__row');
-    const keyEl = el('span', 'detail-panel__key', t(i18nKey));
-    detailKeyEls[ref] = keyEl;
-    row.appendChild(keyEl);
+  const mmiTitle = el('div', 'mmi-bar__title', 'MODIFIED MERCALLI INTENSITY');
+  mmiBarContainer.appendChild(mmiTitle);
 
-    if (ref === 'jma') {
-      detailJmaBadge = el('span', 'detail-panel__jma-badge');
-      row.appendChild(detailJmaBadge);
-    } else {
-      const val = el('span', 'detail-panel__val', '--');
-      row.appendChild(val);
-      if (ref === 'time') detailTime = val;
-      else if (ref === 'coords') detailCoords = val;
-      else if (ref === 'depth') detailDepth = val;
-      else if (ref === 'fault') detailFault = val;
-      else if (ref === 'source') detailSource = val;
-    }
-
-    detailPanel.appendChild(row);
+  mmiBarEl = el('div', 'mmi-bar');
+  for (let i = 1; i <= 10; i++) {
+    const seg = el('div', 'mmi-segment');
+    seg.style.background = MMI_COLORS[i];
+    seg.dataset.mmi = String(i);
+    mmiBarEl.appendChild(seg);
   }
+  mmiBarContainer.appendChild(mmiBarEl);
 
-  // Cinematic button (visible only for M5+ events)
-  cinematicBtn = el('button', 'cinematic-btn cinematic-btn--hidden');
-  cinematicBtn.textContent = t('sidebar.cinematic');
+  const labels = el('div', 'mmi-bar__labels');
+  labels.appendChild(el('span', 'mmi-bar__label', 'I'));
+  mmiLevelEl = el('span', 'mmi-bar__level');
+  labels.appendChild(mmiLevelEl);
+  labels.appendChild(el('span', 'mmi-bar__label', 'X'));
+  mmiBarContainer.appendChild(labels);
+
+  detailPanel.appendChild(mmiBarContainer);
+
+  // Action buttons
+  const actions = el('div', 'detail-actions');
+
+  crossSectionBtn = el('button', 'detail-action-btn', t('detail.crossSection'));
+  crossSectionBtn.addEventListener('click', () => {
+    store.set('viewPreset', 'crossSection');
+  });
+  actions.appendChild(crossSectionBtn);
+
+  cinematicBtn = el('button', 'detail-action-btn detail-action-btn--danger');
+  cinematicBtn.textContent = `▶ ${t('sidebar.cinematic')}`;
   cinematicBtn.addEventListener('click', () => {
     store.set('viewPreset', 'cinematic');
   });
-  detailPanel.appendChild(cinematicBtn);
+  actions.appendChild(cinematicBtn);
+
+  detailPanel.appendChild(actions);
 
   return detailPanel;
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toISOString().replace('T', ' ').slice(0, 19);
+function buildCreditFooter(): HTMLElement {
+  const credit = el('div', 'sidebar__credit');
+  const left = el('span', undefined, '© 国土地理院 · USGS');
+  const right = el('span', undefined, 'v0.4.0');
+  credit.appendChild(left);
+  credit.appendChild(right);
+  return credit;
 }
 
 function computeJmaForEvent(event: EarthquakeEvent): JmaClass {
   const result = computeGmpe({
     Mw: event.magnitude,
     depth_km: event.depth_km,
-    distance_km: Math.max(event.depth_km, 1), // hypocentral distance at epicenter — clamp ≥1 to avoid /0
+    distance_km: Math.max(event.depth_km, 1),
     faultType: event.faultType,
   });
   return result.jmaClass;
+}
+
+function jmaToMmi(jmaClass: JmaClass): number {
+  const map: Record<JmaClass, number> = {
+    '0': 1, '1': 2, '2': 3, '3': 4, '4': 5,
+    '5-': 6, '5+': 7, '6-': 8, '6+': 9, '7': 10,
+  };
+  return map[jmaClass] || 1;
+}
+
+function mmiDescription(mmi: number): string {
+  if (mmi >= 8) return '破壊的';
+  if (mmi >= 6) return '強震';
+  if (mmi >= 4) return '中震';
+  return '弱震';
 }
 
 // ---- Public API ----
 
 export function initSidebar(container: HTMLElement): void {
   sidebarEl = el('div', 'sidebar');
+  sidebarEl.style.animation = 'slideInR .5s ease both';
 
-  sidebarTitleEl = el('div', 'sidebar__title', t('sidebar.title'));
-  sidebarEl.appendChild(sidebarTitleEl);
-  sidebarEl.appendChild(buildStatCards());
-  sidebarEl.appendChild(buildHistogram());
+  sidebarEl.appendChild(buildHeader());
+  sidebarEl.appendChild(buildEventList());
   sidebarEl.appendChild(buildDetailPanel());
+  sidebarEl.appendChild(buildCreditFooter());
 
   container.appendChild(sidebarEl);
 
   // Mobile hamburger toggle
   const toggleBtn = el('button', 'sidebar-toggle');
-  toggleBtn.textContent = '\u2630'; // hamburger icon ☰
+  toggleBtn.textContent = '\u2630';
   toggleBtn.setAttribute('aria-label', 'Toggle sidebar');
   toggleBtn.addEventListener('click', () => {
     sidebarEl.classList.toggle('sidebar--open');
   });
   container.appendChild(toggleBtn);
 
-  // Subscribe to locale changes to update all labels dynamically
+  // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
-    sidebarTitleEl.textContent = t('sidebar.title');
-    totalQuakesLabel.textContent = t('sidebar.totalQuakes');
-    maxMagLabel.textContent = t('sidebar.maxMag');
-    avgMagLabel.textContent = t('sidebar.avgMag');
-    latestLabel.textContent = t('sidebar.latest');
-    histogramTitleEl.textContent = t('sidebar.magDistribution');
-    cinematicBtn.textContent = t('sidebar.cinematic');
-    // Detail panel key labels
-    if (detailKeyEls['time']) detailKeyEls['time'].textContent = t('detail.time');
-    if (detailKeyEls['coords']) detailKeyEls['coords'].textContent = t('detail.location');
-    if (detailKeyEls['depth']) detailKeyEls['depth'].textContent = t('detail.depth');
-    if (detailKeyEls['fault']) detailKeyEls['fault'].textContent = t('detail.faultType');
-    if (detailKeyEls['source']) detailKeyEls['source'].textContent = t('detail.intensitySource');
-    if (detailKeyEls['jma']) detailKeyEls['jma'].textContent = t('detail.jmaIntensity');
+    headerTitleEl.textContent = t('sidebar.title');
+    crossSectionBtn.textContent = t('detail.crossSection');
+    cinematicBtn.textContent = `▶ ${t('sidebar.cinematic')}`;
+    // Re-render event list with new locale
+    if (currentEvents.length > 0) {
+      const selected = store.get('selectedEvent');
+      renderEvents(currentEvents, selected);
+    }
   });
 }
 
@@ -241,86 +291,80 @@ export function disposeSidebar(): void {
   unsubLocale = null;
 }
 
+function renderEvents(events: EarthquakeEvent[], selectedEvent?: EarthquakeEvent | null): void {
+  eventListEl.innerHTML = '';
+  for (let i = 0; i < events.length; i++) {
+    const isActive = selectedEvent ? events[i].id === selectedEvent.id : false;
+    eventListEl.appendChild(renderEventItem(events[i], i, isActive));
+  }
+}
+
 export function updateSidebar(
   events: EarthquakeEvent[],
   selectedEvent?: EarthquakeEvent | null,
   intensitySource: IntensitySource = 'none',
 ): void {
-  // -- Stats --
-  totalQuakesVal.textContent = events.length.toLocaleString();
+  currentEvents = events;
 
-  if (events.length > 0) {
-    const mags = events.map((e) => e.magnitude);
-    const max = Math.max(...mags);
-    const avg = mags.reduce((a, b) => a + b, 0) / mags.length;
+  // Header count + alert badge
+  headerCountEl.textContent = `${events.length} events / 24h`;
+  const hasM5 = events.some(e => e.magnitude >= 5.0);
+  alertBadgeEl.style.display = hasM5 ? 'block' : 'none';
 
-    maxMagVal.textContent = `M${max.toFixed(1)}`;
-    avgMagVal.textContent = `M${avg.toFixed(1)}`;
+  // Render event list
+  renderEvents(events, selectedEvent);
 
-    // Latest event by time
-    let latest = events[0];
-    for (let i = 1; i < events.length; i++) {
-      if (events[i].time > latest.time) latest = events[i];
-    }
-    latestTimeVal.textContent = formatTime(latest.time);
-  } else {
-    maxMagVal.textContent = '--';
-    avgMagVal.textContent = '--';
-    latestTimeVal.textContent = '--';
-  }
-
-  // -- Histogram --
-  const counts: Record<string, number> = {};
-  for (const b of HISTOGRAM_BUCKETS) counts[b.key] = 0;
-
-  for (const ev of events) {
-    for (const b of HISTOGRAM_BUCKETS) {
-      if (ev.magnitude >= b.min && ev.magnitude < b.max) {
-        counts[b.key]++;
-        break;
-      }
-    }
-  }
-
-  const maxCount = Math.max(1, ...Object.values(counts));
-
-  for (const b of HISTOGRAM_BUCKETS) {
-    const { bar, count } = histogramBars[b.key];
-    const pct = (counts[b.key] / maxCount) * 100;
-    bar.style.width = `${pct}%`;
-    count.textContent = String(counts[b.key]);
-  }
-
-  // -- Detail panel --
+  // Detail panel
   if (selectedEvent) {
     detailPanel.classList.remove('detail-panel--hidden');
-    detailMag.textContent = `M ${selectedEvent.magnitude.toFixed(1)}`;
-    detailPlace.textContent = `\u2014 ${selectedEvent.place}`;
-    detailTime.textContent = formatTime(selectedEvent.time);
-    detailCoords.textContent =
-      `${Math.abs(selectedEvent.lat).toFixed(3)}\u00b0${selectedEvent.lat >= 0 ? 'N' : 'S'} ` +
-      `${Math.abs(selectedEvent.lng).toFixed(3)}\u00b0${selectedEvent.lng >= 0 ? 'E' : 'W'}`;
-    detailDepth.textContent = `${selectedEvent.depth_km} km`;
-    detailFault.textContent = selectedEvent.faultType;
-    detailSource.textContent = intensitySource === 'shakemap'
-      ? t('detail.source.shakemap')
-      : intensitySource === 'gmpe'
-        ? t('detail.source.gmpe')
-        : '--';
+    detailPanel.style.animation = 'fadeUp .3s ease both';
 
-    const jma = computeJmaForEvent(selectedEvent);
-    detailJmaBadge.textContent = jma;
-    detailJmaBadge.style.backgroundColor = JMA_COLORS[jma];
-    // Dark text for bright backgrounds
-    const brightClasses: JmaClass[] = ['3', '4', '5-', '5+'];
-    detailJmaBadge.style.color = brightClasses.includes(jma) ? '#000' : '#fff';
+    detailMagEl.textContent = `M${selectedEvent.magnitude.toFixed(1)}`;
+    detailPlaceEl.textContent = selectedEvent.place;
 
-    // Show cinematic button only for M5+ events
-    if (selectedEvent.magnitude >= 5.0) {
-      cinematicBtn.classList.remove('cinematic-btn--hidden');
+    // Meta row
+    detailMetaEl.innerHTML = '';
+    const depthSpan = el('span');
+    depthSpan.innerHTML = `深さ <span style="color:var(--text-secondary)">${selectedEvent.depth_km}km</span>`;
+    detailMetaEl.appendChild(depthSpan);
+    detailMetaEl.appendChild(el('span', undefined,
+      `${Math.abs(selectedEvent.lat).toFixed(3)}°${selectedEvent.lat >= 0 ? 'N' : 'S'}`));
+    detailMetaEl.appendChild(el('span', undefined,
+      `${Math.abs(selectedEvent.lng).toFixed(3)}°${selectedEvent.lng >= 0 ? 'E' : 'W'}`));
+
+    // Source tag
+    if (intensitySource === 'shakemap') {
+      detailSourceTag.className = 'source-tag source-tag--shakemap';
+      detailSourceTag.textContent = 'USGS ShakeMap';
+      detailSourceTag.style.display = 'inline-block';
+      detailSourceTag.style.fontSize = 'var(--text-xs)';
+    } else if (intensitySource === 'gmpe') {
+      detailSourceTag.className = 'source-tag source-tag--gmpe';
+      detailSourceTag.textContent = 'Estimated (GMPE)';
+      detailSourceTag.style.display = 'inline-block';
+      detailSourceTag.style.fontSize = 'var(--text-xs)';
     } else {
-      cinematicBtn.classList.add('cinematic-btn--hidden');
+      detailSourceTag.style.display = 'none';
     }
+
+    // MMI Bar
+    const jma = computeJmaForEvent(selectedEvent);
+    const mmi = jmaToMmi(jma);
+    if (mmi >= 2) {
+      mmiBarContainer.style.display = 'block';
+      const segments = mmiBarEl.children;
+      for (let i = 0; i < segments.length; i++) {
+        (segments[i] as HTMLElement).style.opacity = (i + 1) <= mmi ? '0.7' : '0.1';
+      }
+      mmiLevelEl.textContent = mmiDescription(mmi);
+      mmiLevelEl.style.color = MMI_COLORS[mmi] || '#888';
+    } else {
+      mmiBarContainer.style.display = 'none';
+    }
+
+    // Action buttons visibility
+    crossSectionBtn.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';
+    cinematicBtn.style.display = selectedEvent.magnitude >= 5.0 ? 'block' : 'none';
   } else {
     detailPanel.classList.add('detail-panel--hidden');
   }
