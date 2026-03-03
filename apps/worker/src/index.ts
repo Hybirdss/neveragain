@@ -7,12 +7,10 @@ import { handleCron } from './routes/cron.ts';
 
 export interface Env {
   DATABASE_URL: string;
-  ANTHROPIC_API_KEY: string;
+  XAI_API_KEY: string;
   RATE_LIMIT: KVNamespace;
-  CLAUDE_MODEL_S: string;
-  CLAUDE_MODEL_A: string;
-  CLAUDE_MODEL_B: string;
   ALLOWED_ORIGINS?: string;
+  INTERNAL_API_TOKEN?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
