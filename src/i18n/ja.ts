@@ -73,7 +73,8 @@ const ja: Record<string, string> = {
   'layer.gsiPale': '淡色地図',
   'layer.adminBoundary': '行政区域',
   'layer.jshisHazard': '地震動予測',
-  'layer.gsiGroup': 'GSI地図',
+  'layer.gsiBaseGroup': '背景地図',
+  'layer.gsiOverlayGroup': 'オーバーレイ',
 
   // Alert bar
   'alert.prefix': '地震速報',

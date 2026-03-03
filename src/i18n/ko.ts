@@ -73,7 +73,8 @@ const ko: Record<string, string> = {
   'layer.gsiPale': '담색지도',
   'layer.adminBoundary': '행정구역',
   'layer.jshisHazard': '지진동예측',
-  'layer.gsiGroup': 'GSI 지도',
+  'layer.gsiBaseGroup': '배경지도',
+  'layer.gsiOverlayGroup': '오버레이',
 
   // Alert bar
   'alert.prefix': '지진 경보',

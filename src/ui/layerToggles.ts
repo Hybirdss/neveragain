@@ -3,6 +3,11 @@
  *
  * Renders a floating panel with dot toggles (inspired by reference UI),
  * a Japan focus button, and a PLATEAU city selector.
+ *
+ * GSI layers are split into two groups:
+ *   - Base maps (relief/slope/pale): radio group — one at a time
+ *   - Overlays (faults/boundary/hazard): independent checkboxes
+ *
  * Uses CSS classes from style.css .layer-toggles block.
  */
 
@@ -14,7 +19,9 @@ import { t, onLocaleChange } from '../i18n/index';
 import type { PlateauCityId } from '../types';
 import { PLATEAU_CITIES } from '../globe/features/plateauBuildings';
 
-// Layer key → i18n key
+// ── Layer definitions ───────────────────────────────────────────
+
+// Core analysis layers (independent toggles)
 const LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: string }[] = [
   { key: 'tectonicPlates', i18nKey: 'layer.plates', color: '#666' },
   { key: 'seismicPoints', i18nKey: 'layer.quakes', color: '#ff4444' },
@@ -26,69 +33,98 @@ const LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: strin
   { key: 'labels', i18nKey: 'layer.labels', color: '#888' },
 ];
 
-// GSI / J-SHIS overlay layers (Japan-only)
-const GSI_LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: string }[] = [
-  { key: 'gsiFaults', i18nKey: 'layer.gsiFaults', color: '#ff4444' },
+// GSI base maps (mutually exclusive — radio behavior)
+const GSI_BASE_KEYS: (keyof LayerVisibility)[] = ['gsiRelief', 'gsiSlope', 'gsiPale'];
+const GSI_BASE_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: string }[] = [
   { key: 'gsiRelief', i18nKey: 'layer.gsiRelief', color: '#22cc44' },
   { key: 'gsiSlope', i18nKey: 'layer.gsiSlope', color: '#FAC611' },
   { key: 'gsiPale', i18nKey: 'layer.gsiPale', color: '#888' },
+];
+
+// GSI overlays (independent toggles, stack on top)
+const GSI_OVERLAY_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: string }[] = [
+  { key: 'gsiFaults', i18nKey: 'layer.gsiFaults', color: '#ff4444' },
   { key: 'adminBoundary', i18nKey: 'layer.adminBoundary', color: '#4488ff' },
   { key: 'jshisHazard', i18nKey: 'layer.jshisHazard', color: '#ff8800' },
 ];
+
+// ── State ───────────────────────────────────────────────────────
 
 let panelEl: HTMLElement | null = null;
 let toggleEls: Map<keyof LayerVisibility, { row: HTMLElement; dot: HTMLElement; label: HTMLElement }> = new Map();
 let unsubscribe: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 let titleEl: HTMLElement | null = null;
+let gsiBaseTitleEl: HTMLElement | null = null;
+let gsiOverlayTitleEl: HTMLElement | null = null;
 let viewerRef: GlobeInstance | null = null;
 let citySelect: HTMLSelectElement | null = null;
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+function createToggleRow(
+  key: keyof LayerVisibility,
+  i18nKey: string,
+  color: string | undefined,
+  isOn: boolean,
+  onClick: () => void,
+): HTMLButtonElement {
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'layer-toggle';
+  if (isOn) row.classList.add('layer-toggle--on');
+  if (color) row.style.color = color;
+
+  const dot = document.createElement('div');
+  dot.className = 'layer-toggle__dot';
+  row.appendChild(dot);
+
+  const label = document.createElement('span');
+  label.textContent = t(i18nKey);
+  row.appendChild(label);
+
+  row.addEventListener('click', onClick);
+  toggleEls.set(key, { row, dot, label });
+  return row;
+}
+
+function createSeparator(): HTMLDivElement {
+  const sep = document.createElement('div');
+  sep.className = 'layer-toggles__separator';
+  return sep;
+}
+
+function createGroupTitle(i18nKey: string): HTMLDivElement {
+  const el = document.createElement('div');
+  el.className = 'layer-toggles__title';
+  el.textContent = t(i18nKey);
+  return el;
+}
+
+// ── Init ────────────────────────────────────────────────────────
 
 export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance): void {
   viewerRef = viewer ?? null;
   panelEl = document.createElement('div');
   panelEl.className = 'layer-toggles';
 
-  // Title
-  titleEl = document.createElement('div');
-  titleEl.className = 'layer-toggles__title';
-  titleEl.textContent = t('layer.title');
-  panelEl.appendChild(titleEl);
-
-  // Create dot toggles
   const currentLayers = store.get('layers');
 
+  // ── Section: Core analysis layers ──
+  titleEl = createGroupTitle('layer.title');
+  panelEl.appendChild(titleEl);
+
   for (const { key, i18nKey, color } of LAYER_LABELS) {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'layer-toggle';
-    if (currentLayers[key]) row.classList.add('layer-toggle--on');
-    if (color) row.style.color = color;
-
-    const dot = document.createElement('div');
-    dot.className = 'layer-toggle__dot';
-    row.appendChild(dot);
-
-    const label = document.createElement('span');
-    label.textContent = t(i18nKey);
-    row.appendChild(label);
-
-    row.addEventListener('click', () => {
+    const row = createToggleRow(key, i18nKey, color, currentLayers[key], () => {
       const layers = store.get('layers');
-      const updated: LayerVisibility = { ...layers, [key]: !layers[key] };
-      store.set('layers', updated);
+      store.set('layers', { ...layers, [key]: !layers[key] });
     });
-
-    toggleEls.set(key, { row, dot, label });
     panelEl.appendChild(row);
   }
 
-  // Separator
-  const sep = document.createElement('div');
-  sep.className = 'layer-toggles__separator';
-  panelEl.appendChild(sep);
+  // ── Section: Japan focus + PLATEAU ──
+  panelEl.appendChild(createSeparator());
 
-  // Japan Focus button
   const japanBtn = document.createElement('button');
   japanBtn.type = 'button';
   japanBtn.className = 'layer-toggles__action-btn';
@@ -98,12 +134,8 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
   });
   panelEl.appendChild(japanBtn);
 
-  // Separator (PLATEAU)
-  const sep2 = document.createElement('div');
-  sep2.className = 'layer-toggles__separator';
-  panelEl.appendChild(sep2);
+  panelEl.appendChild(createSeparator());
 
-  // PLATEAU City Selector
   const select = document.createElement('select');
   citySelect = select;
   select.className = 'layer-toggles__select';
@@ -120,63 +152,62 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
     select.appendChild(opt);
   }
 
-  const currentCity = store.get('plateauCity');
-  select.value = currentCity ?? '';
-
+  select.value = store.get('plateauCity') ?? '';
   select.addEventListener('change', () => {
     store.set('plateauCity', select.value as PlateauCityId || null);
   });
-
   store.subscribe('plateauCity', (val: PlateauCityId | null) => {
     select.value = val ?? '';
   });
-
   panelEl.appendChild(select);
 
-  // Separator (GSI layers)
-  const sep3 = document.createElement('div');
-  sep3.className = 'layer-toggles__separator';
-  panelEl.appendChild(sep3);
+  // ── Section: GSI base maps (radio group) ──
+  panelEl.appendChild(createSeparator());
 
-  // GSI group title
-  const gsiTitle = document.createElement('div');
-  gsiTitle.className = 'layer-toggles__title';
-  gsiTitle.textContent = t('layer.gsiGroup');
-  panelEl.appendChild(gsiTitle);
+  gsiBaseTitleEl = createGroupTitle('layer.gsiBaseGroup');
+  panelEl.appendChild(gsiBaseTitleEl);
 
-  // GSI layer toggles
-  for (const { key, i18nKey, color } of GSI_LAYER_LABELS) {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'layer-toggle';
-    if (currentLayers[key]) row.classList.add('layer-toggle--on');
-    if (color) row.style.color = color;
-
-    const dot = document.createElement('div');
-    dot.className = 'layer-toggle__dot';
-    row.appendChild(dot);
-
-    const label = document.createElement('span');
-    label.textContent = t(i18nKey);
-    row.appendChild(label);
-
-    row.addEventListener('click', () => {
+  for (const { key, i18nKey, color } of GSI_BASE_LABELS) {
+    const row = createToggleRow(key, i18nKey, color, currentLayers[key], () => {
       const layers = store.get('layers');
-      const updated: LayerVisibility = { ...layers, [key]: !layers[key] };
-      store.set('layers', updated);
-    });
+      const isCurrentlyOn = layers[key];
 
-    toggleEls.set(key, { row, dot, label });
+      if (isCurrentlyOn) {
+        // Just turn off
+        store.set('layers', { ...layers, [key]: false });
+      } else {
+        // Turn on this one, turn off other base maps
+        const updated = { ...layers };
+        for (const bk of GSI_BASE_KEYS) {
+          updated[bk] = bk === key;
+        }
+        store.set('layers', updated);
+      }
+    });
+    panelEl.appendChild(row);
+  }
+
+  // ── Section: GSI overlays (independent) ──
+  panelEl.appendChild(createSeparator());
+
+  gsiOverlayTitleEl = createGroupTitle('layer.gsiOverlayGroup');
+  panelEl.appendChild(gsiOverlayTitleEl);
+
+  for (const { key, i18nKey, color } of GSI_OVERLAY_LABELS) {
+    const row = createToggleRow(key, i18nKey, color, currentLayers[key], () => {
+      const layers = store.get('layers');
+      store.set('layers', { ...layers, [key]: !layers[key] });
+    });
     panelEl.appendChild(row);
   }
 
   container.appendChild(panelEl);
 
-  const ALL_TOGGLE_LABELS = [...LAYER_LABELS, ...GSI_LAYER_LABELS];
+  // ── Subscriptions ──
+  const ALL_LABELS = [...LAYER_LABELS, ...GSI_BASE_LABELS, ...GSI_OVERLAY_LABELS];
 
-  // Subscribe to store changes
   unsubscribe = store.subscribe('layers', (layers: LayerVisibility) => {
-    for (const { key } of ALL_TOGGLE_LABELS) {
+    for (const { key } of ALL_LABELS) {
       const els = toggleEls.get(key);
       if (els) {
         if (layers[key]) {
@@ -188,11 +219,11 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
     }
   });
 
-  // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
     if (titleEl) titleEl.textContent = t('layer.title');
-    if (gsiTitle) gsiTitle.textContent = t('layer.gsiGroup');
-    for (const { key, i18nKey } of ALL_TOGGLE_LABELS) {
+    if (gsiBaseTitleEl) gsiBaseTitleEl.textContent = t('layer.gsiBaseGroup');
+    if (gsiOverlayTitleEl) gsiOverlayTitleEl.textContent = t('layer.gsiOverlayGroup');
+    for (const { key, i18nKey } of ALL_LABELS) {
       const els = toggleEls.get(key);
       if (els) els.label.textContent = t(i18nKey);
     }
@@ -213,6 +244,8 @@ export function disposeLayerToggles(): void {
   panelEl?.remove();
   panelEl = null;
   titleEl = null;
+  gsiBaseTitleEl = null;
+  gsiOverlayTitleEl = null;
   citySelect = null;
   toggleEls.clear();
 }

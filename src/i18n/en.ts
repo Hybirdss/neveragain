@@ -73,7 +73,8 @@ const en: Record<string, string> = {
   'layer.gsiPale': 'Pale Map',
   'layer.adminBoundary': 'Boundaries',
   'layer.jshisHazard': 'Seismic Hazard',
-  'layer.gsiGroup': 'GSI Maps',
+  'layer.gsiBaseGroup': 'Base Map',
+  'layer.gsiOverlayGroup': 'Overlay',
 
   // Alert bar
   'alert.prefix': 'EARTHQUAKE ALERT',
