@@ -1,0 +1,195 @@
+/**
+ * NeverAgain — Shared Type Contracts
+ *
+ * 모든 에이전트(seismic-engine, globe-viz, dashboard-ui, data-pipeline)가
+ * 이 파일의 인터페이스를 준수해야 한다.
+ * 변경 시 전체 모듈 영향도를 반드시 확인할 것.
+ */
+
+// ============================================================
+// Earthquake Event (data-pipeline → all modules)
+// ============================================================
+
+export type FaultType = 'crustal' | 'interface' | 'intraslab';
+
+export interface EarthquakeEvent {
+  id: string;
+  lat: number;
+  lng: number;
+  depth_km: number;
+  magnitude: number;
+  time: number; // Unix timestamp (ms)
+  faultType: FaultType;
+  tsunami: boolean;
+  place: string;
+}
+
+// ============================================================
+// GMPE Engine (seismic-engine → globe-viz, dashboard-ui)
+// ============================================================
+
+export interface GmpeInput {
+  Mw: number;          // Moment magnitude (capped at 8.3 in engine)
+  depth_km: number;    // Focal depth D (km)
+  distance_km: number; // Rupture distance X (km)
+  faultType: FaultType;
+}
+
+export interface GmpeResult {
+  pgv600: number;       // PGV at Vs30=600 m/s (cm/s)
+  pgv_surface: number;  // PGV at Vs30=400 m/s (cm/s), = pgv600 × 1.41
+  jmaIntensity: number; // Continuous JMA instrumental intensity
+  jmaClass: JmaClass;   // Discrete JMA display level
+}
+
+export type JmaClass = '0' | '1' | '2' | '3' | '4' | '5-' | '5+' | '6-' | '6+' | '7';
+
+// ============================================================
+// Intensity Grid (seismic-engine → globe-viz)
+// ============================================================
+
+export interface IntensityGrid {
+  data: Float32Array;  // Flat array of JMA intensities, row-major
+  cols: number;        // Grid columns (longitude direction)
+  rows: number;        // Grid rows (latitude direction)
+  center: { lat: number; lng: number };
+  radiusDeg: number;   // Half-span in degrees from center
+}
+
+// ============================================================
+// Wave Propagation (seismic-engine → globe-viz)
+// ============================================================
+
+export interface WaveState {
+  epicenter: { lat: number; lng: number };
+  depth_km: number;
+  pWaveRadiusDeg: number;  // Current P-wave front radius (degrees)
+  sWaveRadiusDeg: number;  // Current S-wave front radius (degrees)
+  elapsedSec: number;      // Seconds since earthquake origin time
+}
+
+export interface WaveConfig {
+  vpKmPerSec: number;   // P-wave velocity (default: 6.0)
+  vsKmPerSec: number;   // S-wave velocity (default: 3.5)
+}
+
+// ============================================================
+// Timeline (dashboard-ui → globe-viz, seismic-engine)
+// ============================================================
+
+export interface TimelineState {
+  events: EarthquakeEvent[];
+  currentIndex: number;
+  currentTime: number; // Simulated Unix timestamp (ms)
+  isPlaying: boolean;
+  speed: number;       // Multiplier: 1, 10, 100, 1000
+  timeRange: [number, number]; // [start, end] Unix ms
+}
+
+// ============================================================
+// App State (store → all modules)
+// ============================================================
+
+export type AppMode = 'realtime' | 'timeline' | 'scenario';
+
+export interface AppState {
+  mode: AppMode;
+  selectedEvent: EarthquakeEvent | null;
+  intensityGrid: IntensityGrid | null;
+  waveState: WaveState | null;
+  timeline: TimelineState;
+  layers: LayerVisibility;
+}
+
+export interface LayerVisibility {
+  tectonicPlates: boolean;
+  seismicPoints: boolean;
+  waveRings: boolean;
+  isoseismalContours: boolean;
+  labels: boolean;
+}
+
+// ============================================================
+// Worker Messages (seismic-engine internal)
+// ============================================================
+
+export interface GmpeWorkerRequest {
+  type: 'COMPUTE_GRID';
+  epicenter: { lat: number; lng: number };
+  Mw: number;
+  depth_km: number;
+  faultType: FaultType;
+  gridSpacingDeg: number;
+  radiusDeg: number;
+}
+
+export interface GmpeWorkerResponse {
+  type: 'GRID_COMPLETE';
+  grid: IntensityGrid;
+}
+
+export interface NankaiWorkerRequest {
+  type: 'NANKAI_SLICE';
+  subfaults: NankaiSubfault[];
+  gridCols: number;
+  gridRows: number;
+  gridCenter: { lat: number; lng: number };
+  gridRadiusDeg: number;
+}
+
+export interface NankaiSubfault {
+  lat: number;
+  lng: number;
+  depth_km: number;
+  Mw: number;
+  slip_m: number;
+  strike: number;  // degrees
+  dip: number;     // degrees
+  rake: number;    // degrees
+}
+
+// ============================================================
+// Historical Presets
+// ============================================================
+
+export interface HistoricalPreset {
+  id: string;
+  name: string;
+  epicenter: { lat: number; lng: number };
+  Mw: number;
+  depth_km: number;
+  faultType: FaultType;
+  usgsId: string | null;
+  startTime: string | null; // ISO 8601
+  description: string;
+}
+
+// ============================================================
+// JMA Color Scale
+// ============================================================
+
+export const JMA_COLORS: Record<JmaClass, string> = {
+  '0': '#9bbfd4',
+  '1': '#6699cc',
+  '2': '#3399cc',
+  '3': '#33cc66',
+  '4': '#ffff00',
+  '5-': '#ff9900',
+  '5+': '#ff6600',
+  '6-': '#ff3300',
+  '6+': '#cc0000',
+  '7': '#990099',
+};
+
+export const JMA_THRESHOLDS: { class: JmaClass; min: number }[] = [
+  { class: '7', min: 6.5 },
+  { class: '6+', min: 6.0 },
+  { class: '6-', min: 5.5 },
+  { class: '5+', min: 5.0 },
+  { class: '5-', min: 4.5 },
+  { class: '4', min: 3.5 },
+  { class: '3', min: 2.5 },
+  { class: '2', min: 1.5 },
+  { class: '1', min: 0.5 },
+  { class: '0', min: -Infinity },
+];
