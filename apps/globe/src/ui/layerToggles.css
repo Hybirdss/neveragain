@@ -1,0 +1,102 @@
+/* --- Layer Toggles (dot-style) --- */
+.layer-toggles {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: var(--z-hud);
+  background: rgba(10, 10, 10, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: var(--spacing-panel-y) var(--spacing-panel-x);
+}
+
+.layer-toggles__title {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--duration-hover) ease;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+.layer-toggle:hover {
+  opacity: 0.85;
+}
+
+.layer-toggle--on {
+  opacity: 1;
+}
+
+.layer-toggle__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--text-disabled);
+  flex-shrink: 0;
+  transition: all var(--duration-hover) ease;
+}
+
+.layer-toggle--on .layer-toggle__dot {
+  background: currentColor;
+  border-color: currentColor;
+}
+
+.layer-toggles__separator {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 6px 0;
+}
+
+.layer-toggles__action-btn {
+  display: block;
+  width: 100%;
+  padding: 5px 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--duration-hover) ease;
+}
+
+.layer-toggles__action-btn:hover {
+  color: var(--text-primary);
+}
+
+.layer-toggles__select {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--duration-hover) ease;
+}
+
+.layer-toggles__select:focus {
+  border-color: var(--accent-danger);
+}

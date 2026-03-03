@@ -92,7 +92,8 @@ function renderEventItem(event: EarthquakeEvent, index: number, isActive: boolea
   if (isActive) {
     item.style.borderLeftColor = depthToColor(event.depth_km);
   }
-  item.style.animation = `fadeUp .4s ease ${index * 0.06}s both`;
+  // Keep list updates stable and non-distracting.
+  void index;
 
   // Top row: mag + location | time
   const top = el('div', 'sidebar-item__top');
@@ -254,7 +255,6 @@ function mmiDescription(mmi: number): string {
 
 export function initSidebar(container: HTMLElement): void {
   sidebarEl = el('div', 'sidebar');
-  sidebarEl.style.animation = 'slideInR .5s ease both';
 
   sidebarEl.appendChild(buildHeader());
   sidebarEl.appendChild(buildEventList());
@@ -370,7 +370,6 @@ export function updateSidebar(
   // Detail panel
   if (selectedEvent) {
     detailPanel.classList.remove('detail-panel--hidden');
-    detailPanel.style.animation = 'fadeUp .3s ease both';
 
     detailMagEl.textContent = `M${selectedEvent.magnitude.toFixed(1)}`;
     detailPlaceEl.textContent = getPlaceText(selectedEvent.place);

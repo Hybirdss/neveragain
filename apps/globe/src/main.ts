@@ -131,7 +131,7 @@ interface LayoutContainers {
 
 function createLayout(): LayoutContainers {
   const app = document.getElementById('app')!;
-  app.className = 'dashboard scanlines';
+  app.className = 'dashboard';
   app.innerHTML = '';
 
   // Globe area (wraps globe-container for relative positioning of HUD/legend)

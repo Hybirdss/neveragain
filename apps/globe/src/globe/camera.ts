@@ -3,7 +3,7 @@
  *
  * Provides:
  * 1. flyToEarthquake() — magnitude-based camera fly-to
- * 2. Idle auto-rotation at 0.3 RPM, paused during user interaction
+ * 2. Idle auto-rotation (disabled for focus-first UX)
  * 3. User override detection — drag/zoom interrupts choreography
  * 4. Scenario camera path execution (scripted keyframe sequences)
  */
@@ -22,6 +22,7 @@ export const CAMERA = {
   INITIAL_LNG: 138,
   INITIAL_ALTITUDE: 2.5,
 
+  IDLE_AUTOROTATE_ENABLED: false,
   IDLE_RPM: 0.3,
   IDLE_RESUME_DELAY_MS: 5000,
 
@@ -72,7 +73,7 @@ function setAutoRotate(viewer: GlobeInstance, enabled: boolean): void {
     rotationTickHandler = null;
   }
 
-  if (enabled) {
+  if (enabled && CAMERA.IDLE_AUTOROTATE_ENABLED) {
     const radiansPerSecond = (CAMERA.IDLE_RPM * 2 * Math.PI) / 60;
     let lastTime = Date.now();
 
@@ -131,12 +132,14 @@ function flyTo(
  * Initialise camera — enable idle auto-rotate and listen for user interaction.
  */
 export function initCamera(viewer: GlobeInstance): void {
-  // Start idle rotation after 5 seconds
-  setTimeout(() => {
-    if (!userHasOverridden && !choreographyActive) {
-      setAutoRotate(viewer, true);
-    }
-  }, 5000);
+  // Idle rotation intentionally disabled in the current visual mode.
+  if (CAMERA.IDLE_AUTOROTATE_ENABLED) {
+    setTimeout(() => {
+      if (!userHasOverridden && !choreographyActive) {
+        setAutoRotate(viewer, true);
+      }
+    }, 5000);
+  }
 
   eventHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   const interactionHandler = () => onUserInteraction(viewer);

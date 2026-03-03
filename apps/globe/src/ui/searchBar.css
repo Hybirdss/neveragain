@@ -1,0 +1,133 @@
+/* ============================================================
+ * Namazue — Search Bar (CMD+K)
+ * ============================================================ */
+
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+}
+
+.search-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.search-dialog {
+  position: relative;
+  width: min(560px, 90vw);
+  background: var(--bg-surface, #111827);
+  border: 1px solid var(--border-default, #1f2937);
+  border-radius: var(--radius-xl, 12px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default, #1f2937);
+}
+
+.search-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary, #f1f5f9);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.search-input::placeholder {
+  color: var(--text-disabled, #475569);
+}
+
+.search-kbd {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  background: var(--bg-elevated, #1f2937);
+  border: 1px solid var(--border-default, #374151);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.search-results {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary, #f1f5f9);
+  font-family: inherit;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+
+.search-result-item:hover {
+  background: var(--bg-elevated, #1f2937);
+}
+
+.search-result-mag {
+  flex-shrink: 0;
+  width: 40px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: var(--accent-warning, #f59e0b);
+}
+
+.search-result-place {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-date {
+  flex-shrink: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.search-loading,
+.search-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.search-footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-default, #1f2937);
+}
+
+.search-hint {
+  font-size: 11px;
+  color: var(--text-disabled, #475569);
+}
