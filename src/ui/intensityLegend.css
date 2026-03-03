@@ -1,0 +1,47 @@
+/* --- Intensity Legend --- */
+.intensity-legend {
+  position: fixed;
+  bottom: calc(var(--timeline-height) + var(--space-6));
+  right: calc(var(--sidebar-width) + var(--space-6));
+  z-index: var(--z-hud);
+  background: rgba(8, 8, 8, 0.85);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: var(--spacing-panel-y) var(--spacing-panel-x);
+  transition: border-color var(--ease-panel) var(--duration-hover);
+}
+
+.intensity-legend:hover {
+  border-color: var(--border-strong);
+}
+
+.intensity-legend__title {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.intensity-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.intensity-legend__swatch {
+  width: 16px;
+  height: 12px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.intensity-legend__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+

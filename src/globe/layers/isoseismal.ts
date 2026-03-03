@@ -2,65 +2,45 @@
  * isoseismal.ts — Layer 5: Isoseismal contour polygons (CesiumJS)
  *
  * Receives GeoJSON Feature[] (produced by contourProjection.ts) and
- * renders them as semi-transparent coloured polygons using Cesium
- * CustomDataSource with the JMA official colour scale at 35% opacity.
+ * renders them as terrain-draped GroundPrimitives using the enhanced
+ * JMA colour scale for optimal visibility against satellite imagery.
  */
 
 import * as Cesium from 'cesium';
 import type { GlobeInstance } from '../globeInstance';
 import { store } from '../../store/appState';
+import { ENHANCED_JMA } from '../../utils/colorScale';
 
-// ---------------------------------------------------------------------------
-// Colour helpers
-// ---------------------------------------------------------------------------
+// ── Fallback colors (in case ENHANCED_JMA import is unavailable) ──
 
-const JMA_COLORS_ALPHA: Record<string, string> = {
-  '0': 'rgba(155, 191, 212, 0.35)',
-  '1': 'rgba(102, 153, 204, 0.35)',
-  '2': 'rgba(51, 153, 204, 0.35)',
-  '3': 'rgba(51, 204, 102, 0.35)',
-  '4': 'rgba(255, 255, 0, 0.35)',
-  '5-': 'rgba(255, 153, 0, 0.35)',
-  '5+': 'rgba(255, 102, 0, 0.35)',
-  '6-': 'rgba(255, 51, 0, 0.35)',
-  '6+': 'rgba(204, 0, 0, 0.35)',
-  '7': 'rgba(153, 0, 153, 0.35)',
+const ENHANCED_JMA_FALLBACK: Record<string, { color: string; alpha: number }> = {
+  '7':  { color: '#cc00cc', alpha: 0.60 },
+  '6+': { color: '#dd0000', alpha: 0.55 },
+  '6-': { color: '#ff2200', alpha: 0.55 },
+  '5+': { color: '#ff6600', alpha: 0.50 },
+  '5-': { color: '#ff9900', alpha: 0.45 },
+  '4':  { color: '#ffdd00', alpha: 0.40 },
+  '3':  { color: '#44cc66', alpha: 0.35 },
+  '2':  { color: '#3399cc', alpha: 0.30 },
+  '1':  { color: '#6699cc', alpha: 0.25 },
+  '0':  { color: '#99bbdd', alpha: 0.20 },
 };
 
-const JMA_COLORS_STROKE: Record<string, string> = {
-  '0': 'rgba(155, 191, 212, 0.70)',
-  '1': 'rgba(102, 153, 204, 0.70)',
-  '2': 'rgba(51, 153, 204, 0.70)',
-  '3': 'rgba(51, 204, 102, 0.70)',
-  '4': 'rgba(255, 255, 0, 0.70)',
-  '5-': 'rgba(255, 153, 0, 0.70)',
-  '5+': 'rgba(255, 102, 0, 0.70)',
-  '6-': 'rgba(255, 51, 0, 0.70)',
-  '6+': 'rgba(204, 0, 0, 0.70)',
-  '7': 'rgba(153, 0, 153, 0.70)',
-};
+function getJmaColor(jmaClass: string): { color: string; alpha: number } {
+  return ENHANCED_JMA?.[jmaClass] ?? ENHANCED_JMA_FALLBACK[jmaClass] ?? { color: '#666666', alpha: 0.25 };
+}
 
-/** Extruded height in meters per JMA class for 3D effect. */
-const EXTRUSION_HEIGHTS: Record<string, number> = {
-  '0': 500, '1': 1000, '2': 2000, '3': 5000,
-  '4': 10000, '5-': 15000, '5+': 20000,
-  '6-': 30000, '6+': 40000, '7': 60000,
-};
+// ── State ─────────────────────────────────────────────────────────
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
-let dataSource: Cesium.CustomDataSource | null = null;
+let viewerRef: GlobeInstance | null = null;
+let groundPrimitives: Cesium.GroundPrimitive[] = [];
 let cachedFeatures: GeoJSON.Feature[] = [];
+let layerVisible = true;
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+// ── Public API ────────────────────────────────────────────────────
 
 export function initIsoseismal(viewer: GlobeInstance): void {
-  dataSource = new Cesium.CustomDataSource('isoseismal');
-  viewer.dataSources.add(dataSource);
+  viewerRef = viewer;
 }
 
 export function updateIsoseismal(
@@ -79,33 +59,45 @@ export function getCachedPolygons(): GeoJSON.Feature[] {
 
 export function clearIsoseismal(_viewer: GlobeInstance): void {
   cachedFeatures = [];
-  if (dataSource) dataSource.entities.removeAll();
+  removeAllPrimitives();
 }
 
 /** Set visibility of the isoseismal layer. */
 export function setIsoseismalVisible(visible: boolean): void {
-  if (dataSource) {
-    dataSource.show = visible;
-    if (visible) rebuildPolygons();
+  layerVisible = visible;
+  if (visible && cachedFeatures.length > 0 && groundPrimitives.length === 0) {
+    rebuildPolygons();
+  } else {
+    for (const p of groundPrimitives) {
+      p.show = visible;
+    }
   }
 }
 
-// ---------------------------------------------------------------------------
-// Internal rendering
-// ---------------------------------------------------------------------------
+// ── Internal rendering ────────────────────────────────────────────
+
+function removeAllPrimitives(): void {
+  if (!viewerRef) return;
+  for (const p of groundPrimitives) {
+    viewerRef.scene.groundPrimitives.remove(p);
+  }
+  groundPrimitives = [];
+}
 
 function rebuildPolygons(): void {
-  if (!dataSource) return;
-  dataSource.entities.removeAll();
+  if (!viewerRef) return;
+  removeAllPrimitives();
+
+  const instances: Cesium.GeometryInstance[] = [];
 
   for (const feature of cachedFeatures) {
     const geom = feature.geometry;
     if (!geom) continue;
 
     const jmaClass = (feature.properties?.jmaClass as string) ?? '';
-    const fillColor = Cesium.Color.fromCssColorString(JMA_COLORS_ALPHA[jmaClass] || 'rgba(100,100,100,0.35)');
-    const outlineColor = Cesium.Color.fromCssColorString(JMA_COLORS_STROKE[jmaClass] || 'rgba(100,100,100,0.70)');
-    const extrudedHeight = EXTRUSION_HEIGHTS[jmaClass] || 500;
+    const { color: cssColor, alpha } = getJmaColor(jmaClass);
+    const color = Cesium.Color.fromCssColorString(cssColor).withAlpha(alpha);
+    const colorAttr = Cesium.ColorGeometryInstanceAttribute.fromColor(color);
 
     const polygons: number[][][][] =
       geom.type === 'MultiPolygon'
@@ -124,16 +116,28 @@ function rebuildPolygons(): void {
         new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(ring.flat()))
       );
 
-      dataSource.entities.add({
-        polygon: {
-          hierarchy: new Cesium.PolygonHierarchy(positions, holes),
-          material: fillColor,
-          outline: true,
-          outlineColor: outlineColor,
-          extrudedHeight: extrudedHeight,
-          height: 0,
+      instances.push(new Cesium.GeometryInstance({
+        geometry: new Cesium.PolygonGeometry({
+          polygonHierarchy: new Cesium.PolygonHierarchy(positions, holes),
+        }),
+        attributes: {
+          color: colorAttr,
         },
-      });
+      }));
     }
+  }
+
+  if (instances.length > 0) {
+    const primitive = new Cesium.GroundPrimitive({
+      geometryInstances: instances,
+      appearance: new Cesium.PerInstanceColorAppearance({
+        flat: true,
+        translucent: true,
+      }),
+      classificationType: Cesium.ClassificationType.TERRAIN,
+    });
+    primitive.show = layerVisible;
+    viewerRef.scene.groundPrimitives.add(primitive);
+    groundPrimitives.push(primitive);
   }
 }

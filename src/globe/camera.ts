@@ -22,8 +22,8 @@ export const CAMERA = {
   INITIAL_LNG: 138,
   INITIAL_ALTITUDE: 2.5,
 
-  IDLE_RPM: 0,
-  IDLE_RESUME_DELAY_MS: 10000,
+  IDLE_RPM: 0.3,
+  IDLE_RESUME_DELAY_MS: 5000,
 
   ZOOM_M5: 2.0,
   ZOOM_M6: 1.5,
@@ -130,7 +130,12 @@ function flyTo(
  * Initialise camera — enable idle auto-rotate and listen for user interaction.
  */
 export function initCamera(viewer: GlobeInstance): void {
-  setAutoRotate(viewer, false);
+  // Start idle rotation after 5 seconds
+  setTimeout(() => {
+    if (!userHasOverridden && !choreographyActive) {
+      setAutoRotate(viewer, true);
+    }
+  }, 5000);
 
   eventHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   const interactionHandler = () => onUserInteraction(viewer);

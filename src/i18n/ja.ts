@@ -76,6 +76,15 @@ const ja: Record<string, string> = {
   'layer.gsiBaseGroup': '背景地図',
   'layer.gsiOverlayGroup': 'オーバーレイ',
 
+  // Data integration layers
+  'layer.activeFaults': '活断層線',
+  'layer.hazardComparison': 'J-SHIS比較',
+  'layer.landslideRisk': '土砂災害リスク',
+
+  // Impact panel
+  'impact.title': '影響地域',
+  'impact.totalExposed': '総影響人口',
+
   // Alert bar
   'alert.prefix': '地震速報',
 
@@ -137,6 +146,12 @@ const ja: Record<string, string> = {
   'plateau.kumamoto': '熊本市',
   'plateau.naha': '那覇市',
   'plateau.loading': 'ビル読み込み中...',
+
+  // Detail panel — MMI descriptions
+  'mmi.destructive': '破壊的',
+  'mmi.strong': '強震',
+  'mmi.moderate': '中震',
+  'mmi.weak': '弱震',
 
   // Locale switcher
   'locale.en': 'EN',

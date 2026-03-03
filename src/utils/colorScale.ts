@@ -34,10 +34,10 @@ export function intensityToColor(intensity: number): string {
  */
 export function depthToColor(depth_km: number): string {
   if (depth_km < 30) return '#ff4444';
-  if (depth_km < 70) return '#ff9900';
-  if (depth_km < 150) return '#ffcc00';
-  if (depth_km < 300) return '#33aaff';
-  return '#3366cc';
+  if (depth_km < 70) return '#ff7722';
+  if (depth_km < 150) return '#ffaa00';
+  if (depth_km < 300) return '#44aaff';
+  return '#3355cc';
 }
 
 /**
@@ -55,6 +55,20 @@ export function magnitudeToRadius(magnitude: number): number {
   const radius = 2 * Math.pow(1.6, clamped);
   return Math.min(radius, 40);
 }
+
+/** Enhanced JMA colors for terrain-draped overlays (isoseismal + ShakeMap). */
+export const ENHANCED_JMA: Record<string, { color: string; alpha: number }> = {
+  '7':  { color: '#cc00cc', alpha: 0.60 },
+  '6+': { color: '#dd0000', alpha: 0.55 },
+  '6-': { color: '#ff2200', alpha: 0.55 },
+  '5+': { color: '#ff6600', alpha: 0.50 },
+  '5-': { color: '#ff9900', alpha: 0.45 },
+  '4':  { color: '#ffdd00', alpha: 0.40 },
+  '3':  { color: '#44cc66', alpha: 0.35 },
+  '2':  { color: '#3399cc', alpha: 0.30 },
+  '1':  { color: '#6699cc', alpha: 0.25 },
+  '0':  { color: '#99bbdd', alpha: 0.20 },
+};
 
 // ── USGS MMI Color Scale ────────────────────────────────────────
 // Official Modified Mercalli Intensity colours from USGS ShakeMap.

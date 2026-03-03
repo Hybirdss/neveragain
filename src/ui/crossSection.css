@@ -1,0 +1,22 @@
+/* --- Cross-Section Panel --- */
+.cross-section-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--bg-analysis);
+  border-left: 1px solid var(--grid-line);
+  z-index: var(--z-sidebar);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--duration-panel) var(--ease-panel);
+  pointer-events: none;
+}
+
+.cross-section-panel--open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+

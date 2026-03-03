@@ -86,7 +86,8 @@ export async function playCinematicSequence(
   overlay.setMode('playing');
 
   // 3. Execute steps
-  for (const step of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
     if (skipRequested) break;
 
     // Parallel: flyTo + onEnter (with optional delay)
@@ -167,10 +168,7 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
       durationMs: 0,
       holdMs: 500,
       holdDrift: 0.1,  // 0.1°/s heading change
-      onEnter: (_v, overlay) => {
-        overlay.showAnnotation('地下を見る', 1500);
-      },
-      label: 'Beat — 地下を見る',
+      label: 'Beat',
     },
     // e. Translucency reveal — fly and onEnter in parallel
     {

@@ -5,7 +5,9 @@
  * 1. First click: set start point (marker appears)
  * 2. Second click: set end point, draw line, open cross-section panel
  *
- * The line is rendered as a Cesium polyline entity on the globe surface.
+ * Phase 3 additions:
+ * - Real-time ghost preview line while drawing
+ * - Draggable A/A' markers after line is placed
  */
 
 import * as Cesium from 'cesium';
@@ -16,9 +18,19 @@ import type { CrossSectionConfig } from '../../ui/crossSection';
 
 let handler: Cesium.ScreenSpaceEventHandler | null = null;
 let startEntity: Cesium.Entity | undefined;
+let endEntity: Cesium.Entity | undefined;
 let lineEntity: Cesium.Entity | undefined;
+let ghostEntity: Cesium.Entity | undefined;
 let startPoint: { lat: number; lng: number } | null = null;
+let endPoint: { lat: number; lng: number } | null = null;
 let isDrawing = false;
+
+// Drag state
+let isDragging = false;
+let draggedMarker: 'start' | 'end' | null = null;
+
+// Ghost line cursor position (updated via CallbackProperty)
+let ghostCursorCartesian: Cesium.Cartesian3 | null = null;
 
 type OnLineComplete = (config: CrossSectionConfig) => void;
 let onComplete: OnLineComplete | null = null;
@@ -38,10 +50,17 @@ export function enableCrossSectionDrawing(
   onComplete = callback;
   isDrawing = false;
   startPoint = null;
+  endPoint = null;
+  isDragging = false;
+  draggedMarker = null;
+  ghostCursorCartesian = null;
 
   handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
   handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
+    // Ignore clicks during drag
+    if (isDragging) return;
+
     const cartesian = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
     if (!cartesian) return;
 
@@ -49,12 +68,11 @@ export function enableCrossSectionDrawing(
     const lat = Cesium.Math.toDegrees(carto.latitude);
     const lng = Cesium.Math.toDegrees(carto.longitude);
 
-    if (!isDrawing) {
+    if (!isDrawing && !endPoint) {
       // First click: set start
       startPoint = { lat, lng };
       isDrawing = true;
 
-      // §2-4: Start marker — WHITE, pixelSize 6
       startEntity = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lng, lat),
         point: {
@@ -74,25 +92,60 @@ export function enableCrossSectionDrawing(
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
-    } else {
-      // Second click: set end, draw line, fire callback
-      const endPoint = { lat, lng };
 
-      // §2-4: Profile line — WHITE alpha 0.6, solid, 1.5px, clampToGround
+      // Add ghost preview line
+      ghostCursorCartesian = Cesium.Cartesian3.fromDegrees(lng, lat);
+      const startCartesian = Cesium.Cartesian3.fromDegrees(lng, lat);
+      ghostEntity = viewer.entities.add({
+        polyline: {
+          positions: new Cesium.CallbackProperty(() => {
+            if (!ghostCursorCartesian) return [];
+            return [startCartesian, ghostCursorCartesian];
+          }, false) as any,
+          material: new Cesium.PolylineDashMaterialProperty({
+            color: Cesium.Color.WHITE.withAlpha(0.3),
+            dashLength: 12,
+          }),
+          width: 1,
+          clampToGround: true,
+        },
+      });
+
+      // Mouse move handler for ghost line
+      handler!.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
+        if (!isDrawing) return;
+        const c = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+        if (c) ghostCursorCartesian = c;
+      }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    } else if (isDrawing) {
+      // Second click: set end, draw line, fire callback
+      endPoint = { lat, lng };
+
+      // Remove ghost line
+      removeGhost(viewer);
+
+      // Remove ghost mouse move handler (will be replaced by drag handlers)
+      handler!.removeInputAction(Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+      // Final line
       lineEntity = viewer.entities.add({
         polyline: {
-          positions: Cesium.Cartesian3.fromDegreesArray([
-            startPoint!.lng, startPoint!.lat,
-            lng, lat,
-          ]),
+          positions: new Cesium.CallbackProperty(() => {
+            if (!startPoint || !endPoint) return [];
+            return Cesium.Cartesian3.fromDegreesArray([
+              startPoint.lng, startPoint.lat,
+              endPoint.lng, endPoint.lat,
+            ]);
+          }, false) as any,
           material: Cesium.Color.WHITE.withAlpha(0.6),
           width: 1.5,
           clampToGround: true,
         },
       });
 
-      // §2-4: End marker — WHITE, pixelSize 6, Inter 12px Bold
-      viewer.entities.add({
+      // End marker
+      endEntity = viewer.entities.add({
         id: '__cross_section_end',
         position: Cesium.Cartesian3.fromDegrees(lng, lat),
         point: {
@@ -115,15 +168,11 @@ export function enableCrossSectionDrawing(
 
       isDrawing = false;
 
-      // Fire callback with config
-      if (onComplete && startPoint) {
-        onComplete({
-          startPoint,
-          endPoint,
-          swathKm: 50,
-          maxDepthKm: 700,
-        });
-      }
+      // Fire callback
+      fireComplete();
+
+      // Set up drag handlers
+      setupDragHandlers(viewer);
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
@@ -137,20 +186,29 @@ export function disableCrossSectionDrawing(viewer: GlobeInstance): void {
     handler = null;
   }
 
-  // Remove cross-section entities
+  removeGhost(viewer);
+
   if (startEntity) {
     viewer.entities.remove(startEntity);
     startEntity = undefined;
+  }
+  if (endEntity) {
+    viewer.entities.remove(endEntity);
+    endEntity = undefined;
   }
   if (lineEntity) {
     viewer.entities.remove(lineEntity);
     lineEntity = undefined;
   }
-  const endEntity = viewer.entities.getById('__cross_section_end');
-  if (endEntity) viewer.entities.remove(endEntity);
+  const existingEnd = viewer.entities.getById('__cross_section_end');
+  if (existingEnd) viewer.entities.remove(existingEnd);
 
   startPoint = null;
+  endPoint = null;
   isDrawing = false;
+  isDragging = false;
+  draggedMarker = null;
+  ghostCursorCartesian = null;
   onComplete = null;
 }
 
@@ -159,4 +217,79 @@ export function disableCrossSectionDrawing(viewer: GlobeInstance): void {
  */
 export function isDrawingActive(): boolean {
   return handler !== null;
+}
+
+// ── Internal helpers ─────────────────────────────────────────────
+
+function removeGhost(viewer: GlobeInstance): void {
+  if (ghostEntity) {
+    viewer.entities.remove(ghostEntity);
+    ghostEntity = undefined;
+  }
+  ghostCursorCartesian = null;
+}
+
+function fireComplete(): void {
+  if (onComplete && startPoint && endPoint) {
+    onComplete({
+      startPoint: { ...startPoint },
+      endPoint: { ...endPoint },
+      swathKm: 50,
+      maxDepthKm: 700,
+    });
+  }
+}
+
+function setupDragHandlers(viewer: GlobeInstance): void {
+  if (!handler) return;
+
+  // LEFT_DOWN: check if a marker is picked
+  handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
+    const picked = viewer.scene.pick(click.position);
+    if (!Cesium.defined(picked) || !picked.id) return;
+
+    const entity = picked.id as Cesium.Entity;
+    if (entity === startEntity) {
+      draggedMarker = 'start';
+    } else if (entity === endEntity) {
+      draggedMarker = 'end';
+    } else {
+      return;
+    }
+
+    isDragging = true;
+    viewer.scene.screenSpaceCameraController.enableRotate = false;
+  }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+  // MOUSE_MOVE during drag: update marker + line
+  handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
+    if (!isDragging || !draggedMarker) return;
+
+    const cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+    if (!cartesian) return;
+
+    const carto = Cesium.Cartographic.fromCartesian(cartesian);
+    const lat = Cesium.Math.toDegrees(carto.latitude);
+    const lng = Cesium.Math.toDegrees(carto.longitude);
+
+    if (draggedMarker === 'start' && startEntity) {
+      startPoint = { lat, lng };
+      (startEntity.position as any).setValue(Cesium.Cartesian3.fromDegrees(lng, lat));
+    } else if (draggedMarker === 'end' && endEntity) {
+      endPoint = { lat, lng };
+      (endEntity.position as any).setValue(Cesium.Cartesian3.fromDegrees(lng, lat));
+    }
+    // Line updates automatically via CallbackProperty
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+  // LEFT_UP: end drag, recalculate
+  handler.setInputAction(() => {
+    if (!isDragging) return;
+
+    isDragging = false;
+    draggedMarker = null;
+    viewer.scene.screenSpaceCameraController.enableRotate = true;
+
+    fireComplete();
+  }, Cesium.ScreenSpaceEventType.LEFT_UP);
 }

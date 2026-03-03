@@ -1,0 +1,108 @@
+/* --- Mode Switcher --- */
+.mode-switcher-wrapper {
+  position: absolute;
+  top: 44px;
+  left: 120px;
+  z-index: var(--z-hud);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.mode-switcher {
+  display: flex;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.mode-btn {
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 2px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: all var(--duration-hover) var(--ease-panel);
+}
+
+.mode-btn:hover {
+  border-color: var(--text-disabled);
+  color: #ccc;
+}
+
+.mode-btn--active {
+  background: var(--surface-danger-subtle);
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+.mode-date-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  padding: 6px var(--spacing-panel-y);
+  animation: fade-in var(--duration-fade-in) var(--ease-panel);
+}
+
+.mode-date-picker__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.mode-date-picker__input {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-primary);
+  padding: 3px 6px;
+  outline: none;
+  transition: border-color var(--duration-hover) var(--ease-panel);
+}
+
+.mode-date-picker__input:focus {
+  border-color: var(--accent-danger);
+}
+
+/* Override native date-picker icon color for dark theme */
+.mode-date-picker__input::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+.mode-date-picker__load {
+  padding: var(--space-1) var(--spacing-panel-x);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--surface-danger-subtle);
+  border: 1px solid var(--border-danger-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--accent-danger);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all var(--duration-hover) var(--ease-panel);
+}
+
+.mode-date-picker__load:hover {
+  background: #2a0c0c;
+  border-color: var(--accent-danger);
+}
+

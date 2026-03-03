@@ -1,0 +1,73 @@
+/* --- Alert Vignette --- */
+.alert-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-vignette);
+  border: 2px solid rgba(255, 68, 68, 0);
+  opacity: 0;
+  transition: opacity var(--duration-alert) var(--ease-alert);
+}
+
+.alert-vignette--active {
+  opacity: 1;
+  border-color: rgba(255, 68, 68, 0.3);
+  animation: alert-pulse 3s ease-in-out infinite;
+}
+
+@keyframes alert-pulse {
+  0%, 100% { border-color: rgba(255, 68, 68, 0.15); }
+  50%      { border-color: rgba(255, 68, 68, 0.45); }
+}
+
+.alert-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-alert);
+  /* display controlled by JS: none → flex */
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 8px 20px;
+  background: var(--surface-danger-subtle);
+  border-bottom: 1px solid var(--border-danger-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-danger);
+  letter-spacing: 0.5px;
+  animation: alert-bar-pulse 2.5s ease-in-out infinite;
+}
+
+.alert-bar__text {
+  animation: alert-bar-text-in 0.5s var(--ease-panel) both;
+}
+
+@keyframes alert-bar-pulse {
+  0%, 100% { background: var(--surface-danger-subtle); }
+  50% { background: #2a0c0c; }
+}
+
+@keyframes alert-bar-text-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* --- Vignette overlay for dramatic quakes --- */
+.vignette-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-vignette);
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(255, 68, 68, 0.06) 100%);
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+.vignette-overlay--active {
+  opacity: 1;
+}
+

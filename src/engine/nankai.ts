@@ -92,7 +92,8 @@ function makeIntensityGrid(
       lat: (LAT_MIN + LAT_MAX) / 2,
       lng: (LNG_MIN + LNG_MAX) / 2,
     },
-    radiusDeg: Math.max(LAT_MAX - LAT_MIN, LNG_MAX - LNG_MIN) / 2,
+    radiusDeg: (LAT_MAX - LAT_MIN) / 2,
+    radiusLngDeg: (LNG_MAX - LNG_MIN) / 2,
   };
 }
 

@@ -56,7 +56,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 function formatTimeShort(ts: number): string {
   const d = new Date(ts);
-  const h = String(d.getUTCHours()).padStart(2, '0');
+  const h = String((d.getUTCHours() + 9) % 24).padStart(2, '0'); // JST = UTC+9
   const m = String(d.getUTCMinutes()).padStart(2, '0');
   const s = String(d.getUTCSeconds()).padStart(2, '0');
   return `${h}:${m}:${s}`;
@@ -123,7 +123,9 @@ function renderEventItem(event: EarthquakeEvent, index: number, isActive: boolea
   meta.appendChild(dot);
 
   const coords = el('span', 'sidebar-item__coords');
-  coords.textContent = `${event.lat.toFixed(2)}°N ${event.lng.toFixed(2)}°E`;
+  const latDir = event.lat >= 0 ? 'N' : 'S';
+  const lngDir = event.lng >= 0 ? 'E' : 'W';
+  coords.textContent = `${Math.abs(event.lat).toFixed(2)}°${latDir} ${Math.abs(event.lng).toFixed(2)}°${lngDir}`;
   meta.appendChild(coords);
 
   // Source tag (if ShakeMap data available for M5+)
@@ -245,10 +247,10 @@ function jmaToMmi(jmaClass: JmaClass): number {
 }
 
 function mmiDescription(mmi: number): string {
-  if (mmi >= 8) return '破壊的';
-  if (mmi >= 6) return '強震';
-  if (mmi >= 4) return '中震';
-  return '弱震';
+  if (mmi >= 8) return t('mmi.destructive');
+  if (mmi >= 6) return t('mmi.strong');
+  if (mmi >= 4) return t('mmi.moderate');
+  return t('mmi.weak');
 }
 
 // ---- Public API ----
@@ -325,7 +327,7 @@ export function updateSidebar(
     // Meta row
     detailMetaEl.innerHTML = '';
     const depthSpan = el('span');
-    depthSpan.innerHTML = `深さ <span style="color:var(--text-secondary)">${selectedEvent.depth_km}km</span>`;
+    depthSpan.innerHTML = `${t('detail.depth')} <span style="color:var(--text-secondary)">${selectedEvent.depth_km}km</span>`;
     detailMetaEl.appendChild(depthSpan);
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lat).toFixed(3)}°${selectedEvent.lat >= 0 ? 'N' : 'S'}`));

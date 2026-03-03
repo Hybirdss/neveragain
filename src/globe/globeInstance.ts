@@ -161,14 +161,14 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
   console.log('[globe] Viewer created');
 
   // ── Tile loading tuning ─────────────────────────────────────
-  // CF Workers cache absorbs the load — be aggressive for snappy visuals.
-  viewer.scene.globe.tileCacheSize = 500;
-  viewer.scene.globe.maximumScreenSpaceError = 1.5;
-  viewer.scene.globe.preloadSiblings = true;
-  viewer.scene.globe.loadingDescendantLimit = 8;
+  // Balance between visual quality and performance.
+  viewer.scene.globe.tileCacheSize = 200;
+  viewer.scene.globe.maximumScreenSpaceError = 4;
+  viewer.scene.globe.preloadSiblings = false;
+  viewer.scene.globe.loadingDescendantLimit = 4;
 
-  Cesium.RequestScheduler.maximumRequests = 24;
-  Cesium.RequestScheduler.maximumRequestsPerServer = 12;
+  Cesium.RequestScheduler.maximumRequests = 12;
+  Cesium.RequestScheduler.maximumRequestsPerServer = 6;
 
   // ── Imagery layer ───────────────────────────────────────────
   // Probe proxy/MapTiler availability, fall back to Esri if down.
@@ -204,12 +204,17 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
 
   // ── Atmosphere & sky ────────────────────────────────────────
   if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.show = true;
-  viewer.scene.fog.enabled = true;
+  viewer.scene.fog.enabled = false; // fog adds GPU cost with little visual benefit
   if (viewer.scene.skyBox) viewer.scene.skyBox.show = true;
 
   // ── Globe settings ──────────────────────────────────────────
   viewer.scene.globe.depthTestAgainstTerrain = false;
   viewer.scene.backgroundColor = Cesium.Color.BLACK;
+
+  // ── Performance: reduce shadow / lighting overhead ──────────
+  viewer.scene.globe.enableLighting = false;
+  viewer.shadows = false;
+  viewer.scene.msaaSamples = 1; // disable MSAA for perf
 
   // Globe translucency — enable via ?translucency=1 in URL
   if (new URLSearchParams(window.location.search).has('translucency')) {

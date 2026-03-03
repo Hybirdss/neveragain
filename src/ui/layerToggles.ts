@@ -46,6 +46,9 @@ const GSI_OVERLAY_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?:
   { key: 'gsiFaults', i18nKey: 'layer.gsiFaults', color: '#ff4444' },
   { key: 'adminBoundary', i18nKey: 'layer.adminBoundary', color: '#4488ff' },
   { key: 'jshisHazard', i18nKey: 'layer.jshisHazard', color: '#ff8800' },
+  { key: 'activeFaults', i18nKey: 'layer.activeFaults', color: '#ff6644' },
+  { key: 'hazardComparison', i18nKey: 'layer.hazardComparison', color: '#aa44ff' },
+  { key: 'landslideRisk', i18nKey: 'layer.landslideRisk', color: '#cc8800' },
 ];
 
 // ── State ───────────────────────────────────────────────────────

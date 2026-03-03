@@ -7,6 +7,106 @@
  */
 
 // ============================================================
+// Vs30 Grid (Feature 1: slope → Vs30 → GMPE precision)
+// ============================================================
+
+export interface Vs30Grid {
+  data: Float32Array;  // Flat row-major array of Vs30 values (m/s)
+  cols: number;
+  rows: number;
+  latMin: number;
+  lngMin: number;
+  step: number;        // Grid spacing in degrees (e.g. 0.1)
+}
+
+// ============================================================
+// Slope Grid (Feature 5: landslide risk)
+// ============================================================
+
+export interface SlopeGrid {
+  data: Float32Array;  // Flat row-major array of slope angles (degrees)
+  cols: number;
+  rows: number;
+  latMin: number;
+  lngMin: number;
+  step: number;
+}
+
+// ============================================================
+// Active Fault (Feature 2: fault click → scenario)
+// ============================================================
+
+export interface ActiveFault {
+  id: string;
+  name: string;         // Japanese name
+  nameEn: string;       // English name
+  segments: [number, number][];  // [lng, lat] polyline
+  lengthKm: number;
+  estimatedMw: number;  // Wells & Coppersmith (1994): log(L) → Mw
+  depthKm: number;
+  faultType: FaultType;
+  interval: string;     // e.g. "1000-2000年"
+  probability30yr: string; // e.g. "ほぼ0-5%"
+}
+
+// ============================================================
+// Prefecture (Feature 3: impact assessment)
+// ============================================================
+
+export interface Prefecture {
+  id: string;
+  name: string;         // Japanese name
+  nameEn: string;       // English name
+  centroid: { lat: number; lng: number };
+  population: number;
+}
+
+export interface PrefectureImpact {
+  id: string;
+  name: string;
+  nameEn: string;
+  maxIntensity: number;
+  jmaClass: JmaClass;
+  population: number;
+  exposedPopulation: number;  // Population in JMA 4+ zone
+}
+
+// ============================================================
+// Hazard Comparison Grid (Feature 4: J-SHIS comparison)
+// ============================================================
+
+export interface HazardGrid {
+  data: Float32Array;  // Expected JMA intensity (30yr exceedance)
+  cols: number;
+  rows: number;
+  latMin: number;
+  lngMin: number;
+  step: number;
+}
+
+export interface ComparisonGrid {
+  data: Float32Array;  // Difference: GMPE intensity - hazard expected
+  cols: number;
+  rows: number;
+  center: { lat: number; lng: number };
+  radiusDeg: number;
+}
+
+// ============================================================
+// Landslide Risk Grid (Feature 5)
+// ============================================================
+
+export type LandslideRisk = 'low' | 'medium' | 'high';
+
+export interface LandslideGrid {
+  data: Float32Array;  // Newmark displacement (cm), row-major
+  cols: number;
+  rows: number;
+  center: { lat: number; lng: number };
+  radiusDeg: number;
+}
+
+// ============================================================
 // Earthquake Event (data-pipeline → all modules)
 // ============================================================
 
@@ -53,7 +153,8 @@ export interface IntensityGrid {
   cols: number;        // Grid columns (longitude direction)
   rows: number;        // Grid rows (latitude direction)
   center: { lat: number; lng: number };
-  radiusDeg: number;   // Half-span in degrees from center
+  radiusDeg: number;   // Half-span in degrees from center (latitude)
+  radiusLngDeg?: number; // Half-span in lng degrees (defaults to radiusDeg if omitted)
 }
 
 // ============================================================
@@ -121,6 +222,10 @@ export interface AppState {
   layers: LayerVisibility;
   viewPreset: ViewPreset;
   plateauCity: PlateauCityId | null;
+  selectedFault: ActiveFault | null;
+  impactResults: PrefectureImpact[] | null;
+  comparisonGrid: ComparisonGrid | null;
+  landslideGrid: LandslideGrid | null;
 }
 
 export interface LayerVisibility {
@@ -139,6 +244,9 @@ export interface LayerVisibility {
   gsiPale: boolean;
   adminBoundary: boolean;
   jshisHazard: boolean;
+  activeFaults: boolean;
+  hazardComparison: boolean;
+  landslideRisk: boolean;
 }
 
 export type ViewPreset = 'default' | 'underground' | 'shakemap' | 'crossSection' | 'cinematic';
@@ -156,6 +264,17 @@ export interface GmpeWorkerRequest {
   faultType: FaultType;
   gridSpacingDeg: number;
   radiusDeg: number;
+  vs30Grid?: Vs30GridTransfer;
+}
+
+/** Serializable version of Vs30Grid for Worker transfer */
+export interface Vs30GridTransfer {
+  data: ArrayBuffer;
+  cols: number;
+  rows: number;
+  latMin: number;
+  lngMin: number;
+  step: number;
 }
 
 export interface GmpeWorkerResponse {

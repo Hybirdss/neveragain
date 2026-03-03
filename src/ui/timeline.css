@@ -1,0 +1,146 @@
+/* --- Timeline Bar --- */
+.timeline-bar {
+  grid-area: timeline;
+  background: var(--surface-base);
+  border-top: 1px solid var(--border-subtle);
+  z-index: var(--z-timeline);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  height: var(--timeline-height);
+}
+
+.playback-controls {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.playback-btn {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all var(--duration-hover) var(--ease-panel);
+  font-family: var(--font-sans);
+  line-height: 1;
+}
+
+.playback-btn:hover {
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+.playback-btn--active {
+  background: var(--surface-danger-subtle);
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+/* --- Scrub Bar --- */
+.scrub-bar {
+  flex: 1;
+  position: relative;
+  height: 28px;
+  cursor: pointer;
+}
+
+.scrub-bar__track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  transform: translateY(-50%);
+  background: var(--border-default);
+  border-radius: 1px;
+}
+
+.scrub-bar__progress {
+  height: 100%;
+  background: var(--accent-danger);
+  border-radius: 1px;
+  width: 0%;
+}
+
+.scrub-bar__handle {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 12px;
+  height: 20px;
+  background: var(--accent-danger);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.scrub-bar__marker {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+}
+
+.scrub-bar__marker--small {
+  height: 6px;
+  background: var(--text-disabled);
+}
+
+.scrub-bar__marker--medium {
+  height: 10px;
+  background: var(--text-secondary);
+}
+
+.scrub-bar__marker--large {
+  height: 14px;
+  background: var(--accent-danger);
+}
+
+/* --- Speed Selector --- */
+.speed-selector {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.speed-btn {
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-hover) var(--ease-panel);
+}
+
+.speed-btn:hover {
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+.speed-btn--active {
+  background: var(--surface-danger-subtle);
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+/* --- Time Display --- */
+.time-display {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: #666666;
+  white-space: nowrap;
+  min-width: 140px;
+  text-align: center;
+}
+

@@ -1,0 +1,82 @@
+/* --- Top Bar (branding + live status) --- */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  z-index: var(--z-hud);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.9) 0%, transparent 100%);
+  pointer-events: none;
+  animation: fade-in 0.6s ease both;
+}
+
+.top-bar__left,
+.top-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.top-bar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-danger);
+}
+
+.top-bar__name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: #c0b8b0;
+  letter-spacing: -0.01em;
+}
+
+.top-bar__tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+}
+
+.top-bar__divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border-default);
+}
+
+.top-bar__date {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-disabled);
+}
+
+.top-bar__live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-positive);
+  animation: pulse 2s ease infinite;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+
+/* --- Top Bar Live Clock --- */
+.top-bar__clock {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: #666;
+  animation: pulse 1s ease infinite;
+}

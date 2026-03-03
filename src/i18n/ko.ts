@@ -76,6 +76,15 @@ const ko: Record<string, string> = {
   'layer.gsiBaseGroup': '배경지도',
   'layer.gsiOverlayGroup': '오버레이',
 
+  // Data integration layers
+  'layer.activeFaults': '활성단층선',
+  'layer.hazardComparison': 'J-SHIS 비교',
+  'layer.landslideRisk': '산사태 위험',
+
+  // Impact panel
+  'impact.title': '영향 지역',
+  'impact.totalExposed': '총 영향 인구',
+
   // Alert bar
   'alert.prefix': '지진 경보',
 
@@ -137,6 +146,12 @@ const ko: Record<string, string> = {
   'plateau.kumamoto': '구마모토',
   'plateau.naha': '나하',
   'plateau.loading': '건물 로딩 중...',
+
+  // Detail panel — MMI descriptions
+  'mmi.destructive': '파괴적',
+  'mmi.strong': '강진',
+  'mmi.moderate': '중진',
+  'mmi.weak': '약진',
 
   // Locale switcher
   'locale.en': 'EN',

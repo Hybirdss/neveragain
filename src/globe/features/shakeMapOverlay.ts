@@ -2,41 +2,28 @@
  * shakeMapOverlay.ts — USGS ShakeMap MMI contour + fault rupture overlay
  *
  * Renders ShakeMap products on the CesiumJS globe:
- * - MMI isoseismal contours as semi-transparent polygons (USGS color scale)
- * - Fault rupture surface as a red outlined polygon
- *
- * Pattern mirrors isoseismal.ts but uses MMI colors instead of JMA.
+ * - MMI isoseismal contours as terrain-draped GroundPrimitives
+ * - Fault rupture surface as Entity polygons (3D surfaces can't use GroundPrimitive)
  */
 
 import * as Cesium from 'cesium';
 import type { GlobeInstance } from '../globeInstance';
 import type { ShakeMapProducts } from '../../data/shakeMapApi';
 import { store } from '../../store/appState';
-
-// ── USGS MMI Color Scale (Design Token Spec §1-2) ───────────────
-
 import { MMI_COLORS } from '../../utils/colorScale';
-
-/** Uniform stroke for all MMI levels — white, subtle. */
-const STROKE_COLOR = Cesium.Color.fromCssColorString('rgba(255, 255, 255, 0.4)');
-const FILL_OPACITY = 0.35;
-
-/** z-fighting prevention: 100m base + 10m per MMI level above 1. */
-function mmiHeight(mmi: number): number {
-  return 100 + (mmi - 1) * 10;
-}
 
 // ── State ────────────────────────────────────────────────────────
 
-let contourDataSource: Cesium.CustomDataSource | null = null;
+let viewerRef: GlobeInstance | null = null;
+let contourPrimitives: Cesium.GroundPrimitive[] = [];
 let faultDataSource: Cesium.CustomDataSource | null = null;
+let contourVisible = true;
 
 // ── Public API ───────────────────────────────────────────────────
 
 export function initShakeMapOverlay(viewer: GlobeInstance): void {
-  contourDataSource = new Cesium.CustomDataSource('shakemap-contours');
+  viewerRef = viewer;
   faultDataSource = new Cesium.CustomDataSource('shakemap-fault');
-  viewer.dataSources.add(contourDataSource);
   viewer.dataSources.add(faultDataSource);
 }
 
@@ -61,26 +48,39 @@ export function updateShakeMapOverlay(
 }
 
 export function clearShakeMapOverlay(): void {
-  if (contourDataSource) contourDataSource.entities.removeAll();
+  if (viewerRef) {
+    for (const p of contourPrimitives) {
+      viewerRef.scene.groundPrimitives.remove(p);
+    }
+  }
+  contourPrimitives = [];
   if (faultDataSource) faultDataSource.entities.removeAll();
 }
 
 export function setShakeMapVisible(visible: boolean): void {
-  if (contourDataSource) contourDataSource.show = visible;
+  contourVisible = visible;
+  for (const p of contourPrimitives) {
+    p.show = visible;
+  }
   if (faultDataSource) faultDataSource.show = visible;
 }
 
 // ── Internal rendering ───────────────────────────────────────────
 
-function renderMmiContours(geojson: GeoJSON.FeatureCollection): void {
-  if (!contourDataSource) return;
+const FILL_OPACITY = 0.35;
 
-  // §1-3: Sort features by MMI ascending — low values first, high values paint on top
+function renderMmiContours(geojson: GeoJSON.FeatureCollection): void {
+  if (!viewerRef) return;
+
+  // Sort features by MMI ascending — low values first, high values paint on top
   const sorted = [...geojson.features].sort((a, b) => {
     const mmiA = Number(a.properties?.value ?? 0);
     const mmiB = Number(b.properties?.value ?? 0);
     return mmiA - mmiB;
   });
+
+  // Group geometry instances by MMI level for batching
+  const instancesByMmi = new Map<number, Cesium.GeometryInstance[]>();
 
   for (const feature of sorted) {
     const geom = feature.geometry;
@@ -89,9 +89,9 @@ function renderMmiContours(geojson: GeoJSON.FeatureCollection): void {
     const mmi = Math.round(Number(feature.properties?.value ?? 0));
     if (mmi < 1 || mmi > 10) continue;
 
-    // §1-2: fill = MMI_COLORS[mmi] with uniform 0.35 opacity
-    const fillColor = Cesium.Color.fromCssColorString(MMI_COLORS[mmi] ?? '#FFFFFF').withAlpha(FILL_OPACITY);
-    const height = mmiHeight(mmi);
+    const cssColor = MMI_COLORS[mmi] ?? '#FFFFFF';
+    const color = Cesium.Color.fromCssColorString(cssColor).withAlpha(FILL_OPACITY);
+    const colorAttr = Cesium.ColorGeometryInstanceAttribute.fromColor(color);
 
     const polygons: number[][][][] =
       geom.type === 'MultiPolygon'
@@ -110,17 +110,39 @@ function renderMmiContours(geojson: GeoJSON.FeatureCollection): void {
         new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(ring.flat()))
       );
 
-      contourDataSource.entities.add({
-        polygon: {
-          hierarchy: new Cesium.PolygonHierarchy(positions, holes),
-          material: fillColor,
-          outline: true,
-          outlineColor: STROKE_COLOR,
-          outlineWidth: 1.0,
-          height,
+      const instance = new Cesium.GeometryInstance({
+        geometry: new Cesium.PolygonGeometry({
+          polygonHierarchy: new Cesium.PolygonHierarchy(positions, holes),
+        }),
+        attributes: {
+          color: colorAttr,
         },
       });
+
+      if (!instancesByMmi.has(mmi)) {
+        instancesByMmi.set(mmi, []);
+      }
+      instancesByMmi.get(mmi)!.push(instance);
     }
+  }
+
+  // Create one GroundPrimitive per MMI level (ordered low-to-high for correct z-order)
+  const sortedKeys = [...instancesByMmi.keys()].sort((a, b) => a - b);
+  for (const mmi of sortedKeys) {
+    const instances = instancesByMmi.get(mmi)!;
+    if (instances.length === 0) continue;
+
+    const primitive = new Cesium.GroundPrimitive({
+      geometryInstances: instances,
+      appearance: new Cesium.PerInstanceColorAppearance({
+        flat: true,
+        translucent: true,
+      }),
+      classificationType: Cesium.ClassificationType.TERRAIN,
+    });
+    primitive.show = contourVisible;
+    viewerRef.scene.groundPrimitives.add(primitive);
+    contourPrimitives.push(primitive);
   }
 }
 
@@ -140,11 +162,9 @@ function renderFaultRupture(geojson: GeoJSON.FeatureCollection): void {
       for (const polygon of polygons) {
         if (!polygon[0] || polygon[0].length < 3) continue;
 
-        // Fault may have depth (3D coordinates: [lon, lat, depth_km])
         const coords = polygon[0];
         const hasDepth = coords[0]?.length === 3;
 
-        // §1-4: Fault rupture — rgba(220,38,38,0.25) fill, rgba(220,38,38,0.8) outline
         const faultFill = Cesium.Color.fromCssColorString('rgba(220, 38, 38, 0.25)');
         const faultOutline = Cesium.Color.fromCssColorString('rgba(220, 38, 38, 0.8)');
 

@@ -1,0 +1,104 @@
+/* --- Scenario Picker --- */
+.scenario-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--surface-overlay);
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in var(--duration-fade-in) var(--ease-panel);
+}
+
+.scenario-overlay--hidden {
+  display: none;
+}
+
+.scenario-overlay__header {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-6);
+}
+
+.scenario-overlay__close {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-6);
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-hover) var(--ease-panel);
+}
+
+.scenario-overlay__close:hover {
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  max-width: 960px;
+  width: 100%;
+  padding: 0 var(--space-6);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.scenario-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-left: 2px solid var(--border-default);
+  border-radius: var(--panel-radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--duration-hover) var(--ease-panel),
+    background var(--duration-hover) var(--ease-panel);
+}
+
+.scenario-card:hover {
+  border-color: var(--border-emphasis);
+  border-left-color: rgba(255, 68, 68, 0.4);
+  background: var(--surface-hover);
+}
+
+.scenario-card__body {
+  padding: var(--space-4);
+}
+
+.scenario-card__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.scenario-card__meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.scenario-card__desc {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+

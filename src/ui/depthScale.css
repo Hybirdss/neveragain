@@ -1,0 +1,33 @@
+/* --- Depth Scale Bar (bottom center) --- */
+.depth-scale {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-hud);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  animation: fadeUp 0.5s ease 0.3s both;
+}
+
+.depth-scale__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+}
+
+.depth-scale__label--left {
+  margin-right: 4px;
+}
+
+.depth-scale__label--right {
+  margin-left: 4px;
+}
+
+.depth-scale__segment {
+  width: 28px;
+  height: 6px;
+  opacity: 0.8;
+}
+

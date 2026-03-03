@@ -17,6 +17,7 @@ import type {
   GmpeResult,
   IntensityGrid,
   JmaClass,
+  Vs30Grid,
 } from '../types';
 
 // ============================================================
@@ -156,6 +157,41 @@ export function toJmaClass(intensity: number): JmaClass {
 }
 
 // ============================================================
+// Vs30 Lookup & Amplification (Feature 1)
+// ============================================================
+
+/**
+ * Look up Vs30 value from a grid for a given lat/lng.
+ * Uses nearest-neighbor interpolation.
+ *
+ * @returns Vs30 in m/s, or 400 if out of grid bounds
+ */
+export function lookupVs30(grid: Vs30Grid, lat: number, lng: number): number {
+  const row = Math.round((lat - grid.latMin) / grid.step);
+  const col = Math.round((lng - grid.lngMin) / grid.step);
+
+  if (row < 0 || row >= grid.rows || col < 0 || col >= grid.cols) {
+    return 400; // default
+  }
+
+  const val = grid.data[row * grid.cols + col];
+  return val > 0 ? val : 400; // 0 or negative = missing data, use default
+}
+
+/**
+ * Compute Vs30 amplification factor.
+ * Formula: amp = (600/vs30)^0.6 (Midorikawa 2006)
+ *
+ * For vs30=400: amp ≈ 1.36 (close to the original 1.41)
+ * For vs30=200: amp ≈ 1.93 (soft soil amplifies more)
+ * For vs30=760: amp ≈ 0.90 (hard rock amplifies less)
+ */
+export function vs30ToAmp(vs30: number): number {
+  const clamped = Math.max(100, Math.min(1500, vs30));
+  return Math.pow(600 / clamped, 0.6);
+}
+
+// ============================================================
 // Intensity Grid Computation
 // ============================================================
 
@@ -172,6 +208,7 @@ export function toJmaClass(intensity: number): JmaClass {
  * @param faultType Fault type classification
  * @param gridSpacingDeg Grid spacing in degrees (default 0.1)
  * @param radiusDeg Half-span of the grid from center in degrees (default 5)
+ * @param vs30Grid Optional Vs30 grid for per-cell site amplification
  * @returns IntensityGrid with Float32Array data
  */
 export function computeIntensityGrid(
@@ -181,6 +218,7 @@ export function computeIntensityGrid(
   faultType: FaultType,
   gridSpacingDeg: number = 0.1,
   radiusDeg: number = 5,
+  vs30Grid?: Vs30Grid,
 ): IntensityGrid {
   const latMin = epicenter.lat - radiusDeg;
   const latMax = epicenter.lat + radiusDeg;
@@ -223,8 +261,11 @@ export function computeIntensityGrid(
       const logPgv600 = magTerm - Math.log10(X + nearSourceTerm) - 0.002 * X;
       const pgv600 = Math.pow(10, logPgv600);
 
-      // Surface PGV with Vs30 amplification
-      const pgvSurface = pgv600 * VS30_AMP_FACTOR;
+      // Surface PGV with Vs30 amplification (per-cell if grid available)
+      const ampFactor = vs30Grid
+        ? vs30ToAmp(lookupVs30(vs30Grid, lat, lng))
+        : VS30_AMP_FACTOR;
+      const pgvSurface = pgv600 * ampFactor;
 
       // PGV -> JMA intensity
       const intensity =

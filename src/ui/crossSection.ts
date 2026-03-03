@@ -8,6 +8,14 @@
  * - Slab2 profile curve (if available)
  * - Crust/mantle boundary reference line
  *
+ * Phase 3 additions:
+ * - Slab2 profile auto-sampling
+ * - Depth-gradient background
+ * - Enhanced slab curve with glow
+ * - Magnitude-proportional point sizes
+ * - Selected earthquake highlight
+ * - Bidirectional hover highlighting
+ *
  * Desktop: right-side panel (350px). Mobile: bottom sheet (250px).
  * Tile cost: $0 — pure computation from cached data.
  */
@@ -15,6 +23,7 @@
 import type { EarthquakeEvent } from '../types';
 import { haversineDistance } from '../utils/coordinates';
 import { depthToColor } from '../utils/colorScale';
+import { getSlabDepthAt } from '../globe/features/slab2Contours';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -37,6 +46,17 @@ let canvasEl: HTMLCanvasElement | null = null;
 let closeBtn: HTMLButtonElement | null = null;
 let titleEl: HTMLElement | null = null;
 let isOpen = false;
+
+// Hit-testing state for hover
+let projectedPoints: (ProjectedPoint & { screenX: number; screenY: number })[] = [];
+let hoveredIndex = -1;
+let selectedEventId: string | null = null;
+let currentRenderArgs: {
+  config: CrossSectionConfig;
+  earthquakes: EarthquakeEvent[];
+  totalDistKm: number;
+  slabProfile: SlabProfilePoint[];
+} | null = null;
 
 // ── Public API ───────────────────────────────────────────────────
 
@@ -68,7 +88,7 @@ export function initCrossSection(container: HTMLElement): void {
 
   closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.textContent = '×';
+  closeBtn.textContent = '\u00d7';
   Object.assign(closeBtn.style, {
     background: 'none',
     border: 'none',
@@ -93,6 +113,16 @@ export function initCrossSection(container: HTMLElement): void {
   panelEl.appendChild(canvasEl);
 
   container.appendChild(panelEl);
+
+  // Hover event listener
+  canvasEl.addEventListener('mousemove', handleCanvasHover);
+  canvasEl.addEventListener('mouseleave', () => {
+    if (hoveredIndex !== -1) {
+      hoveredIndex = -1;
+      rerender();
+      canvasEl!.dispatchEvent(new CustomEvent('crosssection-hover', { detail: null, bubbles: true }));
+    }
+  });
 }
 
 export function showCrossSection(
@@ -111,11 +141,21 @@ export function showCrossSection(
     config.endPoint.lat, config.endPoint.lng,
   );
   if (titleEl) {
-    titleEl.textContent = `Cross Section — ${totalDist.toFixed(0)} km`;
+    titleEl.textContent = `Cross Section \u2014 ${totalDist.toFixed(0)} km`;
   }
 
+  // Auto-sample slab profile if not provided
+  const slab = slabProfile ?? sampleSlabProfile(config, totalDist);
+
+  currentRenderArgs = { config, earthquakes, totalDistKm: totalDist, slabProfile: slab };
+
   // Render after CSS transition settles (panel animates open over ~500ms)
-  setTimeout(() => renderCanvas(config, earthquakes, totalDist, slabProfile), 550);
+  setTimeout(() => renderCanvas(config, earthquakes, totalDist, slab), 550);
+}
+
+export function setSelectedEventId(eventId: string | null): void {
+  selectedEventId = eventId;
+  rerender();
 }
 
 export function hideCrossSection(): void {
@@ -129,6 +169,9 @@ export function isCrossSectionOpen(): boolean {
 }
 
 export function disposeCrossSection(): void {
+  if (canvasEl) {
+    canvasEl.removeEventListener('mousemove', handleCanvasHover);
+  }
   if (panelEl) {
     panelEl.remove();
     panelEl = null;
@@ -137,6 +180,71 @@ export function disposeCrossSection(): void {
   closeBtn = null;
   titleEl = null;
   isOpen = false;
+  projectedPoints = [];
+  hoveredIndex = -1;
+  selectedEventId = null;
+  currentRenderArgs = null;
+}
+
+// ── Slab profile sampling ────────────────────────────────────────
+
+function sampleSlabProfile(
+  config: CrossSectionConfig,
+  totalDistKm: number,
+  numSamples = 100,
+): SlabProfilePoint[] {
+  const profile: SlabProfilePoint[] = [];
+  for (let i = 0; i <= numSamples; i++) {
+    const t = i / numSamples;
+    const lat = config.startPoint.lat + t * (config.endPoint.lat - config.startPoint.lat);
+    const lng = config.startPoint.lng + t * (config.endPoint.lng - config.startPoint.lng);
+    const depth = getSlabDepthAt(lat, lng);
+    if (!isNaN(depth)) {
+      profile.push({ distanceKm: t * totalDistKm, depthKm: depth });
+    }
+  }
+  return profile;
+}
+
+// ── Hover handling ───────────────────────────────────────────────
+
+function handleCanvasHover(e: MouseEvent): void {
+  if (!canvasEl || projectedPoints.length === 0) return;
+
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  let nearest = -1;
+  let nearestDist = 10; // 10px threshold
+
+  for (let i = 0; i < projectedPoints.length; i++) {
+    const dx = projectedPoints[i].screenX - mx;
+    const dy = projectedPoints[i].screenY - my;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearest = i;
+    }
+  }
+
+  if (nearest !== hoveredIndex) {
+    hoveredIndex = nearest;
+    rerender();
+
+    const detail = nearest >= 0 ? projectedPoints[nearest] : null;
+    canvasEl.dispatchEvent(new CustomEvent('crosssection-hover', {
+      detail,
+      bubbles: true,
+    }));
+  }
+}
+
+function rerender(): void {
+  if (currentRenderArgs) {
+    const { config, earthquakes, totalDistKm, slabProfile } = currentRenderArgs;
+    renderCanvas(config, earthquakes, totalDistKm, slabProfile);
+  }
 }
 
 // ── Rendering ────────────────────────────────────────────────────
@@ -153,7 +261,6 @@ function renderCanvas(
   if (!canvasEl) return;
 
   const rect = canvasEl.getBoundingClientRect();
-  // Math.min(devicePixelRatio, 2) implementation for performance/sharpness cap
   const baseDpr = window.devicePixelRatio || 1;
   const dpr = Math.min(baseDpr, 2);
 
@@ -176,12 +283,17 @@ function renderCanvas(
   const xScale = (km: number) => MARGIN.left + (km / totalDistKm) * plotW;
   const yScale = (depth: number) => MARGIN.top + (depth / maxDepth) * plotH;
 
-  // Background
-  ctx.fillStyle = '#0d0d0d'; // var(--bg-analysis)
+  // Depth-gradient background
+  const bgGrad = ctx.createLinearGradient(0, yScale(0), 0, yScale(maxDepth));
+  bgGrad.addColorStop(0, '#1a1008');
+  bgGrad.addColorStop(yScale(35) / h, '#141210');
+  bgGrad.addColorStop(yScale(410) / h, '#0e0e0e');
+  bgGrad.addColorStop(1, '#080808');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
 
-  // Grid lines — §2-2: 50km intervals for both axes
-  ctx.strokeStyle = '#2a2a2a'; // var(--grid-line) — visible against #0d0d0d
+  // Grid lines — 50km intervals for both axes
+  ctx.strokeStyle = '#2a2a2a';
   ctx.lineWidth = 1;
   for (let d = 0; d <= maxDepth; d += 50) {
     const y = yScale(d);
@@ -191,7 +303,6 @@ function renderCanvas(
     ctx.stroke();
   }
 
-  // X-axis grid lines (50km intervals)
   for (let km = 0; km <= totalDistKm; km += 50) {
     const x = xScale(km);
     ctx.beginPath();
@@ -200,7 +311,7 @@ function renderCanvas(
     ctx.stroke();
   }
 
-  // §2-2: Crust boundary (Moho) — Y=35km, 1px dashed #333333
+  // Crust boundary (Moho) — Y=35km, 1px dashed #333333
   ctx.strokeStyle = '#333333';
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
@@ -209,14 +320,14 @@ function renderCanvas(
   ctx.lineTo(w - MARGIN.right, yScale(CRUST_DEPTH_KM));
   ctx.stroke();
 
-  // §2-2: Mantle transition zone — Y=410km, 1px dashed #222222
+  // Mantle transition zone — Y=410km
   ctx.strokeStyle = '#222222';
   ctx.beginPath();
   ctx.moveTo(MARGIN.left, yScale(410));
   ctx.lineTo(w - MARGIN.right, yScale(410));
   ctx.stroke();
 
-  // §2-2: Mantle transition zone — Y=660km, 1px dashed #222222
+  // Mantle transition zone — Y=660km
   ctx.beginPath();
   ctx.moveTo(MARGIN.left, yScale(660));
   ctx.lineTo(w - MARGIN.right, yScale(660));
@@ -231,9 +342,28 @@ function renderCanvas(
   ctx.fillText('410 km', MARGIN.left + 4, yScale(410) - 4);
   ctx.fillText('660 km', MARGIN.left + 4, yScale(660) - 4);
 
-  // Slab2 profile curve
+  // Enhanced slab2 profile curve with glow
   if (slabProfile && slabProfile.length > 1) {
-    ctx.strokeStyle = '#ff4444'; // var(--slab-line)
+    // Outer glow pass
+    ctx.save();
+    ctx.strokeStyle = '#ff4444';
+    ctx.globalAlpha = 0.25;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    for (let i = 0; i < slabProfile.length; i++) {
+      const x = xScale(slabProfile[i].distanceKm);
+      const y = yScale(slabProfile[i].depthKm);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Inner sharp pass with depth gradient
+    const slabGrad = ctx.createLinearGradient(0, yScale(0), 0, yScale(maxDepth));
+    slabGrad.addColorStop(0, '#ff4444');
+    slabGrad.addColorStop(1, '#881111');
+    ctx.strokeStyle = slabGrad;
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let i = 0; i < slabProfile.length; i++) {
@@ -251,11 +381,19 @@ function renderCanvas(
     earthquakes, startPoint, endPoint, totalDistKm, swathKm,
   );
 
+  // Store projected points with screen coords for hit-testing
+  projectedPoints = projected.map(p => ({
+    ...p,
+    screenX: xScale(p.distanceKm),
+    screenY: yScale(p.depthKm),
+  }));
+
   // Earthquake points
-  for (const p of projected) {
-    const x = xScale(p.distanceKm);
-    const y = yScale(p.depthKm);
-    const radius = Math.max(2, p.magnitude * 1.2);
+  for (let i = 0; i < projectedPoints.length; i++) {
+    const p = projectedPoints[i];
+    const x = p.screenX;
+    const y = p.screenY;
+    const radius = Math.max(2, Math.pow(p.magnitude, 1.5) * 0.8);
 
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -263,24 +401,45 @@ function renderCanvas(
     ctx.globalAlpha = 0.7;
     ctx.fill();
     ctx.globalAlpha = 1.0;
+
+    // Selected earthquake highlight — bright ring
+    if (selectedEventId && p.eventId === selectedEventId) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Hovered point highlight
+    if (i === hoveredIndex) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = '#00ffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
   // Axes
   ctx.strokeStyle = '#555555';
   ctx.lineWidth = 1;
-  // Y axis
   ctx.beginPath();
   ctx.moveTo(MARGIN.left, MARGIN.top);
   ctx.lineTo(MARGIN.left, h - MARGIN.bottom);
   ctx.stroke();
-  // X axis
   ctx.beginPath();
   ctx.moveTo(MARGIN.left, MARGIN.top);
   ctx.lineTo(w - MARGIN.right, MARGIN.top);
   ctx.stroke();
 
-  // Y axis labels (depth) — 50km intervals
-  ctx.fillStyle = '#666666'; // var(--grid-label)
+  // Y axis labels (depth)
+  ctx.fillStyle = '#666666';
   ctx.font = '10px Inter, sans-serif';
   ctx.textAlign = 'right';
   for (let d = 0; d <= maxDepth; d += 50) {
@@ -314,6 +473,9 @@ interface ProjectedPoint {
   distanceKm: number;
   depthKm: number;
   magnitude: number;
+  eventId: string;
+  lat: number;
+  lng: number;
 }
 
 /**
@@ -329,9 +491,10 @@ function projectEarthquakes(
 ): ProjectedPoint[] {
   const result: ProjectedPoint[] = [];
 
-  // Line direction vector (in degrees, for rough projection)
+  const midLat = (start.lat + end.lat) / 2;
+  const cosLat = Math.cos(midLat * Math.PI / 180);
   const dLat = end.lat - start.lat;
-  const dLng = end.lng - start.lng;
+  const dLng = (end.lng - start.lng) * cosLat; // correct for longitude convergence
   const lineLen = Math.sqrt(dLat * dLat + dLng * dLng);
   if (lineLen < 1e-6) return result;
 
@@ -339,15 +502,12 @@ function projectEarthquakes(
   const uLng = dLng / lineLen;
 
   for (const eq of events) {
-    // Vector from start to earthquake
     const eLat = eq.lat - start.lat;
-    const eLng = eq.lng - start.lng;
+    const eLng = (eq.lng - start.lng) * cosLat;
 
-    // Project onto line (dot product — uLat/uLng are already unit vectors)
     const t = eLat * uLat + eLng * uLng;
-    if (t < -0.05 || t > 1.05) continue; // outside profile
+    if (t < -0.05 || t > 1.05) continue;
 
-    // Perpendicular distance (cross product magnitude → haversine)
     const perpLat = start.lat + t * dLat;
     const perpLng = start.lng + t * dLng;
     const perpDist = haversineDistance(eq.lat, eq.lng, perpLat, perpLng);
@@ -357,6 +517,9 @@ function projectEarthquakes(
       distanceKm: t * totalDistKm,
       depthKm: eq.depth_km,
       magnitude: eq.magnitude,
+      eventId: eq.id,
+      lat: eq.lat,
+      lng: eq.lng,
     });
   }
 

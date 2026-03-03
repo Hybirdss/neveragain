@@ -15,16 +15,12 @@ import type { EarthquakeEvent } from '../../types';
 // Constants
 // ---------------------------------------------------------------------------
 
-const WAVE_SPEEDS = {
-  P_WAVE_DEG_PER_SEC: 3.09,
-  S_WAVE_DEG_PER_SEC: 1.80,
-} as const;
+/** Wave speeds in km/s (crustal averages). */
+const P_WAVE_KM_S = 6.0;
+const S_WAVE_KM_S = 3.5;
 
-/** Approximate meters per degree at equator. */
-const METERS_PER_DEG = 111_320;
-
-/** Maximum angular radius (degrees) before ring is removed. */
-const MAX_RADIUS_DEG = 90;
+/** Maximum surface radius (km) before ring is removed. */
+const MAX_RADIUS_KM = 4000;
 
 // ---------------------------------------------------------------------------
 // Internal ring type
@@ -33,7 +29,8 @@ const MAX_RADIUS_DEG = 90;
 interface WaveRing {
   lat: number;
   lng: number;
-  speedDegPerSec: number;
+  speedKmS: number;
+  depthKm: number;
   color: Cesium.Color;
   strokeWidth: number;
   createdAt: number;
@@ -66,12 +63,14 @@ function createRingEntity(
   viewer: GlobeInstance,
   lat: number,
   lng: number,
-  speedDegPerSec: number,
+  speedKmS: number,
+  depthKm: number,
   color: Cesium.Color,
   strokeWidth: number,
   createdAt: number,
 ): WaveRing {
-  const speedMetersPerSec = speedDegPerSec * METERS_PER_DEG;
+  // Delay until wave front reaches the surface: t = depth / speed
+  const surfaceDelayS = depthKm / speedKmS;
 
   // Precompute ENU transform once per ring (epicenter doesn't move)
   const center = Cesium.Cartesian3.fromDegrees(lng, lat);
@@ -86,7 +85,18 @@ function createRingEntity(
   // dual getValue() calls on dynamic ellipses.
   const positionsCb = new Cesium.CallbackProperty(() => {
     const elapsed = (Date.now() - createdAt) / 1000;
-    const radius = Math.max(100, elapsed * speedMetersPerSec);
+    // Wave hasn't reached surface yet — hide ring by using tiny radius
+    const surfaceTime = elapsed - surfaceDelayS;
+    if (surfaceTime <= 0) {
+      for (let i = 0; i < positions.length; i++) {
+        Cesium.Cartesian3.clone(center, positions[i]);
+      }
+      return positions;
+    }
+    // Apparent surface radius: sqrt((V*t)^2 - depth^2)
+    const traveled = speedKmS * elapsed;
+    const surfaceRadiusKm = Math.sqrt(traveled * traveled - depthKm * depthKm);
+    const radius = Math.max(100, surfaceRadiusKm * 1000);
     for (let i = 0; i < UNIT_CIRCLE.length; i++) {
       const [cx, cy] = UNIT_CIRCLE[i];
       enuScratch.x = radius * cx;
@@ -106,7 +116,7 @@ function createRingEntity(
     },
   });
 
-  return { lat, lng, speedDegPerSec, color, strokeWidth, createdAt, entity };
+  return { lat, lng, speedKmS, depthKm, color, strokeWidth, createdAt, entity };
 }
 
 // ---------------------------------------------------------------------------
@@ -124,18 +134,18 @@ export function spawnWaveRings(
 ): void {
   const now = Date.now();
 
-  // P-wave: neon cyan
+  // P-wave: neon cyan (6.0 km/s)
   activeRings.push(createRingEntity(
     viewer, event.lat, event.lng,
-    WAVE_SPEEDS.P_WAVE_DEG_PER_SEC,
+    P_WAVE_KM_S, event.depth_km,
     Cesium.Color.fromCssColorString('rgba(0, 240, 255, 0.7)'),
     1.5, now,
   ));
 
-  // S-wave: vivid crimson
+  // S-wave: vivid crimson (3.5 km/s)
   activeRings.push(createRingEntity(
     viewer, event.lat, event.lng,
-    WAVE_SPEEDS.S_WAVE_DEG_PER_SEC,
+    S_WAVE_KM_S, event.depth_km,
     Cesium.Color.fromCssColorString('rgba(255, 26, 51, 0.8)'),
     3.5, now,
   ));
@@ -181,22 +191,17 @@ function startCleanup(): void {
   cleanupTimer = setInterval(() => {
     if (!viewerRef) return;
     const now = Date.now();
-    const before = activeRings.length;
+    const kept: typeof activeRings = [];
 
-    const expired = activeRings.filter((ring) => {
-      const lifetimeMs = (MAX_RADIUS_DEG / ring.speedDegPerSec) * 1000;
-      return now - ring.createdAt >= lifetimeMs;
-    });
-
-    for (const ring of expired) {
-      viewerRef.entities.remove(ring.entity);
+    for (const ring of activeRings) {
+      const lifetimeMs = (MAX_RADIUS_KM / ring.speedKmS) * 1000;
+      if (now - ring.createdAt >= lifetimeMs) {
+        viewerRef.entities.remove(ring.entity);
+      } else {
+        kept.push(ring);
+      }
     }
 
-    activeRings = activeRings.filter((ring) => {
-      const lifetimeMs = (MAX_RADIUS_DEG / ring.speedDegPerSec) * 1000;
-      return now - ring.createdAt < lifetimeMs;
-    });
-
-    void before; // suppress unused
+    activeRings = kept;
   }, 1000);
 }

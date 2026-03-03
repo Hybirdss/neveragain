@@ -1,0 +1,218 @@
+/* --- Detail Panel --- */
+.detail-panel {
+  background: var(--surface-panel);
+  border: none;
+  border-top: 1px solid var(--border-default);
+  border-radius: 0;
+  padding: var(--space-3) var(--spacing-panel-x);
+  animation: slide-in var(--duration-panel) var(--ease-panel);
+  position: relative;
+  overflow: hidden;
+}
+
+.detail-panel--hidden {
+  display: none;
+}
+
+/* --- Cinematic Trigger Button --- */
+.cinematic-btn {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: var(--surface-danger-subtle);
+  border: 1px solid var(--border-danger-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--accent-danger);
+  cursor: pointer;
+  transition: background var(--duration-hover) var(--ease-panel),
+    border-color var(--duration-hover) var(--ease-panel);
+}
+
+.cinematic-btn:hover {
+  background: #2a0c0c;
+  border-color: var(--accent-danger);
+}
+
+.cinematic-btn--hidden {
+  display: none;
+}
+
+.detail-panel__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.detail-panel__magnitude {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.detail-panel__place {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.detail-panel__row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-panel__key {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text-tertiary);
+}
+
+.detail-panel__val {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.detail-panel__jma-badge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--panel-radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: #000;
+}
+
+/* --- MMI Bar (detail panel) --- */
+.mmi-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 1px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.mmi-segment {
+  flex: 1;
+  transition: opacity var(--duration-data) ease;
+}
+
+.mmi-bar__labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.mmi-bar__label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--border-emphasis);
+}
+
+.mmi-bar__level {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+
+/* --- Detail Panel (refined) --- */
+.detail-panel__header-refined {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.detail-panel__header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-panel__mag-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.detail-panel__magnitude-lg {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+}
+
+.detail-panel__place-lg {
+  font-size: 14px;
+  color: #999;
+}
+
+.detail-panel__meta-row {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-disabled);
+  display: flex;
+  gap: 12px;
+}
+
+.detail-panel__meta-row span span {
+  color: var(--text-secondary);
+}
+
+.mmi-bar__title {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* --- Detail Action Buttons --- */
+.detail-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.detail-action-btn {
+  flex: 1;
+  padding: 7px 0;
+  background: #111;
+  border: 1px solid #222;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all var(--duration-hover) ease;
+}
+
+.detail-action-btn:hover {
+  border-color: var(--text-disabled);
+  color: #ccc;
+}
+
+.detail-action-btn--danger {
+  background: var(--surface-danger-subtle);
+  border-color: var(--border-danger-subtle);
+  color: var(--accent-danger);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.detail-action-btn--danger:hover {
+  background: #2a0c0c;
+  border-color: #441111;
+}
+

@@ -1,21 +1,20 @@
 /**
  * seismicPoints.ts — Layer 3: Earthquake event points (CesiumJS)
  *
- * Renders EarthquakeEvent[] as 3D points on the globe using
- * Cesium PointPrimitiveCollection. Depth is encoded as negative height
- * (below surface), colour encodes depth, radius encodes magnitude.
+ * Renders EarthquakeEvent[] as 3D billboard sprites on the globe using
+ * Cesium BillboardCollection. Depth is encoded as negative height
+ * (below surface), glow sprite colour encodes depth band, scale encodes magnitude.
  */
 
 import * as Cesium from 'cesium';
 import type { GlobeInstance } from '../globeInstance';
 import type { EarthquakeEvent } from '../../types';
-import { depthToColor } from '../../utils/colorScale';
 import { store } from '../../store/appState';
 import { getSlabDepthAt } from '../features/slab2Contours';
 
 const MAX_POINTS = 5000;
 
-let pointCollection: Cesium.PointPrimitiveCollection | null = null;
+let billboardCollection: Cesium.BillboardCollection | null = null;
 let pointBuffer: EarthquakeEvent[] = [];
 
 /** Historical catalog for underground/LOD view. */
@@ -24,23 +23,55 @@ let currentLodLevel: 'far' | 'medium' | 'close' = 'far';
 let catalogActive = false;
 let cameraChangedRemover: (() => void) | null = null;
 
-/** Store earthquake reference on each point for picking. */
-const pointEventMap = new WeakMap<Cesium.PointPrimitive, EarthquakeEvent>();
+/** Store earthquake reference on each billboard for picking. */
+const pointEventMap = new WeakMap<Cesium.Billboard, EarthquakeEvent>();
 
-function magnitudeToPixelSize(mag: number): number {
-  return Math.max(3, Math.pow(10, (mag - 2) / 3.5) * 4);
+// ── Glow sprite generation ──────────────────────────────────
+
+function makeGlowSprite(color: string, size = 64): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, '#fff');
+  g.addColorStop(0.15, color);
+  g.addColorStop(0.5, color + '66');
+  g.addColorStop(1, 'transparent');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return c;
 }
 
-/** Depth-based alpha: shallow = opaque, deep = translucent. */
-function depthToAlpha(depth_km: number): number {
-  if (depth_km < 70) return 0.8;
-  if (depth_km <= 300) return 0.6;
-  return 0.4;
+// Depth bands: color, base scale, and data-URL image for Cesium billboards
+interface DepthBand {
+  maxDepth: number; // upper bound (exclusive for all but last)
+  color: string;
+  baseScale: number;
+  image: string; // data URL
 }
 
-/** Create a Cesium.Color from depth color string with depth-based alpha. */
-function depthColor(depth_km: number): Cesium.Color {
-  return Cesium.Color.fromCssColorString(depthToColor(depth_km)).withAlpha(depthToAlpha(depth_km));
+const DEPTH_BANDS: DepthBand[] = [
+  { maxDepth: 30,  color: '#ff4444', baseScale: 1.0,  image: '' },
+  { maxDepth: 70,  color: '#ff7722', baseScale: 0.85, image: '' },
+  { maxDepth: 150, color: '#ffaa00', baseScale: 0.70, image: '' },
+  { maxDepth: 300, color: '#44aaff', baseScale: 0.55, image: '' },
+  { maxDepth: 700, color: '#3355cc', baseScale: 0.40, image: '' },
+];
+
+// Generate sprite images once at module load
+for (const band of DEPTH_BANDS) {
+  band.image = makeGlowSprite(band.color).toDataURL();
+}
+
+function getDepthBand(depth_km: number): DepthBand {
+  for (const band of DEPTH_BANDS) {
+    if (depth_km < band.maxDepth) return band;
+  }
+  return DEPTH_BANDS[DEPTH_BANDS.length - 1];
+}
+
+function magnitudeScale(mag: number): number {
+  return Math.max(0.3, Math.pow(10, (mag - 2) / 3.5) * 0.15);
 }
 
 /**
@@ -50,29 +81,37 @@ function depthColor(depth_km: number): Cesium.Color {
  */
 function isSlabRelated(eq: EarthquakeEvent): boolean {
   const slabDepth = getSlabDepthAt(eq.lat, eq.lng);
-  if (isNaN(slabDepth)) return true; // No slab data — don't filter out
+  if (isNaN(slabDepth)) return true;
   return Math.abs(eq.depth_km - slabDepth) <= 30;
 }
 
+function addBillboard(eq: EarthquakeEvent, show = true): Cesium.Billboard {
+  const band = getDepthBand(eq.depth_km);
+  const scale = band.baseScale * magnitudeScale(eq.magnitude);
+  const bb = billboardCollection!.add({
+    position: Cesium.Cartesian3.fromDegrees(eq.lng, eq.lat, -(eq.depth_km * 1000)),
+    image: band.image,
+    scale,
+    scaleByDistance: new Cesium.NearFarScalar(1e3, 1.5, 1e7, 0.3),
+    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    show,
+  });
+  pointEventMap.set(bb, eq);
+  return bb;
+}
+
 function rebuildPoints(): void {
-  if (!pointCollection) return;
-  pointCollection.removeAll();
+  if (!billboardCollection) return;
+  billboardCollection.removeAll();
 
   for (const eq of pointBuffer) {
-    const pt = pointCollection.add({
-      position: Cesium.Cartesian3.fromDegrees(eq.lng, eq.lat, -(eq.depth_km * 1000)),
-      pixelSize: magnitudeToPixelSize(eq.magnitude),
-      color: depthColor(eq.depth_km),
-      scaleByDistance: new Cesium.NearFarScalar(1e3, 1.5, 1e7, 0.3),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-    });
-    pointEventMap.set(pt, eq);
+    addBillboard(eq);
   }
 }
 
 export function initSeismicPoints(viewer: GlobeInstance): void {
-  pointCollection = new Cesium.PointPrimitiveCollection();
-  viewer.scene.primitives.add(pointCollection);
+  billboardCollection = new Cesium.BillboardCollection({ scene: viewer.scene });
+  viewer.scene.primitives.add(billboardCollection);
 
   // LOD: update point density when camera moves (not every frame)
   cameraChangedRemover = viewer.camera.changed.addEventListener(() => {
@@ -119,11 +158,11 @@ export function addSeismicPoint(
 
 export function clearSeismicPoints(_viewer: GlobeInstance): void {
   pointBuffer = [];
-  if (pointCollection) pointCollection.removeAll();
+  if (billboardCollection) billboardCollection.removeAll();
 }
 
-/** Get the earthquake event associated with a picked point primitive. */
-export function getEventFromPoint(point: Cesium.PointPrimitive): EarthquakeEvent | undefined {
+/** Get the earthquake event associated with a picked billboard. */
+export function getEventFromPoint(point: Cesium.Billboard): EarthquakeEvent | undefined {
   return pointEventMap.get(point);
 }
 
@@ -149,8 +188,8 @@ export function setCatalogActive(active: boolean): void {
 }
 
 function rebuildCatalogPoints(): void {
-  if (!pointCollection || !catalogActive) return;
-  pointCollection.removeAll();
+  if (!billboardCollection || !catalogActive) return;
+  billboardCollection.removeAll();
 
   const minMag = currentLodLevel === 'far' ? 5.0 : currentLodLevel === 'medium' ? 4.0 : 3.0;
   const filtered = catalogBuffer
@@ -159,30 +198,23 @@ function rebuildCatalogPoints(): void {
   const capped = filtered.length > MAX_POINTS ? filtered.slice(-MAX_POINTS) : filtered;
 
   for (const eq of capped) {
-    const pt = pointCollection.add({
-      position: Cesium.Cartesian3.fromDegrees(eq.lng, eq.lat, -(eq.depth_km * 1000)),
-      pixelSize: magnitudeToPixelSize(eq.magnitude),
-      color: depthColor(eq.depth_km),
-      scaleByDistance: new Cesium.NearFarScalar(1e3, 1.5, 1e7, 0.3),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-    });
-    pointEventMap.set(pt, eq);
+    addBillboard(eq);
   }
 }
 
 // ── Cinematic depth filter ──────────────────────────────────
 
-/** Points pre-added with show:false for cinematic depth reveal. */
-let cinematicPoints: { eq: EarthquakeEvent; pt: Cesium.PointPrimitive }[] = [];
+/** Billboards pre-added with show:false for cinematic depth reveal. */
+let cinematicPoints: { eq: EarthquakeEvent; pt: Cesium.Billboard }[] = [];
 
 /**
  * Prepare cinematic depth reveal: add all catalog points hidden.
  * Call once before the reveal animation starts.
  */
 export function prepareCinematicReveal(): void {
-  if (!pointCollection) return;
+  if (!billboardCollection) return;
   // Clear normal points, add catalog with show:false
-  pointCollection.removeAll();
+  billboardCollection.removeAll();
   cinematicPoints = [];
 
   const minMag = currentLodLevel === 'far' ? 5.0 : currentLodLevel === 'medium' ? 4.0 : 3.0;
@@ -190,14 +222,7 @@ export function prepareCinematicReveal(): void {
   const capped = filtered.length > MAX_POINTS ? filtered.slice(-MAX_POINTS) : filtered;
 
   for (const eq of capped) {
-    const pt = pointCollection.add({
-      position: Cesium.Cartesian3.fromDegrees(eq.lng, eq.lat, -(eq.depth_km * 1000)),
-      pixelSize: magnitudeToPixelSize(eq.magnitude),
-      color: depthColor(eq.depth_km),
-      scaleByDistance: new Cesium.NearFarScalar(1e3, 1.5, 1e7, 0.3),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      show: false,
-    });
+    const pt = addBillboard(eq, false);
     cinematicPoints.push({ eq, pt });
   }
 }
@@ -224,10 +249,10 @@ export function clearCinematicReveal(): void {
   }
 }
 
-/** Set visibility of the point collection. */
+/** Set visibility of the billboard collection. */
 export function setPointsVisible(visible: boolean): void {
-  if (pointCollection) {
-    pointCollection.show = visible;
+  if (billboardCollection) {
+    billboardCollection.show = visible;
     if (visible) {
       if (catalogActive) {
         rebuildCatalogPoints();
@@ -238,9 +263,87 @@ export function setPointsVisible(visible: boolean): void {
   }
 }
 
+// ── Drill line (surface → hypocenter) ───────────────────────
+
+let drillLineEntity: Cesium.Entity | null = null;
+let drillLabelEntity: Cesium.Entity | null = null;
+let drillLineViewer: GlobeInstance | null = null;
+let drillLineUnsub: (() => void) | null = null;
+
+/**
+ * Initialize drill line subscription.
+ * When an earthquake is selected, draws a dashed white vertical line
+ * from surface to hypocenter with a depth label at the midpoint.
+ */
+export function initDrillLine(viewer: GlobeInstance): void {
+  drillLineViewer = viewer;
+  drillLineUnsub = store.subscribe('selectedEvent', (event) => {
+    clearDrillLine();
+    if (event) {
+      showDrillLine(viewer, event);
+    }
+  });
+}
+
+function showDrillLine(viewer: GlobeInstance, event: EarthquakeEvent): void {
+  const surfacePos = Cesium.Cartesian3.fromDegrees(event.lng, event.lat, 0);
+  const hypoPos = Cesium.Cartesian3.fromDegrees(event.lng, event.lat, -(event.depth_km * 1000));
+  const midPos = Cesium.Cartesian3.fromDegrees(event.lng, event.lat, -(event.depth_km * 500));
+
+  drillLineEntity = viewer.entities.add({
+    polyline: {
+      positions: [surfacePos, hypoPos],
+      width: 1.5,
+      material: new Cesium.PolylineDashMaterialProperty({
+        color: Cesium.Color.WHITE.withAlpha(0.5),
+        dashLength: 12,
+      }),
+      depthFailMaterial: new Cesium.PolylineDashMaterialProperty({
+        color: Cesium.Color.WHITE.withAlpha(0.3),
+        dashLength: 12,
+      }),
+    },
+  });
+
+  drillLabelEntity = viewer.entities.add({
+    position: midPos,
+    label: {
+      text: `${event.depth_km.toFixed(1)} km`,
+      font: '12px monospace',
+      fillColor: Cesium.Color.WHITE.withAlpha(0.8),
+      outlineColor: Cesium.Color.BLACK.withAlpha(0.6),
+      outlineWidth: 2,
+      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      pixelOffset: new Cesium.Cartesian2(12, 0),
+      horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+      verticalOrigin: Cesium.VerticalOrigin.CENTER,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      scaleByDistance: new Cesium.NearFarScalar(1e3, 1.0, 5e6, 0.3),
+    },
+  });
+}
+
+function clearDrillLine(): void {
+  if (!drillLineViewer) return;
+  if (drillLineEntity) {
+    drillLineViewer.entities.remove(drillLineEntity);
+    drillLineEntity = null;
+  }
+  if (drillLabelEntity) {
+    drillLineViewer.entities.remove(drillLabelEntity);
+    drillLabelEntity = null;
+  }
+}
+
 export function disposeSeismicPoints(): void {
   if (cameraChangedRemover) {
     cameraChangedRemover();
     cameraChangedRemover = null;
   }
+  if (drillLineUnsub) {
+    drillLineUnsub();
+    drillLineUnsub = null;
+  }
+  clearDrillLine();
+  drillLineViewer = null;
 }

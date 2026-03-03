@@ -35,10 +35,12 @@ export function pixelToGeo(
   row: number,
   grid: IntensityGrid,
 ): [lng: number, lat: number] {
-  const lngMin = grid.center.lng - grid.radiusDeg;
-  const latMin = grid.center.lat - grid.radiusDeg;
-  const lng = lngMin + col * (2 * grid.radiusDeg / (grid.cols - 1));
-  const lat = latMin + row * (2 * grid.radiusDeg / (grid.rows - 1));
+  const rLat = grid.radiusDeg;
+  const rLng = grid.radiusLngDeg ?? grid.radiusDeg;
+  const lngMin = grid.center.lng - rLng;
+  const latMin = grid.center.lat - rLat;
+  const lng = lngMin + col * (2 * rLng / (grid.cols - 1));
+  const lat = latMin + row * (2 * rLat / (grid.rows - 1));
   return [lng, lat];
 }
 

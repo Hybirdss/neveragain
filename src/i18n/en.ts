@@ -76,6 +76,15 @@ const en: Record<string, string> = {
   'layer.gsiBaseGroup': 'Base Map',
   'layer.gsiOverlayGroup': 'Overlay',
 
+  // Data integration layers
+  'layer.activeFaults': 'Fault Lines',
+  'layer.hazardComparison': 'J-SHIS Compare',
+  'layer.landslideRisk': 'Landslide Risk',
+
+  // Impact panel
+  'impact.title': 'AFFECTED AREAS',
+  'impact.totalExposed': 'Total exposed',
+
   // Alert bar
   'alert.prefix': 'EARTHQUAKE ALERT',
 
@@ -137,6 +146,12 @@ const en: Record<string, string> = {
   'plateau.kumamoto': 'Kumamoto',
   'plateau.naha': 'Naha',
   'plateau.loading': 'Loading buildings...',
+
+  // Detail panel — MMI descriptions
+  'mmi.destructive': 'Destructive',
+  'mmi.strong': 'Strong',
+  'mmi.moderate': 'Moderate',
+  'mmi.weak': 'Weak',
 
   // Locale switcher
   'locale.en': 'EN',

@@ -7,7 +7,7 @@
  */
 
 import { computeIntensityGrid } from './gmpe';
-import type { GmpeWorkerRequest, GmpeWorkerResponse } from '../types';
+import type { GmpeWorkerRequest, GmpeWorkerResponse, Vs30Grid } from '../types';
 
 const workerSelf = self as unknown as {
   onmessage: ((event: MessageEvent<GmpeWorkerRequest>) => void) | null;
@@ -22,6 +22,19 @@ workerSelf.onmessage = (event: MessageEvent<GmpeWorkerRequest>) => {
   }
 
   try {
+    // Reconstruct Vs30Grid from transferred ArrayBuffer if available
+    let vs30Grid: Vs30Grid | undefined;
+    if (req.vs30Grid) {
+      vs30Grid = {
+        data: new Float32Array(req.vs30Grid.data),
+        cols: req.vs30Grid.cols,
+        rows: req.vs30Grid.rows,
+        latMin: req.vs30Grid.latMin,
+        lngMin: req.vs30Grid.lngMin,
+        step: req.vs30Grid.step,
+      };
+    }
+
     const grid = computeIntensityGrid(
       req.epicenter,
       req.Mw,
@@ -29,6 +42,7 @@ workerSelf.onmessage = (event: MessageEvent<GmpeWorkerRequest>) => {
       req.faultType,
       req.gridSpacingDeg,
       req.radiusDeg,
+      vs30Grid,
     );
 
     const response: GmpeWorkerResponse = {

@@ -5,13 +5,13 @@
  * Inspired by reference UI depth legend pattern.
  */
 
+// Must match DEPTH_BANDS in seismicPoints.ts for visual consistency
 const DEPTH_COLORS = [
-  { depth: 0, color: '#FFE633' },
-  { depth: 70, color: '#FFA033' },
-  { depth: 150, color: '#FF4444' },
-  { depth: 300, color: '#CC22AA' },
-  { depth: 500, color: '#7744DD' },
-  { depth: 700, color: '#3344BB' },
+  { depth: 0,   color: '#ff4444' },  // Shallow (0-30km)
+  { depth: 30,  color: '#ff7722' },  // Upper crust (30-70km)
+  { depth: 70,  color: '#ffaa00' },  // Lower crust (70-150km)
+  { depth: 150, color: '#44aaff' },  // Upper mantle (150-300km)
+  { depth: 300, color: '#3355cc' },  // Deep (300-700km)
 ];
 
 let panelEl: HTMLElement | null = null;

@@ -42,7 +42,7 @@ import { createGlobe, getPointOfView } from './globe/globeInstance';
 import type { GlobeInstance } from './globe/globeInstance';
 import { initCamera, flyToEarthquake, executeCameraPath, NANKAI_CAMERA_PATH, TOHOKU_CAMERA_PATH } from './globe/camera';
 import { getEventFromPoint } from './globe/layers/seismicPoints';
-import { initSeismicPoints, updateSeismicPoints } from './globe/layers/seismicPoints';
+import { initSeismicPoints, updateSeismicPoints, initDrillLine } from './globe/layers/seismicPoints';
 import { initWaveRings, spawnWaveRings, clearWaveRings } from './globe/layers/waveRings';
 import { initIsoseismal, updateIsoseismal, clearIsoseismal } from './globe/layers/isoseismal';
 import { initTectonicPlates } from './globe/layers/tectonicPlates';
@@ -61,6 +61,7 @@ import { initShakeMapOverlay, updateShakeMapOverlay, clearShakeMapOverlay } from
 
 // Slab2 + ViewPreset
 import { initSlab2Contours } from './globe/features/slab2Contours';
+import { initDepthRings, disposeDepthRings } from './globe/features/depthRings';
 import { initPlateauBuildings, disposePlateau } from './globe/features/plateauBuildings';
 import { initGsiLayers } from './globe/layers/gsiLayers';
 import { setHistoricalCatalog, setCatalogActive, disposeSeismicPoints } from './globe/layers/seismicPoints';
@@ -91,6 +92,24 @@ import { initDepthScale, disposeDepthScale } from './ui/depthScale';
 // Data (new)
 import { loadTimelineData } from './data/timelineLoader';
 import { t, onLocaleChange } from './i18n/index';
+
+// Feature 1-5: Data integration engine
+import type {
+  Vs30Grid,
+  Vs30GridTransfer,
+  ActiveFault,
+  Prefecture,
+  HazardGrid,
+  SlopeGrid,
+  LayerVisibility,
+} from './types';
+import { computeImpact } from './engine/impactAssessment';
+import { computeHazardComparison } from './engine/hazardComparison';
+import { computeLandslideGrid } from './engine/landslideRisk';
+import { initActiveFaults, setActiveFaultsVisible, disposeActiveFaults, tryPickFault } from './globe/features/activeFaults';
+import { updateLandslideOverlay, clearLandslideOverlay } from './globe/layers/landslideOverlay';
+import { updateComparisonOverlay, clearComparisonOverlay } from './globe/layers/comparisonOverlay';
+import { initImpactPanel, disposeImpactPanel } from './ui/impactPanel';
 
 // ============================================================
 // DOM Setup
@@ -144,7 +163,7 @@ function createLayout(): LayoutContainers {
         <span class="top-bar__tag mono">4D</span>
       </div>
       <div class="top-bar__divider"></div>
-      <span class="top-bar__date mono">${new Date().toISOString().split('T')[0]}</span>
+      <span class="top-bar__date mono">${new Date(Date.now() + 9 * 3600_000).toISOString().split('T')[0]}</span>
       <span class="top-bar__clock" id="top-bar-clock"></span>
     </div>
     <div class="top-bar__right">
@@ -159,8 +178,8 @@ function createLayout(): LayoutContainers {
   function updateClock() {
     const now = new Date();
     const h = String((now.getUTCHours() + 9) % 24).padStart(2, '0'); // JST = UTC+9
-    const m = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
+    const m = String(now.getUTCMinutes()).padStart(2, '0');
+    const s = String(now.getUTCSeconds()).padStart(2, '0');
     clockEl.textContent = `${h}:${m}:${s} JST`;
   }
   updateClock();
@@ -194,7 +213,28 @@ function createGmpeWorker(): Worker {
   );
 }
 
+/** Cached data grids loaded at boot time */
+let vs30GridData: Vs30Grid | null = null;
+let prefectureData: Prefecture[] = [];
+let hazardGridData: HazardGrid | null = null;
+let slopeGridData: SlopeGrid | null = null;
+let activeFaultData: ActiveFault[] = [];
+
 function requestGridComputation(worker: Worker, event: EarthquakeEvent): void {
+  // Prepare Vs30 grid transfer (ArrayBuffer copy for Worker)
+  let vs30Transfer: Vs30GridTransfer | undefined;
+  if (vs30GridData) {
+    const bufferCopy = vs30GridData.data.buffer.slice(0) as ArrayBuffer;
+    vs30Transfer = {
+      data: bufferCopy,
+      cols: vs30GridData.cols,
+      rows: vs30GridData.rows,
+      latMin: vs30GridData.latMin,
+      lngMin: vs30GridData.lngMin,
+      step: vs30GridData.step,
+    };
+  }
+
   const request: GmpeWorkerRequest = {
     type: 'COMPUTE_GRID',
     epicenter: { lat: event.lat, lng: event.lng },
@@ -203,8 +243,86 @@ function requestGridComputation(worker: Worker, event: EarthquakeEvent): void {
     faultType: event.faultType,
     gridSpacingDeg: 0.1,
     radiusDeg: 5,
+    vs30Grid: vs30Transfer,
   };
-  worker.postMessage(request);
+
+  const transferables: Transferable[] = [];
+  if (vs30Transfer) {
+    transferables.push(vs30Transfer.data);
+  }
+  worker.postMessage(request, transferables);
+}
+
+// ============================================================
+// Data Grid Loaders (Feature 1-5)
+// ============================================================
+
+interface GridJson {
+  cols: number;
+  rows: number;
+  latMin: number;
+  lngMin: number;
+  step: number;
+  data: number[];
+}
+
+async function loadGridJson(url: string): Promise<GridJson | null> {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (err) {
+    console.warn(`[main] Failed to load ${url}:`, err);
+    return null;
+  }
+}
+
+function jsonToFloat32Grid(json: GridJson): { data: Float32Array; cols: number; rows: number; latMin: number; lngMin: number; step: number } {
+  return {
+    data: new Float32Array(json.data),
+    cols: json.cols,
+    rows: json.rows,
+    latMin: json.latMin,
+    lngMin: json.lngMin,
+    step: json.step,
+  };
+}
+
+async function loadAllDataGrids(): Promise<void> {
+  console.log('[main] Loading data grids...');
+
+  const [vs30Json, slopeJson, prefJson, faultJson, hazardJson] = await Promise.all([
+    loadGridJson('/data/vs30-grid.json'),
+    loadGridJson('/data/slope-grid.json'),
+    fetch('/data/prefectures.json').then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('/data/active-faults.json').then(r => r.ok ? r.json() : null).catch(() => null),
+    loadGridJson('/data/jshis-hazard-grid.json'),
+  ]);
+
+  if (vs30Json) {
+    vs30GridData = jsonToFloat32Grid(vs30Json);
+    console.log(`[main] Vs30 grid loaded: ${vs30Json.rows}x${vs30Json.cols}`);
+  }
+
+  if (slopeJson) {
+    slopeGridData = jsonToFloat32Grid(slopeJson);
+    console.log(`[main] Slope grid loaded: ${slopeJson.rows}x${slopeJson.cols}`);
+  }
+
+  if (prefJson && Array.isArray(prefJson)) {
+    prefectureData = prefJson;
+    console.log(`[main] Prefectures loaded: ${prefectureData.length}`);
+  }
+
+  if (faultJson && Array.isArray(faultJson)) {
+    activeFaultData = faultJson;
+    console.log(`[main] Active faults loaded: ${activeFaultData.length}`);
+  }
+
+  if (hazardJson) {
+    hazardGridData = jsonToFloat32Grid(hazardJson);
+    console.log(`[main] J-SHIS hazard grid loaded: ${hazardJson.rows}x${hazardJson.cols}`);
+  }
 }
 
 // ============================================================
@@ -282,7 +400,9 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     }
   });
   // --- selectedEvent → ShakeMap (preferred) or GMPE (fallback) + camera + waves ---
+  let selectedEventVersion = 0;
   store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
+    const myVersion = ++selectedEventVersion;
     if (!event) {
       // Clear visuals when deselected
       clearIsoseismal(globe);
@@ -325,6 +445,8 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       const usgsEventId = preset?.usgsId ?? event.id;
       // Try USGS ShakeMap first — much more accurate for real events
       const shakeMap = await fetchShakeMap(usgsEventId);
+      // Guard: user may have selected a different event during fetch
+      if (myVersion !== selectedEventVersion) return;
       if (shakeMap?.mmiContours) {
         clearIsoseismal(globe);
         updateShakeMapOverlay(globe, shakeMap);
@@ -344,15 +466,81 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     }
   });
 
-  // --- intensityGrid → contours → isoseismal layer ---
+  // --- intensityGrid → contours → isoseismal + impact + landslide + hazard ---
   store.subscribe('intensityGrid', (grid: IntensityGrid | null) => {
     if (!grid) {
       clearIsoseismal(globe);
+      store.set('impactResults', null);
+      store.set('landslideGrid', null);
+      store.set('comparisonGrid', null);
+      clearLandslideOverlay(globe);
+      clearComparisonOverlay(globe);
       return;
     }
 
     const features = generateContourFeatures(grid);
     updateIsoseismal(globe, features);
+
+    // Feature 3: Impact assessment (prefecture-level damage)
+    if (prefectureData.length > 0) {
+      const impacts = computeImpact(grid, prefectureData);
+      store.set('impactResults', impacts);
+    }
+
+    // Feature 5: Landslide risk (if layer enabled)
+    if (store.get('layers').landslideRisk && slopeGridData) {
+      const landslide = computeLandslideGrid(grid, slopeGridData);
+      store.set('landslideGrid', landslide);
+      updateLandslideOverlay(globe, landslide);
+    } else {
+      store.set('landslideGrid', null);
+      clearLandslideOverlay(globe);
+    }
+
+    // Feature 4: Hazard comparison (if layer enabled)
+    if (store.get('layers').hazardComparison && hazardGridData) {
+      const comparison = computeHazardComparison(grid, hazardGridData);
+      store.set('comparisonGrid', comparison);
+      updateComparisonOverlay(globe, comparison);
+    } else {
+      store.set('comparisonGrid', null);
+      clearComparisonOverlay(globe);
+    }
+  });
+
+  // --- layer visibility → toggle features ---
+  store.subscribe('layers', (layers: LayerVisibility) => {
+    // Feature 2: Active faults visibility
+    setActiveFaultsVisible(layers.activeFaults);
+
+    // Feature 5: Landslide risk toggle
+    const grid = store.get('intensityGrid');
+    if (layers.landslideRisk && grid && slopeGridData) {
+      const landslide = computeLandslideGrid(grid, slopeGridData);
+      store.set('landslideGrid', landslide);
+      updateLandslideOverlay(globe, landslide);
+    } else if (!layers.landslideRisk) {
+      clearLandslideOverlay(globe);
+      store.set('landslideGrid', null);
+    } else {
+      // landslideRisk=true but grid or slopeGridData missing: clear stale state
+      clearLandslideOverlay(globe);
+      store.set('landslideGrid', null);
+    }
+
+    // Feature 4: Hazard comparison toggle
+    if (layers.hazardComparison && grid && hazardGridData) {
+      const comparison = computeHazardComparison(grid, hazardGridData);
+      store.set('comparisonGrid', comparison);
+      updateComparisonOverlay(globe, comparison);
+    } else if (!layers.hazardComparison) {
+      clearComparisonOverlay(globe);
+      store.set('comparisonGrid', null);
+    } else {
+      // hazardComparison=true but data missing: clear stale state
+      clearComparisonOverlay(globe);
+      store.set('comparisonGrid', null);
+    }
   });
 
   // --- viewPreset → apply visual configuration ---
@@ -572,7 +760,9 @@ function setupGlobeClickHandler(globe: GlobeInstance): void {
 
   handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
     const picked = globe.scene.pick(click.position);
-    if (Cesium.defined(picked) && picked.primitive instanceof Cesium.PointPrimitive) {
+
+    // 1. Check seismic points (billboards)
+    if (Cesium.defined(picked) && picked.primitive instanceof Cesium.Billboard) {
       const eq = getEventFromPoint(picked.primitive);
       if (eq) {
         store.set('selectedEvent', eq);
@@ -580,7 +770,14 @@ function setupGlobeClickHandler(globe: GlobeInstance): void {
         return;
       }
     }
-    // Click on empty space — deselect
+
+    // 2. Check active fault polylines (Feature 2)
+    if (tryPickFault(picked)) {
+      hideTooltip();
+      return;
+    }
+
+    // 3. Click on empty space — deselect
     hideTooltip();
     if (store.get('mode') !== 'scenario') {
       store.set('selectedEvent', null);
@@ -607,6 +804,7 @@ async function bootstrap(): Promise<void> {
   );
 
   initSeismicPoints(globe);
+  initDrillLine(globe);
   initWaveRings(globe);
   initIsoseismal(globe);
   initShakeMapOverlay(globe);
@@ -619,6 +817,9 @@ async function bootstrap(): Promise<void> {
     console.error('[main] Failed to load Slab2 contours:', err),
   );
 
+  // Depth reference rings (visual anchors for underground mode)
+  initDepthRings(globe);
+
   // PLATEAU 3D buildings
   initPlateauBuildings(globe);
 
@@ -630,8 +831,35 @@ async function bootstrap(): Promise<void> {
     if (events.length > 0) setHistoricalCatalog(events);
   });
 
+  // Feature 1-5: Load data grids and initialize features (async, non-blocking)
+  loadAllDataGrids().then(() => {
+    // Feature 2: Active faults (after data is loaded)
+    if (activeFaultData.length > 0) {
+      initActiveFaults(globe, activeFaultData, (event, fault) => {
+        // Switch to scenario mode with auto-generated event
+        store.set('mode', 'scenario');
+        store.set('selectedFault', fault);
+
+        const eventTime = event.time;
+        store.set('timeline', {
+          events: [event],
+          currentIndex: 0,
+          currentTime: eventTime,
+          isPlaying: false,
+          speed: 1,
+          timeRange: [eventTime - 60_000, eventTime + 600_000],
+        });
+
+        store.set('selectedEvent', event);
+        console.log(`[main] Fault scenario: ${fault.nameEn} (M${fault.estimatedMw})`);
+      });
+    }
+    console.log('[main] Data integration engine ready');
+  });
+
   // 3. Initialise UI
   initSidebar(sidebarContainer);
+  initImpactPanel(sidebarContainer);
   initTimeline(timelineContainer, createTimelineCallbacks());
   initIntensityLegend(legendContainer);
   initAlertBar(globeArea);
@@ -672,20 +900,25 @@ async function bootstrap(): Promise<void> {
   // 6. Set up globe click handlers
   setupGlobeClickHandler(globe);
 
-  // 7. HUD update loop — sync camera state to HUD overlay
-  function hudLoop(): void {
-    try {
-      const pov = getPointOfView(globe);
-      updateHud({
-        lat: pov.lat,
-        lng: pov.lng,
-        altitude: pov.altitude,
-        simTime: store.get('timeline').currentTime,
-      });
-    } catch { /* globe may not be ready */ }
-    requestAnimationFrame(hudLoop);
+  // 7. HUD update loop — sync camera state to HUD overlay (throttled to ~15fps)
+  let lastHudTime = 0;
+  let hudRafId = 0;
+  function hudLoop(now: number): void {
+    if (now - lastHudTime >= 66) {
+      lastHudTime = now;
+      try {
+        const pov = getPointOfView(globe);
+        updateHud({
+          lat: pov.lat,
+          lng: pov.lng,
+          altitude: pov.altitude,
+          simTime: store.get('timeline').currentTime,
+        });
+      } catch { /* globe may not be ready */ }
+    }
+    hudRafId = requestAnimationFrame(hudLoop);
   }
-  requestAnimationFrame(hudLoop);
+  hudRafId = requestAnimationFrame(hudLoop);
 
   // 8. Push initial timeline state to UI
   updateTimeline(store.get('timeline'));
@@ -693,9 +926,45 @@ async function bootstrap(): Promise<void> {
   // 9. Start real-time polling (immediate first fetch + 60s interval)
   pollerHandle = startRealtimePolling(onNewRealtimeEvents);
 
+  // 10. Keyboard shortcuts
+  function handleKeyboard(e: KeyboardEvent): void {
+    // Don't handle shortcuts when typing in inputs
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    switch (e.key.toLowerCase()) {
+      case 'd':
+        store.set('viewPreset', 'default');
+        break;
+      case 'u':
+        store.set('viewPreset', 'underground');
+        break;
+      case 's':
+        store.set('viewPreset', 'shakemap');
+        break;
+      case 'x':
+        store.set('viewPreset', 'crossSection');
+        break;
+      case 'c':
+        store.set('viewPreset', 'cinematic');
+        break;
+      case 'escape':
+        store.set('viewPreset', 'default');
+        break;
+      case ' ':
+        e.preventDefault();
+        const tl = store.get('timeline');
+        store.set('timeline', { ...tl, isPlaying: !tl.isPlaying });
+        break;
+    }
+  }
+
+  document.addEventListener('keydown', handleKeyboard);
+
   // Expose cleanup for HMR / teardown
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
+      cancelAnimationFrame(hudRafId);
+      document.removeEventListener('keydown', handleKeyboard);
       pollerHandle?.stop();
       stopWaveAnimation();
       disposeTimeline();
@@ -710,6 +979,11 @@ async function bootstrap(): Promise<void> {
       disableCrossSectionDrawing(globe);
       disposeCrossSection();
       disposePlateau();
+      disposeDepthRings();
+      disposeActiveFaults(globe);
+      disposeImpactPanel();
+      clearLandslideOverlay(globe);
+      clearComparisonOverlay(globe);
       disposeGlobe(globe);
       worker.terminate();
     });

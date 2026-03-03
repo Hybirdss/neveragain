@@ -1,0 +1,210 @@
+/* --- Cinematic Overlay --- */
+.cinematic-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  transition: background var(--duration-fade-in) var(--ease-panel);
+}
+
+.cinematic-overlay__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-3);
+}
+
+.cinematic-overlay__loading-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.cinematic-overlay__loading-dots {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  animation: dots-pulse 1.5s infinite;
+}
+
+.cinematic-overlay__skip {
+  position: absolute;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: 600;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all var(--duration-hover) var(--ease-panel);
+}
+
+.cinematic-overlay__skip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.cinematic-overlay__audio {
+  position: absolute;
+  bottom: var(--space-6);
+  right: 140px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-hover) var(--ease-panel);
+}
+
+.cinematic-overlay__audio:hover {
+  border-color: var(--border-strong);
+}
+
+/* --- Annotation --- */
+.cinematic-overlay__annotation {
+  position: absolute;
+  transition: opacity 0.5s ease, filter 0.5s ease, transform 0.5s ease;
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(20px);
+  pointer-events: none;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+.cinematic-overlay__annotation--visible {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+}
+
+.cinematic-overlay__annotation--center {
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-size: 32px;
+  font-weight: 700;
+  text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.cinematic-overlay__annotation--center.cinematic-overlay__annotation--visible {
+  transform: translate(-50%, -50%);
+}
+
+.cinematic-overlay__annotation--bottom-left {
+  bottom: 60px;
+  left: 40px;
+  font-size: 14px;
+  font-family: var(--font-mono);
+  letter-spacing: 1px;
+}
+
+.cinematic-overlay__annotation--bottom-left.cinematic-overlay__annotation--visible {
+  transform: translateY(0);
+}
+
+/* Annotation sizes */
+.cinematic-overlay__annotation--large {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.cinematic-overlay__annotation--medium {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.cinematic-overlay__annotation--small {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Annotation subtitle */
+.cinematic-overlay__annotation-subtitle {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.7;
+  letter-spacing: 0.5px;
+}
+
+/* --- Progress Bar --- */
+.cinematic-overlay__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 0%;
+  background: var(--color-cyan, #00e5ff);
+  transition: width 0.3s ease;
+  pointer-events: none;
+}
+
+/* --- Magnitude Badge --- */
+.cinematic-overlay__mag-badge {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+  transition: all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.cinematic-overlay__mag-badge--visible {
+  opacity: 1;
+}
+
+.cinematic-overlay__mag-badge--large {
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+}
+
+.cinematic-overlay__mag-badge--corner {
+  top: 12px;
+  right: 12px;
+  left: auto;
+  transform: none;
+  font-size: 24px;
+}
+
+/* --- Intensity Badge --- */
+.cinematic-overlay__intensity-badge {
+  position: absolute;
+  top: 12px;
+  right: 60px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 20px;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.5s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cinematic-overlay__intensity-badge--visible {
+  opacity: 1;
+}

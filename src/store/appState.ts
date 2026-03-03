@@ -98,9 +98,16 @@ const initialState: AppState = {
     gsiPale: false,
     adminBoundary: false,
     jshisHazard: false,
+    activeFaults: false,
+    hazardComparison: false,
+    landslideRisk: false,
   },
   viewPreset: 'default',
   plateauCity: null,
+  selectedFault: null,
+  impactResults: null,
+  comparisonGrid: null,
+  landslideGrid: null,
 };
 
 // ============================================================

@@ -54,12 +54,14 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
-  const y = d.getUTCFullYear();
-  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mm = String(d.getUTCMinutes()).padStart(2, '0');
-  const ss = String(d.getUTCSeconds()).padStart(2, '0');
+  // Display in JST (UTC+9) for consistency with top bar and sidebar
+  const jst = new Date(d.getTime() + 9 * 3600_000);
+  const y = jst.getUTCFullYear();
+  const mo = String(jst.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(jst.getUTCDate()).padStart(2, '0');
+  const hh = String(jst.getUTCHours()).padStart(2, '0');
+  const mm = String(jst.getUTCMinutes()).padStart(2, '0');
+  const ss = String(jst.getUTCSeconds()).padStart(2, '0');
   return `${y}-${mo}-${dd} ${hh}:${mm}:${ss}`;
 }
 

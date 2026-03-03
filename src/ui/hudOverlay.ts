@@ -92,8 +92,10 @@ function formatLng(lng: number): string {
  * Format simTime (unix ms) as ISO-like string: YYYY-MM-DD HH:MM:SS
  */
 function formatSimTime(ms: number): string {
-  const d = new Date(ms);
-  return d.toISOString().replace('T', ' ').slice(0, 19);
+  // Display in JST (UTC+9) for consistency with top bar, sidebar, and timeline
+  const jst = new Date(ms + 9 * 3600_000);
+  const iso = jst.toISOString().replace('T', ' ').slice(0, 19);
+  return `${iso} JST`;
 }
 
 /**
