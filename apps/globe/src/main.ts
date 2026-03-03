@@ -94,7 +94,7 @@ import { loadTimelineData } from './data/timelineLoader';
 import { t, onLocaleChange } from './i18n/index';
 
 // AI
-import { initAiPanel } from './ui/aiPanel';
+import { initAiPanel, openAiPanel } from './ui/aiPanel';
 import { fetchAnalysis } from './ai/client';
 import { shouldFetchOnClick } from './ai/tierRouter';
 import { initSearchBar, toggleSearch, disposeSearchBar } from './ui/searchBar';
@@ -442,9 +442,18 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     abortShakeMapFetch();
     store.set('intensitySource', 'none');
 
-    // AI analysis: trigger fetch for qualifying events
+    // AI analysis: open panel and trigger fetch for qualifying events
     if (shouldFetchOnClick(event)) {
+      openAiPanel();
       fetchAnalysis(event.id);
+    } else {
+      // Prevent stale analysis from a previously selected event.
+      store.set('ai', {
+        ...store.get('ai'),
+        currentAnalysis: null,
+        analysisLoading: false,
+        analysisError: null,
+      });
     }
 
     // Fly camera to epicentre
@@ -508,7 +517,7 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       return;
     }
 
-    const features = generateContourFeatures(grid);
+    const features = generateContourFeatures(grid, store.get('colorblind'));
     updateIsoseismal(globe, features);
 
     // Feature 3: Impact assessment (prefecture-level damage)
@@ -540,38 +549,67 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     }
   });
 
-  // --- layer visibility → toggle features ---
-  store.subscribe('layers', (layers: LayerVisibility) => {
-    // Feature 2: Active faults visibility
-    setActiveFaultsVisible(layers.activeFaults);
-
-    // Feature 5: Landslide risk toggle
-    const grid = store.get('intensityGrid');
-    if (layers.landslideRisk && grid && slopeGridData) {
-      const landslide = computeLandslideGrid(grid, slopeGridData);
-      store.set('landslideGrid', landslide);
-      updateLandslideOverlay(globe, landslide);
-    } else if (!layers.landslideRisk) {
-      clearLandslideOverlay(globe);
-      store.set('landslideGrid', null);
+  // --- layer visibility → toggle features (diff-based) ---
+  store.subscribe('layers', (layers: LayerVisibility, prev: LayerVisibility) => {
+    // 1. Calculate changed keys
+    const changed = new Set<keyof LayerVisibility>();
+    if (!prev) {
+      // First run: treat all as changed
+      Object.keys(layers).forEach(k => changed.add(k as keyof LayerVisibility));
     } else {
-      // landslideRisk=true but grid or slopeGridData missing: clear stale state
-      clearLandslideOverlay(globe);
-      store.set('landslideGrid', null);
+      Object.keys(layers).forEach(k => {
+        const key = k as keyof LayerVisibility;
+        if (layers[key] !== prev[key]) changed.add(key);
+      });
     }
 
-    // Feature 4: Hazard comparison toggle
-    if (layers.hazardComparison && grid && hazardGridData) {
-      const comparison = computeHazardComparison(grid, hazardGridData);
-      store.set('comparisonGrid', comparison);
-      updateComparisonOverlay(globe, comparison);
-    } else if (!layers.hazardComparison) {
-      clearComparisonOverlay(globe);
-      store.set('comparisonGrid', null);
-    } else {
-      // hazardComparison=true but data missing: clear stale state
-      clearComparisonOverlay(globe);
-      store.set('comparisonGrid', null);
+    if (changed.size === 0) return;
+
+    // 2. Active faults visibility
+    if (changed.has('activeFaults')) {
+      setActiveFaultsVisible(layers.activeFaults);
+    }
+
+    const grid = store.get('intensityGrid');
+
+    // 3. Landslide risk toggle
+    if (changed.has('landslideRisk')) {
+      if (layers.landslideRisk && grid && slopeGridData) {
+        // Reuse if exists and grid is same (we'll check intensityGrid change in its own sub)
+        let landslide = store.get('landslideGrid');
+        if (!landslide) {
+          landslide = computeLandslideGrid(grid, slopeGridData);
+          store.set('landslideGrid', landslide);
+        }
+        updateLandslideOverlay(globe, landslide);
+      } else if (!layers.landslideRisk) {
+        clearLandslideOverlay(globe);
+        // Note: we don't null landslideGrid here to allow reuse if toggled back ON
+        // unless intensityGrid changes.
+      }
+    }
+
+    // 4. Hazard comparison toggle
+    if (changed.has('hazardComparison')) {
+      if (layers.hazardComparison && grid && hazardGridData) {
+        let comparison = store.get('comparisonGrid');
+        if (!comparison) {
+          comparison = computeHazardComparison(grid, hazardGridData);
+          store.set('comparisonGrid', comparison);
+        }
+        updateComparisonOverlay(globe, comparison);
+      } else if (!layers.hazardComparison) {
+        clearComparisonOverlay(globe);
+      }
+    }
+  });
+
+  // --- colorblind → refresh visuals ---
+  store.subscribe('colorblind', (isColorblind) => {
+    const grid = store.get('intensityGrid');
+    if (grid) {
+      const features = generateContourFeatures(grid, isColorblind);
+      updateIsoseismal(globe, features);
     }
   });
 
@@ -691,7 +729,7 @@ function onScenarioSelect(preset: HistoricalPreset): void {
     time: preset.startTime ? new Date(preset.startTime).getTime() : Date.now(),
     faultType: preset.faultType,
     tsunami: preset.faultType === 'interface' && preset.Mw >= 7.5, // interface quakes M7.5+ generate tsunamis
-    place: preset.name,
+    place: { text: preset.name },
   };
 
   // If Nankai scenario, use the special multi-worker runner
