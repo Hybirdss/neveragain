@@ -110,10 +110,24 @@
   color: var(--text-primary);
 }
 
-.feed-item__time {
+.feed-item__time-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 1px;
+}
+
+.feed-item__relative {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--border-emphasis);
+  color: var(--text-secondary);
+}
+
+.feed-item__time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-disabled);
   flex-shrink: 0;
 }
 
@@ -141,6 +155,19 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--border-emphasis);
+}
+
+/* --- Tsunami Badge --- */
+.feed-item__tsunami {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+  border-radius: 2px;
 }
 
 /* --- Credit Footer --- */

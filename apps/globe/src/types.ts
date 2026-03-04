@@ -218,13 +218,7 @@ export interface PlateauCityConfig {
 
 // ── Navigation State ──────────────────────────────────────
 
-export type PanelTab = 'live' | 'ask';
-
-export interface RouteState {
-  tab: PanelTab;
-  eventId: string | null;
-  searchQuery: string | null;
-}
+export type PanelTab = 'live';
 
 // ── AI Analysis State ──────────────────────────────────────
 
@@ -240,38 +234,12 @@ export interface AiState {
   searchLoading: boolean;
 }
 
-// ── Chat State ──────────────────────────────────────────────
-
-export type ChatRole = 'user' | 'assistant' | 'tool';
-
-export interface ToolCallRequest {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface ChatMessage {
-  id: string;
-  role: ChatRole;
-  content: string;
-  toolCalls?: ToolCallRequest[];
-  toolResults?: { name: string; result: unknown }[];
-  timestamp: number;
-}
-
-export interface ChatState {
-  messages: ChatMessage[];
-  isStreaming: boolean;
-  error: string | null;
-}
-
 // ── App State ──────────────────────────────────────────────
 
 export interface AppState {
   mode: AppMode;
   viewState: ViewState;
   activePanel: PanelTab;
-  route: RouteState;
   selectedEvent: EarthquakeEvent | null;
   intensityGrid: IntensityGrid | null;
   intensitySource: IntensitySource;
@@ -283,11 +251,8 @@ export interface AppState {
   plateauCity: PlateauCityId | null;
   selectedFault: ActiveFault | null;
   impactResults: PrefectureImpact[] | null;
-  comparisonGrid: ComparisonGrid | null;
-  landslideGrid: LandslideGrid | null;
   networkError: string | null;
   ai: AiState;
-  chat: ChatState;
 }
 
 export interface LayerVisibility {
@@ -307,8 +272,6 @@ export interface LayerVisibility {
   adminBoundary: boolean;
   jshisHazard: boolean;
   activeFaults: boolean;
-  hazardComparison: boolean;
-  landslideRisk: boolean;
 }
 
 export type ViewPreset = 'default' | 'underground' | 'shakemap' | 'crossSection' | 'cinematic';

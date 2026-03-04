@@ -1,0 +1,68 @@
+/**
+ * Layer Orchestrator — Manages intensity grid, layer visibility, and colorblind subscriptions.
+ */
+
+import { store } from '../store/appState';
+import type { GlobeInstance } from '../globe/globeInstance';
+import type { DataGrids } from '../bootstrap/dataGridLoader';
+import type { IntensityGrid, LayerVisibility } from '../types';
+import { generateContourFeatures } from '../utils/contourProjection';
+import { updateIsoseismal, clearIsoseismal } from '../globe/layers/isoseismal';
+import { setActiveFaultsVisible } from '../globe/features/activeFaults';
+import { computeImpact } from '../engine/impactAssessment';
+
+export function initLayerOrchestrator(
+  globe: GlobeInstance,
+  dataGrids: DataGrids,
+): () => void {
+  const unsubs: Array<() => void> = [];
+
+  // intensityGrid → contours + impact
+  unsubs.push(store.subscribe('intensityGrid', (grid: IntensityGrid | null) => {
+    if (!grid) {
+      clearIsoseismal(globe);
+      store.set('impactResults', null);
+      return;
+    }
+
+    const features = generateContourFeatures(grid, store.get('colorblind'));
+    updateIsoseismal(globe, features);
+
+    // Impact assessment
+    if (dataGrids.prefectures.length > 0) {
+      const impacts = computeImpact(grid, dataGrids.prefectures);
+      store.set('impactResults', impacts);
+    }
+  }));
+
+  // Layer visibility → toggle features (diff-based)
+  unsubs.push(store.subscribe('layers', (layers: LayerVisibility, prev: LayerVisibility) => {
+    const changed = new Set<keyof LayerVisibility>();
+    if (!prev) {
+      Object.keys(layers).forEach(k => changed.add(k as keyof LayerVisibility));
+    } else {
+      Object.keys(layers).forEach(k => {
+        const key = k as keyof LayerVisibility;
+        if (layers[key] !== prev[key]) changed.add(key);
+      });
+    }
+    if (changed.size === 0) return;
+
+    if (changed.has('activeFaults')) {
+      setActiveFaultsVisible(layers.activeFaults);
+    }
+  }));
+
+  // Colorblind → refresh visuals
+  unsubs.push(store.subscribe('colorblind', (isColorblind) => {
+    const grid = store.get('intensityGrid');
+    if (grid) {
+      const features = generateContourFeatures(grid, isColorblind);
+      updateIsoseismal(globe, features);
+    }
+  }));
+
+  return () => {
+    for (const unsub of unsubs) unsub();
+  };
+}

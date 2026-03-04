@@ -8,7 +8,7 @@
 import { t, onLocaleChange } from '../i18n/index';
 import { store } from '../store/appState';
 
-type MobileTab = 'map' | 'live' | 'ask';
+type MobileTab = 'map' | 'live';
 
 let rootEl: HTMLElement | null = null;
 let tabButtons = new Map<MobileTab, HTMLButtonElement>();
@@ -46,8 +46,6 @@ function syncActiveTab(): void {
   const panel = store.get('activePanel');
   if (panel === 'live') {
     setActiveTab('live');
-  } else if (panel === 'ask') {
-    setActiveTab('ask');
   } else {
     setActiveTab('map');
   }
@@ -72,16 +70,8 @@ function focusMap(): void {
 
 function focusLive(): void {
   store.set('activePanel', 'live');
-  store.set('route', { ...store.get('route'), tab: 'live' });
   document.body.classList.add('mobile-panel-visible');
   setActiveTab('live');
-}
-
-function focusAsk(): void {
-  store.set('activePanel', 'ask');
-  store.set('route', { ...store.get('route'), tab: 'ask' });
-  document.body.classList.add('mobile-panel-visible');
-  setActiveTab('ask');
 }
 
 function createTab(tab: MobileTab, labelKey: string, handler: () => void): HTMLButtonElement {
@@ -98,7 +88,6 @@ function refreshLabels(): void {
   const keyMap: Record<MobileTab, string> = {
     map: 'mobile.tab.map',
     live: 'mobile.tab.live',
-    ask: 'mobile.tab.ask',
   };
 
   for (const [tab, btn] of tabButtons) {
@@ -120,7 +109,6 @@ export function initMobileShell(container: HTMLElement): void {
   rootEl.append(
     createTab('map', 'mobile.tab.map', focusMap),
     createTab('live', 'mobile.tab.live', focusLive),
-    createTab('ask', 'mobile.tab.ask', focusAsk),
   );
 
   document.body.appendChild(rootEl);

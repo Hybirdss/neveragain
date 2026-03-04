@@ -9,7 +9,7 @@ import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
 import { computeGmpe } from '../engine/gmpe';
 import { store } from '../store/appState';
 import { t, onLocaleChange } from '../i18n/index';
-import { depthToColor } from './depthScale';
+import { depthToColor } from '../utils/colorScale';
 import { getPlaceText } from '../utils/earthquakeUtils';
 import { MMI_COLORS } from '../utils/colorScale';
 import { getTabPane } from './leftPanel';
@@ -69,6 +69,17 @@ function formatTimeShort(ts: number): string {
   const m = String(d.getUTCMinutes()).padStart(2, '0');
   const s = String(d.getUTCSeconds()).padStart(2, '0');
   return `${h}:${m}:${s}`;
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'たった今';
+  if (mins < 60) return `${mins}分前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}時間前`;
+  const days = Math.floor(hours / 24);
+  return `${days}日前`;
 }
 
 function magColorClass(mag: number): string {
@@ -161,7 +172,10 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean): HTMLElement
   left.appendChild(mag);
   left.appendChild(el('span', 'feed-item__location', getPlaceText(event.place)));
   top.appendChild(left);
-  top.appendChild(el('span', 'feed-item__time', formatTimeShort(event.time)));
+  const timeWrap = el('div', 'feed-item__time-wrap');
+  timeWrap.appendChild(el('span', 'feed-item__relative', formatRelativeTime(event.time)));
+  timeWrap.appendChild(el('span', 'feed-item__time', formatTimeShort(event.time)));
+  top.appendChild(timeWrap);
   item.appendChild(top);
 
   const meta = el('div', 'feed-item__meta');
@@ -179,6 +193,9 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean): HTMLElement
   if (sourceTag) {
     meta.appendChild(el('span', `source-tag ${sourceTag.className}`, sourceTag.label));
   }
+  if (event.tsunami) {
+    meta.appendChild(el('span', 'feed-item__tsunami', '津波'));
+  }
   item.appendChild(meta);
 
   return item;
@@ -194,6 +211,8 @@ function updateEventItem(item: HTMLElement, event: EarthquakeEvent, isActive: bo
   }
   const locEl = item.querySelector('.feed-item__location');
   if (locEl) locEl.textContent = getPlaceText(event.place);
+  const relEl = item.querySelector('.feed-item__relative');
+  if (relEl) relEl.textContent = formatRelativeTime(event.time);
   const timeEl = item.querySelector('.feed-item__time');
   if (timeEl) timeEl.textContent = formatTimeShort(event.time);
   const depthEl = item.querySelector('.feed-item__depth');
@@ -413,8 +432,20 @@ export function initLiveFeed(): void {
     }
   });
 
-  // Refresh "Updated X min ago" periodically
-  statusTimerId = setInterval(refreshStatusBar, 30_000);
+  // Refresh "Updated X min ago" and card relative times periodically
+  statusTimerId = setInterval(() => {
+    refreshStatusBar();
+    // Update all relative time labels in-place
+    const items = eventListEl?.querySelectorAll('.feed-item');
+    if (!items) return;
+    for (const item of items) {
+      const id = (item as HTMLElement).dataset.eventId;
+      const ev = id ? currentEvents.find(e => e.id === id) : null;
+      if (!ev) continue;
+      const relEl = item.querySelector('.feed-item__relative');
+      if (relEl) relEl.textContent = formatRelativeTime(ev.time);
+    }
+  }, 30_000);
 }
 
 export function updateLiveFeed(
@@ -448,6 +479,7 @@ function refreshDetailPanel(
     detailPlaceEl.textContent = getPlaceText(selectedEvent.place);
 
     detailMetaEl.textContent = '';
+    detailMetaEl.appendChild(el('span', undefined, formatRelativeTime(selectedEvent.time)));
     const depthSpan = el('span');
     depthSpan.append(document.createTextNode(`${t('detail.depth')} `));
     const depthValue = el('span');
@@ -459,6 +491,9 @@ function refreshDetailPanel(
       `${Math.abs(selectedEvent.lat).toFixed(3)}\u00B0${selectedEvent.lat >= 0 ? 'N' : 'S'}`));
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lng).toFixed(3)}\u00B0${selectedEvent.lng >= 0 ? 'E' : 'W'}`));
+    if (selectedEvent.tsunami) {
+      detailMetaEl.appendChild(el('span', 'feed-item__tsunami', '津波注意'));
+    }
 
     if (intensitySource === 'shakemap') {
       detailSourceTag.className = 'source-tag source-tag--shakemap';

@@ -115,7 +115,6 @@ const initialState: AppState = {
   mode: 'realtime',
   viewState: { type: 'idle' },
   activePanel: 'live',
-  route: { tab: 'live', eventId: null, searchQuery: null },
   selectedEvent: null,
   intensityGrid: null,
   intensitySource: 'none',
@@ -145,16 +144,12 @@ const initialState: AppState = {
     adminBoundary: false,
     jshisHazard: false,
     activeFaults: false,
-    hazardComparison: false,
-    landslideRisk: false,
   },
   viewPreset: 'default',
   colorblind: false,
   plateauCity: null,
   selectedFault: null,
   impactResults: null,
-  comparisonGrid: null,
-  landslideGrid: null,
   networkError: null,
   ai: {
     currentAnalysis: null,
@@ -164,11 +159,6 @@ const initialState: AppState = {
     searchQuery: '',
     searchResults: null,
     searchLoading: false,
-  },
-  chat: {
-    messages: [],
-    isStreaming: false,
-    error: null,
   },
 };
 

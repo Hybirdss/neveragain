@@ -26,7 +26,6 @@ const modeButtons = new Map<AppMode, HTMLButtonElement>();
 const MODES: { key: AppMode; i18nKey: string }[] = [
   { key: 'realtime', i18nKey: 'mode.realtime' },
   { key: 'timeline', i18nKey: 'mode.timeline' },
-  { key: 'scenario', i18nKey: 'mode.scenario' },
 ];
 
 let startLabelEl: HTMLElement | null = null;

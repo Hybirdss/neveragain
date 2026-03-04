@@ -45,10 +45,3 @@ export function disposeDepthScale(): void {
   panelEl = null;
 }
 
-/** Get color for a given depth in km */
-export function depthToColor(depth: number): string {
-  for (let i = DEPTH_COLORS.length - 1; i >= 0; i--) {
-    if (depth >= DEPTH_COLORS[i].depth) return DEPTH_COLORS[i].color;
-  }
-  return DEPTH_COLORS[0].color;
-}
