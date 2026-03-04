@@ -39,7 +39,7 @@ const en: Record<string, string> = {
   'legend.notFelt': 'Not Felt',
 
   // Scenario picker
-  'scenario.title': 'Select Scenario',
+  'scenario.title': 'Training Scenarios',
 
   // HUD overlay
   'hud.cam': 'CAM',
@@ -48,8 +48,8 @@ const en: Record<string, string> = {
 
   // Mode switcher
   'mode.realtime': 'REALTIME',
-  'mode.timeline': 'TIMELINE',
-  'mode.scenario': 'SCENARIO',
+  'mode.timeline': 'ARCHIVE',
+  'mode.scenario': 'TRAINING',
   'mode.load': 'Load',
   'mode.from': 'From',
   'mode.to': 'To',
@@ -100,6 +100,7 @@ const en: Record<string, string> = {
   'sidebar.eventCount': 'events / 24h',
   'sidebar.cinematic': 'Epicenter Focus',
   'sidebar.scenarios': 'Scenarios',
+  'sidebar.training': 'Training',
 
   // Detail panel — intensity source
   'detail.intensitySource': 'Intensity Source',
@@ -155,9 +156,9 @@ const en: Record<string, string> = {
   'mmi.weak': 'Weak',
 
   // AI Panel
-  'ai.tab.easy': 'Easy',
-  'ai.tab.expert': 'Expert',
-  'ai.tab.data': 'Data',
+  'ai.tab.easy': 'Briefing',
+  'ai.tab.expert': 'Analysis',
+  'ai.tab.data': 'Evidence',
   'ai.why': 'Why did it happen?',
   'ai.aftershock': 'Aftershock probability',
   'ai.intensity': 'Intensity',
@@ -177,7 +178,7 @@ const en: Record<string, string> = {
   'ai.data.cities': 'Cities',
   'ai.data.population': 'Population',
   'ai.data.tags': 'Search tags',
-  'ai.button': 'AI Analysis',
+  'ai.button': 'AI Brief',
   'ai.loading': 'Analyzing...',
 
   // Search

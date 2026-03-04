@@ -39,7 +39,7 @@ const ja: Record<string, string> = {
   'legend.notFelt': '\u7121\u611f',
 
   // Scenario picker
-  'scenario.title': '\u30b7\u30ca\u30ea\u30aa\u9078\u629e',
+  'scenario.title': '訓練シナリオ',
 
   // HUD overlay
   'hud.cam': '\u30ab\u30e1\u30e9',
@@ -48,8 +48,8 @@ const ja: Record<string, string> = {
 
   // Mode switcher
   'mode.realtime': '\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0',
-  'mode.timeline': '\u30bf\u30a4\u30e0\u30e9\u30a4\u30f3',
-  'mode.scenario': '\u30b7\u30ca\u30ea\u30aa',
+  'mode.timeline': 'アーカイブ',
+  'mode.scenario': '訓練',
   'mode.load': '\u8aad\u8fbc',
   'mode.from': '\u958b\u59cb',
   'mode.to': '\u7d42\u4e86',
@@ -100,6 +100,7 @@ const ja: Record<string, string> = {
   'sidebar.eventCount': '件 / 24時間',
   'sidebar.cinematic': '\u9707\u6e90\u30d5\u30a9\u30fc\u30ab\u30b9',
   'sidebar.scenarios': '\u30b7\u30ca\u30ea\u30aa',
+  'sidebar.training': '訓練',
 
   // Detail panel — intensity source
   'detail.intensitySource': '\u9707\u5ea6\u30bd\u30fc\u30b9',
@@ -155,9 +156,9 @@ const ja: Record<string, string> = {
   'mmi.weak': '弱震',
 
   // AI Panel
-  'ai.tab.easy': 'やさしく',
-  'ai.tab.expert': '専門家',
-  'ai.tab.data': 'データ',
+  'ai.tab.easy': '要点',
+  'ai.tab.expert': '分析',
+  'ai.tab.data': '根拠',
   'ai.why': 'なぜ揺れたのか？',
   'ai.aftershock': '余震確率',
   'ai.intensity': '震度',
@@ -177,7 +178,7 @@ const ja: Record<string, string> = {
   'ai.data.cities': '都市',
   'ai.data.population': '人口',
   'ai.data.tags': '検索タグ',
-  'ai.button': 'AI分析',
+  'ai.button': 'AIブリーフ',
   'ai.loading': '分析中...',
 
   // Search

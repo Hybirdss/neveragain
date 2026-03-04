@@ -64,7 +64,7 @@ import { initSlab2Contours } from './globe/features/slab2Contours';
 import { initDepthRings, disposeDepthRings } from './globe/features/depthRings';
 import { initPlateauBuildings, disposePlateau } from './globe/features/plateauBuildings';
 import { initGsiLayers } from './globe/layers/gsiLayers';
-import { setHistoricalCatalog, setCatalogActive, disposeSeismicPoints } from './globe/layers/seismicPoints';
+import { setHistoricalCatalog, setCatalogActive, disposeSeismicPoints, highlightSearchResults } from './globe/layers/seismicPoints';
 import { loadHistoricalCatalog } from './data/historicalCatalog';
 import { applyViewPreset } from './store/viewPresets';
 import type { ViewPreset } from './types';
@@ -94,7 +94,7 @@ import { loadTimelineData } from './data/timelineLoader';
 import { t, onLocaleChange } from './i18n/index';
 
 // AI
-import { initAiPanel, openAiPanel } from './ui/aiPanel';
+import { initAiPanel } from './ui/aiPanel';
 import { fetchAnalysis } from './ai/client';
 import { shouldFetchOnClick } from './ai/tierRouter';
 import { initSearchBar, toggleSearch, disposeSearchBar } from './ui/searchBar';
@@ -211,16 +211,14 @@ function createLayout(): LayoutContainers {
 
   // Scenario trigger button (globe HUD)
   const scenarioBtn = document.createElement('button');
-  scenarioBtn.className = 'playback-btn';
-  scenarioBtn.style.cssText =
-    'position:absolute;top:44px;left:12px;z-index:var(--z-hud);width:auto;padding:4px 12px;font-family:var(--font-mono);font-size:var(--text-sm);';
-  scenarioBtn.textContent = t('sidebar.scenarios');
+  scenarioBtn.className = 'training-entry-btn';
+  scenarioBtn.textContent = `${t('sidebar.training')} (${HISTORICAL_PRESETS.length})`;
   scenarioBtn.addEventListener('click', () => showPicker());
   globeArea.appendChild(scenarioBtn);
 
   // Update scenario button text on locale change
   onLocaleChange(() => {
-    scenarioBtn.textContent = t('sidebar.scenarios');
+    scenarioBtn.textContent = `${t('sidebar.training')} (${HISTORICAL_PRESETS.length})`;
   });
 
   return { globeContainer, globeArea, sidebarContainer, timelineContainer, legendContainer };
@@ -422,6 +420,22 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       store.set('waveState', null);
     }
   });
+  // --- Search results → globe highlight ---
+  let prevSearchResultIds: Set<string> | null = null;
+  store.subscribe('ai', (aiState) => {
+    const results = aiState.searchResults as Array<{ id?: string }> | null;
+    if (!results || results.length === 0) {
+      if (prevSearchResultIds !== null) {
+        highlightSearchResults(null);
+        prevSearchResultIds = null;
+      }
+      return;
+    }
+    const ids = new Set(results.map(r => r.id).filter((id): id is string => !!id));
+    prevSearchResultIds = ids;
+    highlightSearchResults(ids);
+  });
+
   // --- selectedEvent → ShakeMap (preferred) or GMPE (fallback) + camera + waves ---
   let selectedEventVersion = 0;
   store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
@@ -444,7 +458,6 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
 
     // AI analysis: open panel and trigger fetch for qualifying events
     if (shouldFetchOnClick(event)) {
-      openAiPanel();
       fetchAnalysis(event.id);
     } else {
       // Prevent stale analysis from a previously selected event.
@@ -944,6 +957,11 @@ async function bootstrap(): Promise<void> {
       );
     },
   });
+  // Training scenarios are entered via dedicated button, not primary mode nav.
+  const scenarioModeBtn = timelineContainer.querySelector<HTMLElement>('.mode-btn[data-mode="scenario"]');
+  if (scenarioModeBtn) {
+    scenarioModeBtn.style.display = 'none';
+  }
   initScenarioPicker(
     document.getElementById('app')!,
     onScenarioSelect,

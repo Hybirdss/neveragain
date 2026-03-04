@@ -39,7 +39,7 @@ const ko: Record<string, string> = {
   'legend.notFelt': '\ubb34\uac10',
 
   // Scenario picker
-  'scenario.title': '\uc2dc\ub098\ub9ac\uc624 \uc120\ud0dd',
+  'scenario.title': '훈련 시나리오',
 
   // HUD overlay
   'hud.cam': '\uce74\uba54\ub77c',
@@ -48,8 +48,8 @@ const ko: Record<string, string> = {
 
   // Mode switcher
   'mode.realtime': '\uc2e4\uc2dc\uac04',
-  'mode.timeline': '\ud0c0\uc784\ub77c\uc778',
-  'mode.scenario': '\uc2dc\ub098\ub9ac\uc624',
+  'mode.timeline': '기록',
+  'mode.scenario': '훈련',
   'mode.load': '\ubd88\ub7ec\uc624\uae30',
   'mode.from': '\uc2dc\uc791',
   'mode.to': '\uc885\ub8cc',
@@ -100,6 +100,7 @@ const ko: Record<string, string> = {
   'sidebar.eventCount': '건 / 24시간',
   'sidebar.cinematic': '\uc9c4\uc6d0 \ud3ec\ucee4\uc2a4',
   'sidebar.scenarios': '\uc2dc\ub098\ub9ac\uc624',
+  'sidebar.training': '훈련',
 
   // Detail panel — intensity source
   'detail.intensitySource': '\uc9c4\ub3c4 \uc18c\uc2a4',
@@ -155,9 +156,9 @@ const ko: Record<string, string> = {
   'mmi.weak': '약진',
 
   // AI Panel
-  'ai.tab.easy': '쉽게',
-  'ai.tab.expert': '전문가',
-  'ai.tab.data': '데이터',
+  'ai.tab.easy': '브리핑',
+  'ai.tab.expert': '분석',
+  'ai.tab.data': '근거',
   'ai.why': '왜 흔들렸나요?',
   'ai.aftershock': '여진 확률',
   'ai.intensity': '진도',
@@ -177,7 +178,7 @@ const ko: Record<string, string> = {
   'ai.data.cities': '도시',
   'ai.data.population': '인구',
   'ai.data.tags': '검색 태그',
-  'ai.button': 'AI 분석',
+  'ai.button': 'AI 브리핑',
   'ai.loading': '분석 중...',
 
   // Search
