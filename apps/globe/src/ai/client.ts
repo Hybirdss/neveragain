@@ -13,14 +13,15 @@ const API_URL = import.meta.env.VITE_API_URL
 const ANALYSIS_FETCH_ATTEMPTS = 3;
 const ANALYSIS_RETRY_DELAY_MS = 1500;
 
-export async function fetchAnalysis(eventId: string): Promise<void> {
-  const ai = store.get('ai');
+/** Tracks the event ID of the latest fetch request to prevent stale results. */
+let activeEventId: string | null = null;
 
-  // Don't fetch if already loading
-  if (ai.analysisLoading) return;
+export async function fetchAnalysis(eventId: string): Promise<void> {
+  // Always accept new requests — cancel stale ones by tracking the event ID.
+  activeEventId = eventId;
 
   store.set('ai', {
-    ...ai,
+    ...store.get('ai'),
     analysisLoading: true,
     analysisError: null,
     currentAnalysis: null,
@@ -28,11 +29,17 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
 
   try {
     for (let attempt = 0; attempt < ANALYSIS_FETCH_ATTEMPTS; attempt++) {
+      // Bail if a newer event was selected while we were waiting
+      if (activeEventId !== eventId) return;
+
       const resp = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_id: eventId }),
       });
+
+      // Bail if superseded by a newer selection
+      if (activeEventId !== eventId) return;
 
       if (resp.status === 202) {
         if (attempt < ANALYSIS_FETCH_ATTEMPTS - 1) {
@@ -49,6 +56,9 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
 
       const analysis = await resp.json();
 
+      // Final staleness check before updating store
+      if (activeEventId !== eventId) return;
+
       store.set('ai', {
         ...store.get('ai'),
         currentAnalysis: analysis,
@@ -58,6 +68,9 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
       return;
     }
   } catch (err) {
+    // Only update error state if this is still the active request
+    if (activeEventId !== eventId) return;
+
     store.set('ai', {
       ...store.get('ai'),
       analysisLoading: false,

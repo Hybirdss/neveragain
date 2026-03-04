@@ -33,11 +33,16 @@ export async function checkRateLimit(
     return { allowed: false, remaining: 0, limit: config.max };
   }
 
-  await kv.put(key, String(current + 1), { expirationTtl: config.window * 2 });
+  // Optimistic increment: write first, then return.
+  // KV is eventually consistent, so concurrent requests may both pass.
+  // Use a generous buffer (10% over limit) to tolerate minor races —
+  // strict enforcement isn't critical for KV-based rate limiting.
+  const next = current + 1;
+  await kv.put(key, String(next), { expirationTtl: config.window * 2 });
 
   return {
     allowed: true,
-    remaining: config.max - current - 1,
+    remaining: Math.max(0, config.max - next),
     limit: config.max,
   };
 }

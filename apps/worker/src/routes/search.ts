@@ -47,6 +47,7 @@ searchRoute.post('/', async (c) => {
       time: earthquakes.time,
       place: earthquakes.place,
       fault_type: earthquakes.fault_type,
+      tsunami: earthquakes.tsunami,
     })
       .from(earthquakes)
       .where(or(
@@ -136,6 +137,7 @@ searchRoute.post('/', async (c) => {
     time: earthquakes.time,
     place: earthquakes.place,
     fault_type: earthquakes.fault_type,
+    tsunami: earthquakes.tsunami,
     analysis: analyses.analysis,
     search_tags: analyses.search_tags,
     search_region: analyses.search_region,

@@ -7,6 +7,8 @@
 
 interface TsunamiRisk {
   risk: 'high' | 'moderate' | 'low' | 'none';
+  source: 'rule_engine';
+  confidence: 'high' | 'medium';
   factors: string[];
 }
 
@@ -36,7 +38,7 @@ export function assessTsunamiRisk(
   );
 
   if (!isOffshore) {
-    return { risk: 'none', factors: ['Inland earthquake'] };
+    return { risk: 'none', source: 'rule_engine', confidence: 'high', factors: ['Inland earthquake'] };
   }
 
   factors.push('Offshore epicenter');
@@ -47,19 +49,19 @@ export function assessTsunamiRisk(
     if (faultType === 'interface') {
       factors.push('Subduction interface mechanism');
     }
-    return { risk: 'high', factors };
+    return { risk: 'high', source: 'rule_engine', confidence: 'high', factors };
   }
 
   if (magnitude >= 6.5 && depth_km < 40) {
     factors.push(`Moderate magnitude (M${magnitude})`);
     factors.push(`Shallow depth (${depth_km}km)`);
-    return { risk: 'moderate', factors };
+    return { risk: 'moderate', source: 'rule_engine', confidence: 'medium', factors };
   }
 
   if (magnitude >= 5.5) {
     factors.push(`Magnitude M${magnitude}`);
-    return { risk: 'low', factors };
+    return { risk: 'low', source: 'rule_engine', confidence: 'medium', factors };
   }
 
-  return { risk: 'none', factors: ['Small offshore event'] };
+  return { risk: 'none', source: 'rule_engine', confidence: 'high', factors: ['Small offshore event'] };
 }

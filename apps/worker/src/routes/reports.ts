@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
 import { reports } from '@namazue/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 
 export const reportsRoute = new Hono<{ Bindings: Env }>();
 
@@ -48,12 +48,11 @@ reportsRoute.get('/:type', async (c) => {
   }
 
   const db = createDb(c.env.DATABASE_URL);
-  const { desc: descOrder } = await import('drizzle-orm');
 
   const rows = await db.select()
     .from(reports)
     .where(eq(reports.type, type))
-    .orderBy(descOrder(reports.created_at))
+    .orderBy(desc(reports.created_at))
     .limit(1);
 
   if (rows.length === 0) {

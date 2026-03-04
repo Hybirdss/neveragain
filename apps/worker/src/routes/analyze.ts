@@ -86,8 +86,9 @@ export async function generateAndStoreAnalysis(
   }
 
   const event = events[0];
+  const eventTime = event.time ?? new Date();
   const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
-  const thirtyYearsAgo = new Date(event.time!.getTime() - 30 * 365.25 * 24 * 3600 * 1000);
+  const thirtyYearsAgo = new Date(eventTime.getTime() - 30 * 365.25 * 24 * 3600 * 1000);
 
   const spatialStats = await db.select({
     total: sql<number>`count(*)::int`,
@@ -103,7 +104,7 @@ export async function generateAndStoreAnalysis(
     .from(earthquakes)
     .where(and(
       gte(earthquakes.time, thirtyYearsAgo),
-      lte(earthquakes.time, event.time!),
+      lte(earthquakes.time, eventTime),
       sql`sqrt(power(lat - ${event.lat}, 2) + power(lng - ${event.lng}, 2)) * 111 < 200`,
     ));
 
@@ -132,7 +133,7 @@ export async function generateAndStoreAnalysis(
       lng: event.lng,
       depth_km: event.depth_km,
       magnitude: event.magnitude,
-      time: event.time!,
+      time: eventTime,
       fault_type: event.fault_type ?? undefined,
       place: event.place ?? undefined,
       place_ja: event.place_ja ?? undefined,

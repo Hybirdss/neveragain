@@ -88,18 +88,18 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
   const dayOfWeek = when.getUTCDay();
   const dayOfMonth = when.getUTCDate();
 
-  // Every 10 minutes: pre-generate analyses for recent events.
-  if (minute % 10 === 0 && !(hour === 18 && minute === 0) && !(hour === 0 && minute === 0)) {
-    const recent = await generatePendingRecentAnalyses(env);
-    const backfill = recent === 0 ? await backfillHistoricalAnalyses(env) : 0;
-    console.log(`[cron] pregen recent=${recent} backfill=${backfill}`);
-    return;
-  }
-
   // Daily 03:00 JST (18:00 UTC)
   if (hour === 18 && minute === 0) {
     console.log('[cron] Daily batch/report slot');
     // TODO: Fetch yesterday's Japan M4-4.9 → daily report/batch flow
+    return;
+  }
+
+  // 1st of month 09:00 JST (00:00 UTC 1st) — checked BEFORE weekly
+  // so monthly report isn't skipped when the 1st falls on a Monday.
+  if (hour === 0 && minute === 0 && dayOfMonth === 1) {
+    console.log('[cron] Monthly report');
+    // TODO: Generate monthly report
     return;
   }
 
@@ -110,10 +110,11 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
     return;
   }
 
-  // 1st of month 09:00 JST (00:00 UTC 1st)
-  if (hour === 0 && minute === 0 && dayOfMonth === 1) {
-    console.log('[cron] Monthly report');
-    // TODO: Generate monthly report
+  // Every 10 minutes: pre-generate analyses for recent events.
+  if (minute % 10 === 0) {
+    const recent = await generatePendingRecentAnalyses(env);
+    const backfill = recent === 0 ? await backfillHistoricalAnalyses(env) : 0;
+    console.log(`[cron] pregen recent=${recent} backfill=${backfill}`);
     return;
   }
 }
