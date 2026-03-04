@@ -13,6 +13,7 @@ import { depthToColor } from './depthScale';
 import { getPlaceText } from '../utils/earthquakeUtils';
 import { MMI_COLORS } from '../utils/colorScale';
 import { getTabPane } from './leftPanel';
+import { getLastUpdatedAt } from '../data/usgsRealtime';
 
 // ── DOM refs ──
 
@@ -35,9 +36,13 @@ let mmiTitleEl: HTMLElement;
 let crossSectionBtn: HTMLElement;
 let cinematicBtn: HTMLElement;
 
+let statusBarEl: HTMLElement;
 let unsubLocale: (() => void) | null = null;
 let unsubSelected: (() => void) | null = null;
+let unsubNetworkError: (() => void) | null = null;
+let statusTimerId: ReturnType<typeof setInterval> | null = null;
 let currentEvents: EarthquakeEvent[] = [];
+let hasReceivedData = false;
 
 // ── Helpers ──
 
@@ -74,6 +79,19 @@ function getListSourceTag(mag: number): { className: string; label: string } | n
 
 // ── Build UI ──
 
+function formatLastUpdated(): string {
+  const ts = getLastUpdatedAt();
+  if (ts === 0) return t('sidebar.loading');
+  const ago = Math.floor((Date.now() - ts) / 60_000);
+  if (ago < 1) return `${t('sidebar.lastUpdated')} ${t('sidebar.justNow')}`;
+  return `${t('sidebar.lastUpdated')} ${ago}${t('sidebar.agoMin')}`;
+}
+
+function formatEventCount(count: number): string {
+  const suffix = count === 1 ? t('sidebar.eventCount.one') : t('sidebar.eventCount');
+  return `${count} ${suffix}`;
+}
+
 function buildHeader(): HTMLElement {
   const header = el('div', 'feed__header');
 
@@ -89,6 +107,23 @@ function buildHeader(): HTMLElement {
   header.appendChild(alertBadgeEl);
 
   return header;
+}
+
+function buildStatusBar(): HTMLElement {
+  statusBarEl = el('div', 'feed__status');
+  statusBarEl.textContent = t('sidebar.loading');
+  return statusBarEl;
+}
+
+function refreshStatusBar(): void {
+  const err = store.get('networkError');
+  if (err) {
+    statusBarEl.textContent = t('sidebar.offline');
+    statusBarEl.className = 'feed__status feed__status--error';
+  } else {
+    statusBarEl.textContent = formatLastUpdated();
+    statusBarEl.className = 'feed__status';
+  }
 }
 
 function buildEventList(): HTMLElement {
@@ -190,7 +225,8 @@ function renderEvents(events: EarthquakeEvent[], selectedId: string | null): voi
   for (const stale of existing.values()) stale.remove();
 
   if (events.length === 0 && !eventListEl.querySelector('.empty-state')) {
-    eventListEl.appendChild(el('div', 'empty-state', t('sidebar.empty')));
+    const msg = hasReceivedData ? t('sidebar.empty') : t('sidebar.loading');
+    eventListEl.appendChild(el('div', 'empty-state', msg));
   }
 }
 
@@ -240,6 +276,16 @@ function buildDetailPanel(): HTMLElement {
   detailSourceTag = el('span', 'source-tag');
   detailSourceTag.style.display = 'none';
   header.appendChild(detailSourceTag);
+
+  // Close button
+  const closeBtn = el('button', 'detail-panel__close');
+  closeBtn.innerHTML = '\u00d7';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.addEventListener('click', () => {
+    store.set('selectedEvent', null);
+  });
+  header.appendChild(closeBtn);
+
   detailPanel.appendChild(header);
 
   // MMI Bar
@@ -297,6 +343,7 @@ export function initLiveFeed(): void {
 
   feedEl = el('div', 'live-feed');
   feedEl.appendChild(buildHeader());
+  feedEl.appendChild(buildStatusBar());
   feedEl.appendChild(buildEventList());
   feedEl.appendChild(buildDetailPanel());
   feedEl.appendChild(buildCreditFooter());
@@ -318,12 +365,22 @@ export function initLiveFeed(): void {
     crossSectionBtn.textContent = t('detail.crossSection');
     cinematicBtn.textContent = `\u25B6 ${t('sidebar.cinematic')}`;
     mmiTitleEl.textContent = t('sidebar.mmiTitle');
+    refreshStatusBar();
     if (currentEvents.length > 0) {
+      headerCountEl.textContent = formatEventCount(currentEvents.length);
       const selected = store.get('selectedEvent');
       const displayEvents = [...currentEvents].sort((a, b) => b.time - a.time);
       renderEvents(displayEvents, selected?.id ?? null);
     }
   });
+
+  // Update status bar on network error changes
+  unsubNetworkError = store.subscribe('networkError', () => {
+    refreshStatusBar();
+  });
+
+  // Refresh "Updated X min ago" periodically
+  statusTimerId = setInterval(refreshStatusBar, 30_000);
 }
 
 export function updateLiveFeed(
@@ -332,10 +389,13 @@ export function updateLiveFeed(
   intensitySource: IntensitySource = 'none',
 ): void {
   currentEvents = events;
+  hasReceivedData = true;
 
-  headerCountEl.textContent = `${events.length} ${t('sidebar.eventCount')}`;
+  headerCountEl.textContent = formatEventCount(events.length);
   const hasM5 = events.some(e => e.magnitude >= 5.0);
   alertBadgeEl.style.display = hasM5 ? 'block' : 'none';
+
+  refreshStatusBar();
 
   const displayEvents = [...events].sort((a, b) => b.time - a.time);
   renderEvents(displayEvents, selectedEvent?.id ?? null);
@@ -406,5 +466,12 @@ export function disposeLiveFeed(): void {
   unsubLocale = null;
   unsubSelected?.();
   unsubSelected = null;
+  unsubNetworkError?.();
+  unsubNetworkError = null;
+  if (statusTimerId !== null) {
+    clearInterval(statusTimerId);
+    statusTimerId = null;
+  }
   currentEvents = [];
+  hasReceivedData = false;
 }

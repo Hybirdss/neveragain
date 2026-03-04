@@ -1,9 +1,9 @@
 /**
- * Chat Panel — AI Chat tab for the "Chat" tab pane.
+ * Ask Panel — Unified AI + Search tab for the "Ask" pane.
  *
- * Renders a conversational interface with message bubbles,
- * tool call results, and a text input. Mounts into the left
- * panel's "chat" pane via getTabPane('chat').
+ * Natural language interface: user asks anything about earthquakes,
+ * AI uses tool calling to search/analyze/visualize.
+ * Mounts into the left panel's "ask" pane via getTabPane('ask').
  */
 
 import { store } from '../store/appState';
@@ -13,7 +13,7 @@ import { getTabPane } from './leftPanel';
 
 // ── DOM refs ──
 
-let chatEl: HTMLElement;
+let askEl: HTMLElement;
 let messagesEl: HTMLElement;
 let inputEl: HTMLTextAreaElement;
 let sendBtn: HTMLButtonElement;
@@ -43,25 +43,24 @@ function generateId(): string {
 // ── Build UI ──
 
 function buildMessages(): HTMLElement {
-  messagesEl = el('div', 'chat__messages');
+  messagesEl = el('div', 'ask__messages');
 
-  // Welcome message
-  const welcome = el('div', 'chat__welcome');
-  const title = el('div', 'chat__welcome-title', t('chat.welcome.title'));
-  const desc = el('div', 'chat__welcome-desc', t('chat.welcome.desc'));
+  // Welcome + suggestions
+  const welcome = el('div', 'ask__welcome');
+  const title = el('div', 'ask__welcome-title', t('ask.welcome.title'));
+  const desc = el('div', 'ask__welcome-desc', t('ask.welcome.desc'));
   welcome.appendChild(title);
   welcome.appendChild(desc);
 
-  // Suggestion chips
-  const suggestions = el('div', 'chat__suggestions');
+  const suggestions = el('div', 'ask__suggestions');
   const prompts = [
-    t('chat.suggest.recent'),
-    t('chat.suggest.compare'),
-    t('chat.suggest.region'),
-    t('chat.suggest.analysis'),
+    t('ask.suggest.recent'),
+    t('ask.suggest.compare'),
+    t('ask.suggest.region'),
+    t('ask.suggest.analysis'),
   ];
   for (const prompt of prompts) {
-    const chip = el('button', 'chat__suggestion', prompt);
+    const chip = el('button', 'ask__suggestion', prompt);
     chip.type = 'button';
     chip.addEventListener('click', () => sendMessage(prompt));
     suggestions.appendChild(chip);
@@ -73,13 +72,13 @@ function buildMessages(): HTMLElement {
 }
 
 function buildInputArea(): HTMLElement {
-  const area = el('div', 'chat__input-area');
+  const area = el('div', 'ask__input-area');
 
   inputEl = document.createElement('textarea');
-  inputEl.className = 'chat__input';
+  inputEl.className = 'ask__input';
   inputEl.rows = 1;
-  inputEl.placeholder = t('chat.input.placeholder');
-  inputEl.setAttribute('aria-label', t('chat.input.label'));
+  inputEl.placeholder = t('ask.input.placeholder');
+  inputEl.setAttribute('aria-label', t('ask.input.label'));
 
   inputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -89,15 +88,14 @@ function buildInputArea(): HTMLElement {
   });
 
   inputEl.addEventListener('input', () => {
-    // Auto-resize textarea
     inputEl.style.height = 'auto';
     inputEl.style.height = `${Math.min(inputEl.scrollHeight, 120)}px`;
   });
 
   sendBtn = document.createElement('button');
   sendBtn.type = 'button';
-  sendBtn.className = 'chat__send-btn';
-  sendBtn.setAttribute('aria-label', t('chat.input.send'));
+  sendBtn.className = 'ask__send-btn';
+  sendBtn.setAttribute('aria-label', t('ask.input.send'));
   sendBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L14 2L8 14L7 9L2 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
   sendBtn.addEventListener('click', () => sendMessage(inputEl.value.trim()));
 
@@ -110,22 +108,21 @@ function buildInputArea(): HTMLElement {
 // ── Message Rendering ──
 
 function renderMessage(msg: ChatMessage): HTMLElement {
-  const bubble = el('div', `chat__bubble chat__bubble--${msg.role}`);
+  const bubble = el('div', `ask__bubble ask__bubble--${msg.role}`);
 
   if (msg.content) {
-    const text = el('div', 'chat__bubble-text');
+    const text = el('div', 'ask__bubble-text');
     text.textContent = msg.content;
     bubble.appendChild(text);
   }
 
-  // Render tool call results
   if (msg.toolResults && msg.toolResults.length > 0) {
     for (const tr of msg.toolResults) {
-      const card = el('div', 'chat__tool-result');
-      const header = el('div', 'chat__tool-header', tr.name);
+      const card = el('div', 'ask__tool-result');
+      const header = el('div', 'ask__tool-header', tr.name);
       card.appendChild(header);
 
-      const body = el('div', 'chat__tool-body');
+      const body = el('div', 'ask__tool-body');
       if (tr.name === 'search_earthquakes' && Array.isArray(tr.result)) {
         renderSearchResults(body, tr.result);
       } else {
@@ -138,10 +135,9 @@ function renderMessage(msg: ChatMessage): HTMLElement {
     }
   }
 
-  // Render pending tool calls
   if (msg.toolCalls && msg.toolCalls.length > 0) {
     for (const tc of msg.toolCalls) {
-      const tag = el('div', 'chat__tool-tag', `\u2699 ${tc.name}`);
+      const tag = el('div', 'ask__tool-tag', `\u2699 ${tc.name}`);
       bubble.appendChild(tag);
     }
   }
@@ -153,11 +149,11 @@ function renderSearchResults(container: HTMLElement, results: unknown[]): void {
   const items = results.slice(0, 5);
   for (const item of items) {
     const r = item as Record<string, unknown>;
-    const row = el('button', 'chat__search-result');
+    const row = el('button', 'ask__search-result');
     row.type = 'button';
 
-    const mag = el('span', 'chat__search-mag', `M${Number(r.magnitude || 0).toFixed(1)}`);
-    const place = el('span', 'chat__search-place', String(r.place || ''));
+    const mag = el('span', 'ask__search-mag', `M${Number(r.magnitude || 0).toFixed(1)}`);
+    const place = el('span', 'ask__search-place', String(r.place || ''));
     row.append(mag, place);
 
     row.addEventListener('click', () => {
@@ -174,6 +170,7 @@ function renderSearchResults(container: HTMLElement, results: unknown[]): void {
           place: { text: String(r.place || '') },
         });
         store.set('activePanel', 'live');
+        store.set('route', { ...store.get('route'), tab: 'live', eventId: r.id as string });
       }
     });
 
@@ -181,17 +178,15 @@ function renderSearchResults(container: HTMLElement, results: unknown[]): void {
   }
 
   if (results.length > 5) {
-    container.appendChild(el('div', 'chat__search-more', `+${results.length - 5} more`));
+    container.appendChild(el('div', 'ask__search-more', `+${results.length - 5} more`));
   }
 }
 
 function syncMessages(messages: ChatMessage[]): void {
-  // Remove welcome if messages exist
   if (messages.length > 0) {
-    messagesEl.querySelector('.chat__welcome')?.remove();
+    messagesEl.querySelector('.ask__welcome')?.remove();
   }
 
-  // Simple re-render (differential updates not needed for chat)
   const existingIds = new Set<string>();
   for (const child of Array.from(messagesEl.children)) {
     const id = (child as HTMLElement).dataset.msgId;
@@ -205,7 +200,6 @@ function syncMessages(messages: ChatMessage[]): void {
     messagesEl.appendChild(bubble);
   }
 
-  // Scroll to bottom
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
@@ -258,7 +252,6 @@ async function sendMessage(text: string): Promise<void> {
       timestamp: Date.now(),
     };
 
-    // Execute client-side tool calls (visualize_on_globe)
     if (data.toolResults) {
       for (const tr of data.toolResults) {
         if (tr.name === 'visualize_on_globe') {
@@ -288,58 +281,55 @@ function executeVisualization(result: unknown): void {
   const r = result as Record<string, unknown>;
 
   if (r.action === 'fly_to' && typeof r.lat === 'number' && typeof r.lng === 'number') {
-    // Globe fly-to handled by store subscription in main.ts
-    // We can trigger it by setting a selectedEvent or similar
-    console.log('[chat] fly_to', r.lat, r.lng);
+    console.log('[ask] fly_to', r.lat, r.lng);
   }
 
   if (r.action === 'highlight_events' && Array.isArray(r.event_ids)) {
-    console.log('[chat] highlight_events', r.event_ids);
+    console.log('[ask] highlight_events', r.event_ids);
   }
 }
 
 // ── Public API ──
 
-export function initChatPanel(): void {
-  const pane = getTabPane('chat');
+export function initAskPanel(): void {
+  const pane = getTabPane('ask');
   if (!pane) return;
 
-  chatEl = el('div', 'chat-panel');
-  chatEl.appendChild(buildMessages());
-  chatEl.appendChild(buildInputArea());
-  pane.appendChild(chatEl);
+  askEl = el('div', 'ask-panel');
+  askEl.appendChild(buildMessages());
+  askEl.appendChild(buildInputArea());
+  pane.appendChild(askEl);
 
-  // Subscribe to chat state
   unsubChat = store.subscribe('chat', (chat) => {
     syncMessages(chat.messages);
-
-    // Update send button state
     sendBtn.disabled = chat.isStreaming;
-    sendBtn.classList.toggle('chat__send-btn--loading', chat.isStreaming);
+    sendBtn.classList.toggle('ask__send-btn--loading', chat.isStreaming);
 
-    // Show error
     if (chat.error) {
-      const errEl = el('div', 'chat__error', chat.error);
+      const errEl = el('div', 'ask__error', chat.error);
       messagesEl.appendChild(errEl);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
   });
 
-  // Focus input when chat tab is activated
   store.subscribe('activePanel', (tab) => {
-    if (tab === 'chat') {
+    if (tab === 'ask') {
       requestAnimationFrame(() => inputEl?.focus());
     }
   });
 
   unsubLocale = onLocaleChange(() => {
-    inputEl.placeholder = t('chat.input.placeholder');
-    inputEl.setAttribute('aria-label', t('chat.input.label'));
-    sendBtn.setAttribute('aria-label', t('chat.input.send'));
+    inputEl.placeholder = t('ask.input.placeholder');
+    inputEl.setAttribute('aria-label', t('ask.input.label'));
+    sendBtn.setAttribute('aria-label', t('ask.input.send'));
   });
 }
 
-export function disposeChatPanel(): void {
+export function focusAskInput(): void {
+  inputEl?.focus();
+}
+
+export function disposeAskPanel(): void {
   unsubChat?.();
   unsubChat = null;
   unsubLocale?.();

@@ -17,6 +17,36 @@ dist-ssr
 workers/tile-proxy/wrangler.toml
 apps/worker/wrangler.toml
 
+# AI coding tool configs
+.agent/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.factory/
+.goose/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.playwright-cli/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.windsurf/
+.zencoder/
+.claude/skills/
+
+# Data artifacts
+facts.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

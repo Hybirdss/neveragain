@@ -1,14 +1,11 @@
 /* --- Left Panel Shell --- */
 .left-panel {
-  grid-area: panel;
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: var(--surface-base);
   border-right: 1px solid var(--border-subtle);
   overflow: hidden;
-  width: var(--panel-width);
-  min-width: var(--panel-min-width);
-  max-width: var(--panel-max-width);
 }
 
 /* --- Tab Bar --- */

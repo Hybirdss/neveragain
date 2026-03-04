@@ -11,12 +11,10 @@
 @import './styles/utilities.css';
 
 /* Components */
-@import './ui/hudOverlay.css';
 @import './ui/alertBar.css';
-@import './ui/sidebar.css';
 @import './ui/leftPanel.css';
 @import './ui/liveFeed.css';
-@import './ui/searchPanel.css';
+@import './ui/askPanel.css';
 @import './ui/detailPanel.css';
 @import './ui/timeline.css';
 @import './ui/tooltip.css';
@@ -29,7 +27,6 @@
 @import './ui/layerToggles.css';
 @import './ui/depthScale.css';
 @import './ui/impactPanel.css';
-@import './ui/aiPanel.css';
 @import './ui/searchBar.css';
 @import './ui/mobileShell.css';
 

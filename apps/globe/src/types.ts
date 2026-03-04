@@ -218,7 +218,7 @@ export interface PlateauCityConfig {
 
 // ── Navigation State ──────────────────────────────────────
 
-export type PanelTab = 'live' | 'search' | 'chat';
+export type PanelTab = 'live' | 'ask';
 
 export interface RouteState {
   tab: PanelTab;

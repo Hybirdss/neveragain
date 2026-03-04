@@ -14,6 +14,7 @@
  */
 
 import './style.css';
+import './ui/geocoder.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 // Store
@@ -39,7 +40,7 @@ import { startRealtimePolling, type RealtimePollerHandle } from './data/usgsReal
 
 // Globe (CesiumJS)
 import * as Cesium from 'cesium';
-import { createGlobe, getPointOfView } from './globe/globeInstance';
+import { createGlobe } from './globe/globeInstance';
 import type { GlobeInstance } from './globe/globeInstance';
 import { initCamera, flyToEarthquake, executeCameraPath, disposeCamera, NANKAI_CAMERA_PATH, TOHOKU_CAMERA_PATH } from './globe/camera';
 import { getEventFromPoint } from './globe/layers/seismicPoints';
@@ -78,7 +79,8 @@ import { enableCrossSectionDrawing, disableCrossSectionDrawing, isDrawingActive 
 import { playCinematicSequence, buildSnsSequence, skipCinematic } from './globe/cinematicSequence';
 
 // UI
-import { initSidebar, updateSidebar, disposeSidebar } from './ui/sidebar';
+// sidebar removed (display:none → fully deleted)
+import { initGeocoder, disposeGeocoder } from './globe/geocoder';
 import { initLeftPanel } from './ui/leftPanel';
 import { initLiveFeed, updateLiveFeed } from './ui/liveFeed';
 import { initRouter } from './store/router';
@@ -87,7 +89,7 @@ import { initIntensityLegend, disposeIntensityLegend } from './ui/intensityLegen
 import { initScenarioPicker, showPicker, disposeScenarioPicker } from './ui/scenarioPicker';
 import { showTooltip, hideTooltip } from './ui/tooltip';
 import { initAlertBar, showAlert, hideAlert } from './ui/alertBar';
-import { initHudOverlay, updateHud, disposeHudOverlay } from './ui/hudOverlay';
+// hudOverlay removed (unnecessary HUD for general users)
 import { initLayerToggles, disposeLayerToggles } from './ui/layerToggles';
 import { initModeSwitcher, disposeModeSwitcher } from './ui/modeSwitcher';
 import { initLocaleSwitcher, disposeLocaleSwitcher } from './ui/localeSwitcher';
@@ -99,11 +101,10 @@ import { loadTimelineData } from './data/timelineLoader';
 import { t, onLocaleChange } from './i18n/index';
 
 // AI
-import { initAiPanel, disposeAiPanel, openAiPanel } from './ui/aiPanel';
 import { fetchAnalysis } from './ai/client';
 import { shouldFetchOnClick } from './ai/tierRouter';
 import { initSearchBar, disposeSearchBar } from './ui/searchBar';
-import { initSearchPanel } from './ui/searchPanel';
+import { initAskPanel, disposeAskPanel } from './ui/askPanel';
 
 // Feature 1-5: Data integration engine
 import type {
@@ -142,7 +143,7 @@ function createLayout(): LayoutContainers {
   app.className = 'dashboard';
   app.innerHTML = '';
 
-  // Left panel container (tabs: Live / Search / Chat)
+  // Left panel container (tabs: Live / Ask)
   const panelContainer = document.createElement('div');
   panelContainer.id = 'panel-container';
   app.appendChild(panelContainer);
@@ -155,7 +156,7 @@ function createLayout(): LayoutContainers {
   globeArea.appendChild(globeContainer);
   app.appendChild(globeArea);
 
-  // Sidebar (legacy — kept for impact panel, will be removed in Phase 2)
+  // Hidden container for impact panel (invisible, provides data only)
   const sidebarContainer = document.createElement('div');
   sidebarContainer.id = 'sidebar-container';
   sidebarContainer.style.display = 'none';
@@ -500,10 +501,9 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
     store.set('intensityGrid', null);
     store.set('intensitySource', 'none');
 
-    // AI analysis: open panel and trigger fetch for qualifying events
+    // AI analysis: trigger fetch for qualifying events
     if (shouldFetchOnClick(event)) {
       fetchAnalysis(event.id);
-      openAiPanel();
     } else {
       // Prevent stale analysis from a previously selected event.
       store.set('ai', {
@@ -533,7 +533,6 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
 
     // Update sidebar + live feed detail panel
     const timeline = store.get('timeline');
-    updateSidebar(timeline.events, event, store.get('intensitySource'));
     updateLiveFeed(timeline.events, event, store.get('intensitySource'));
 
     // Sync timeline currentIndex with selected event for prev/next navigation
@@ -553,7 +552,6 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
     const isScenario = event.id === 'nankai-scenario' || event.id.startsWith('preset-');
     if (event.id !== 'nankai-scenario') {
       store.set('intensitySource', 'gmpe');
-      updateSidebar(store.get('timeline').events, event, 'gmpe');
       updateLiveFeed(store.get('timeline').events, event, 'gmpe');
       requestGridComputation(worker, event);
     }
@@ -570,7 +568,6 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
       clearIsoseismal(globe);
       updateShakeMapOverlay(globe, shakeMap);
       store.set('intensitySource', 'shakemap');
-      updateSidebar(store.get('timeline').events, event, 'shakemap');
       updateLiveFeed(store.get('timeline').events, event, 'shakemap');
       console.log(`[main] ShakeMap loaded for ${event.id}`);
     }
@@ -749,10 +746,8 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
       : false;
     if (selected && !selectedStillVisible) {
       store.set('selectedEvent', null);
-      updateSidebar(visibleEvents, null, store.get('intensitySource'));
       updateLiveFeed(visibleEvents, null, store.get('intensitySource'));
     } else {
-      updateSidebar(visibleEvents, selected, store.get('intensitySource'));
       updateLiveFeed(visibleEvents, selected, store.get('intensitySource'));
     }
     updateSeismicPoints(globe, visibleEvents);
@@ -785,9 +780,9 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
   deduped.sort((a, b) => a.time - b.time);
 
   const now = Date.now();
-  const cutoff = now - 86_400_000;
+  const cutoff = now - 7 * 86_400_000;
 
-  // Prune events older than 24 hours to prevent unbounded accumulation
+  // Prune events older than 7 days to prevent unbounded accumulation
   const pruned = deduped.filter(e => e.time >= cutoff);
 
   const selectedId = store.get('selectedEvent')?.id ?? null;
@@ -948,8 +943,9 @@ function setupGlobeClickHandler(globe: GlobeInstance): void {
       return;
     }
 
-    // 3. Click on empty space — hide tooltip only (keep selection for stability)
+    // 3. Click on empty space — deselect event and hide tooltip
     hideTooltip();
+    store.set('selectedEvent', null);
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
 
@@ -1028,23 +1024,19 @@ async function bootstrap(): Promise<void> {
   // 3. Initialise UI
   initLeftPanel(panelContainer);
   initLiveFeed();
-  initSearchPanel();
+  initAskPanel();
   initRouter();
-  initSidebar(sidebarContainer);
   initImpactPanel(sidebarContainer);
   initTimeline(timelineContainer, createTimelineCallbacks());
   initIntensityLegend(legendContainer);
   initAlertBar(globeArea);
-  initHudOverlay(globeArea);
+  initGeocoder(globe, globeArea);
   initLayerToggles(globeArea, globe);
   initLocaleSwitcher(globeArea);
   initDepthScale(globeArea);
-  initAiPanel();
   initSearchBar();
   initCrossSection(globeArea);
-  initMobileShell(globeArea, {
-    onTraining: () => showPicker(),
-  });
+  initMobileShell(globeArea);
   initModeSwitcher(timelineContainer, {
     onLoadTimeline: (start, end) => {
       loadTimelineData(start, end).catch((err) =>
@@ -1088,46 +1080,28 @@ async function bootstrap(): Promise<void> {
   // 6. Set up globe click handlers
   setupGlobeClickHandler(globe);
 
-  // 7. HUD update loop — sync camera state to HUD overlay (throttled to ~15fps)
-  let lastHudTime = 0;
-  let hudRafId = 0;
-  function hudLoop(now: number): void {
-    if (now - lastHudTime >= 66) {
-      lastHudTime = now;
-      try {
-        const pov = getPointOfView(globe);
-        updateHud({
-          lat: pov.lat,
-          lng: pov.lng,
-          altitude: pov.altitude,
-          simTime: store.get('timeline').currentTime,
-        });
-      } catch { /* globe may not be ready */ }
-    }
-    hudRafId = requestAnimationFrame(hudLoop);
-  }
-  hudRafId = requestAnimationFrame(hudLoop);
-
-  // 8. Push initial timeline state to UI
+  // 7. Push initial timeline state to UI
   updateTimeline(store.get('timeline'));
 
   // 9. Start real-time polling (immediate first fetch + 60s interval)
   pollerHandle = startRealtimePolling(onNewRealtimeEvents);
 
-  // 9.5. Dismiss loading screen
+  // 9.5. Dismiss loading screen after first poll completes
   const loadingScreen = document.getElementById('loading-screen');
-  if (loadingScreen) {
-    loadingScreen.style.opacity = '0';
-    setTimeout(() => loadingScreen.remove(), 500);
-  }
+  pollerHandle.firstPollDone.then(() => {
+    if (loadingScreen) {
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => loadingScreen.remove(), 500);
+    }
+  });
 
   // 10. Keyboard shortcuts
   function handleKeyboard(e: KeyboardEvent): void {
-    // CMD+K / Ctrl+K → switch to search tab
+    // CMD+K / Ctrl+K → switch to ask tab
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      store.set('activePanel', 'search');
-      store.set('route', { ...store.get('route'), tab: 'search' });
+      store.set('activePanel', 'ask');
+      store.set('route', { ...store.get('route'), tab: 'ask' });
       return;
     }
 
@@ -1166,7 +1140,6 @@ async function bootstrap(): Promise<void> {
   // Expose cleanup for HMR / teardown
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
-      cancelAnimationFrame(hudRafId);
       document.removeEventListener('keydown', handleKeyboard);
       pollerHandle?.stop();
       stopWaveAnimation();
@@ -1185,13 +1158,12 @@ async function bootstrap(): Promise<void> {
       disposeDepthRings();
       disposeActiveFaults(globe);
       disposeImpactPanel();
-      disposeAiPanel();
+      disposeAskPanel();
       disposeSearchBar();
       disposeMobileShell();
       clearLandslideOverlay(globe);
       clearComparisonOverlay(globe);
-      disposeSidebar();
-      disposeHudOverlay();
+      disposeGeocoder();
       disposeModeSwitcher();
       disposeIntensityLegend();
       disposeCamera();

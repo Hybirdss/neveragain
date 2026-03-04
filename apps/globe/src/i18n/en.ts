@@ -102,12 +102,18 @@ const en: Record<string, string> = {
   'faultType.intraslab': 'Intraslab',
 
   // Sidebar extras
-  'sidebar.eventCount': 'events / 24h',
+  'sidebar.eventCount': 'events / 7d',
+  'sidebar.eventCount.one': 'event / 7d',
   'sidebar.cinematic': 'Epicenter Focus',
   'sidebar.scenarios': 'Scenarios',
   'sidebar.training': 'Training',
   'sidebar.alert': 'M5+ ALERT',
-  'sidebar.empty': 'No earthquakes in current view',
+  'sidebar.empty': 'No M2.5+ earthquakes in the past 7 days',
+  'sidebar.loading': 'Fetching earthquake data…',
+  'sidebar.lastUpdated': 'Updated',
+  'sidebar.justNow': 'just now',
+  'sidebar.agoMin': 'min ago',
+  'sidebar.offline': 'Connection lost — retrying',
   'sidebar.mmiTitle': 'MODIFIED MERCALLI INTENSITY',
   'sidebar.source.shakemap': 'ShakeMap',
   'sidebar.source.gmpe': 'GMPE',
@@ -230,18 +236,31 @@ const en: Record<string, string> = {
   'ai.ask.ex2': 'How long will aftershocks continue?',
   'ai.ask.ex3': 'Is there a tsunami risk?',
 
-  // Mobile shell
-  'mobile.tab.map': 'Map',
-  'mobile.tab.events': 'Events',
-  'mobile.tab.ai': 'AI',
-  'mobile.tab.timeline': 'Timeline',
-  'mobile.tab.training': 'Training',
-  'mobile.nav.label': 'Mobile navigation',
-
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '\ud55c',
   'locale.ja': '\u65e5',
+
+  // Left Panel Tabs
+  'panel.tab.live': 'Live',
+  'panel.tab.ask': 'Ask',
+
+  // Ask Panel
+  'ask.welcome.title': 'Namazue AI',
+  'ask.welcome.desc': 'Ask about earthquakes, search the database, or request analysis. AI will search and visualize results on the globe.',
+  'ask.suggest.recent': 'Recent M6+ earthquakes?',
+  'ask.suggest.compare': 'Compare Tohoku and Kanto quakes',
+  'ask.suggest.region': 'Japan Sea seismicity trend',
+  'ask.suggest.analysis': 'Analyze the latest major event',
+  'ask.input.placeholder': 'Ask about earthquakes...',
+  'ask.input.label': 'Ask input',
+  'ask.input.send': 'Send',
+
+  // Mobile shell
+  'mobile.tab.map': 'Map',
+  'mobile.tab.live': 'Live',
+  'mobile.tab.ask': 'Ask',
+  'mobile.nav.label': 'Mobile navigation',
 };
 
 export default en;

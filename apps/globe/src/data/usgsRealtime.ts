@@ -12,7 +12,7 @@ import { store } from '../store/appState';
 // ── Constants ────────────────────────────────────────────────────
 
 const USGS_FEED_URL =
-  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
+  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const RUNTIME_HOSTNAME = typeof window !== 'undefined' ? window.location.hostname : '';
 const IS_LOCAL_RUNTIME = LOCAL_HOSTS.has(RUNTIME_HOSTNAME);
@@ -206,11 +206,20 @@ async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
 
 // ── Public API ───────────────────────────────────────────────────
 
+/** Timestamp of the last successful fetch (0 = never). */
+let lastUpdatedAt = 0;
+
+export function getLastUpdatedAt(): number {
+  return lastUpdatedAt;
+}
+
 export interface RealtimePollerHandle {
   /** Stop polling entirely. */
   stop: () => void;
   /** Clear the seen-ID set so the next poll re-delivers all events from the feed. */
   resetSeen: () => void;
+  /** Promise that resolves when the first poll completes (success or failure). */
+  firstPollDone: Promise<void>;
 }
 
 /**
@@ -251,6 +260,7 @@ export function startRealtimePolling(
 
       // Clear any previous network error on successful fetch
       store.set('networkError', null);
+      lastUpdatedAt = Date.now();
 
       if (newEvents.length > 0) {
         callback(newEvents);
@@ -273,7 +283,7 @@ export function startRealtimePolling(
   }
 
   // Immediate first fetch
-  poll();
+  const firstPollDone = poll();
 
   const intervalId = setInterval(poll, intervalMs);
 
@@ -286,5 +296,6 @@ export function startRealtimePolling(
       seen.clear();
       seenQueue.length = 0;
     },
+    firstPollDone,
   };
 }

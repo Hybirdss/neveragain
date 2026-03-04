@@ -102,12 +102,18 @@ const ko: Record<string, string> = {
   'faultType.intraslab': '\uc2ac\ub798\ube0c \ub0b4',
 
   // Sidebar extras
-  'sidebar.eventCount': '건 / 24시간',
+  'sidebar.eventCount': '건 / 7일',
+  'sidebar.eventCount.one': '건 / 7일',
   'sidebar.cinematic': '\uc9c4\uc6d0 \ud3ec\ucee4\uc2a4',
   'sidebar.scenarios': '\uc2dc\ub098\ub9ac\uc624',
   'sidebar.training': '훈련',
   'sidebar.alert': 'M5+ 경보',
-  'sidebar.empty': '현재 화면 범위에 지진이 없습니다',
+  'sidebar.empty': '최근 7일간 M2.5 이상 지진 없음',
+  'sidebar.loading': '지진 데이터 불러오는 중…',
+  'sidebar.lastUpdated': '갱신',
+  'sidebar.justNow': '방금',
+  'sidebar.agoMin': '분 전',
+  'sidebar.offline': '연결 끊김 — 재시도 중',
   'sidebar.mmiTitle': '수정 메르칼리 진도',
   'sidebar.source.shakemap': '셰이크맵',
   'sidebar.source.gmpe': 'GMPE',
@@ -233,16 +239,29 @@ const ko: Record<string, string> = {
 
   // Mobile shell
   'mobile.tab.map': '지도',
-  'mobile.tab.events': '이벤트',
-  'mobile.tab.ai': 'AI',
-  'mobile.tab.timeline': '타임라인',
-  'mobile.tab.training': '훈련',
+  'mobile.tab.live': '실시간',
+  'mobile.tab.ask': '질문',
   'mobile.nav.label': '모바일 내비게이션',
 
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '한',
   'locale.ja': '日',
+
+  // Left Panel Tabs
+  'panel.tab.live': '실시간',
+  'panel.tab.ask': '질문',
+
+  // Ask Panel
+  'ask.welcome.title': 'Namazue AI',
+  'ask.welcome.desc': '지진에 대해 질문하거나, 데이터베이스를 검색하거나, 분석을 요청할 수 있습니다. AI가 결과를 검색하고 글로브에 시각화합니다.',
+  'ask.suggest.recent': '최근 M6+ 지진은?',
+  'ask.suggest.compare': '도호쿠와 간토 지진 비교',
+  'ask.suggest.region': '동해 지진 활동 추세',
+  'ask.suggest.analysis': '최근 대규모 지진 분석',
+  'ask.input.placeholder': '지진에 대해 질문하세요...',
+  'ask.input.label': '질문 입력',
+  'ask.input.send': '전송',
 };
 
 export default ko;

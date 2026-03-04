@@ -7,24 +7,15 @@
 
 import { t, onLocaleChange } from '../i18n/index';
 import { store } from '../store/appState';
-import { openAiPanel, closeAiPanel, isAiPanelOpen, onAiPanelOpenChange } from './aiPanel';
-import { openSidebar, closeSidebar, isSidebarOpen, onSidebarOpenChange } from './sidebar';
 
-type MobileTab = 'map' | 'events' | 'ai' | 'timeline' | 'training';
-
-interface MobileShellOptions {
-  onTraining?: () => void;
-}
+type MobileTab = 'map' | 'live' | 'ask';
 
 let rootEl: HTMLElement | null = null;
 let tabButtons = new Map<MobileTab, HTMLButtonElement>();
 let viewportQuery: MediaQueryList | null = null;
 let unsubLocale: (() => void) | null = null;
-let unsubAi: (() => void) | null = null;
-let unsubSidebar: (() => void) | null = null;
-let unsubMode: (() => void) | null = null;
+let unsubPanel: (() => void) | null = null;
 let onViewportChange: ((event: MediaQueryListEvent) => void) | null = null;
-let onTrainingAction: (() => void) | null = null;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -42,33 +33,6 @@ function isMobileViewport(): boolean {
   return window.matchMedia('(max-width: 768px)').matches;
 }
 
-function setTimelineVisible(visible: boolean): void {
-  document.body.classList.toggle('mobile-timeline-visible', visible);
-}
-
-function isTimelineVisible(): boolean {
-  return document.body.classList.contains('mobile-timeline-visible');
-}
-
-function normalizeViewPresetForNavigation(): void {
-  const preset = store.get('viewPreset');
-  if (preset === 'crossSection' || preset === 'cinematic') {
-    store.set('viewPreset', 'default');
-  }
-}
-
-function ensureRealtimeModeWhenTimelineHidden(): void {
-  if (!isTimelineVisible() && store.get('mode') === 'timeline') {
-    store.set('mode', 'realtime');
-  }
-}
-
-function exitTimelineModeIfNeeded(): void {
-  if (store.get('mode') === 'timeline') {
-    store.set('mode', 'realtime');
-  }
-}
-
 function setActiveTab(tab: MobileTab): void {
   for (const [key, btn] of tabButtons) {
     btn.classList.toggle('mobile-shell__btn--active', key === tab);
@@ -79,19 +43,14 @@ function setActiveTab(tab: MobileTab): void {
 
 function syncActiveTab(): void {
   if (!isMobileViewport()) return;
-  if (isAiPanelOpen()) {
-    setActiveTab('ai');
-    return;
+  const panel = store.get('activePanel');
+  if (panel === 'live') {
+    setActiveTab('live');
+  } else if (panel === 'ask') {
+    setActiveTab('ask');
+  } else {
+    setActiveTab('map');
   }
-  if (isSidebarOpen()) {
-    setActiveTab('events');
-    return;
-  }
-  if (isTimelineVisible()) {
-    setActiveTab('timeline');
-    return;
-  }
-  setActiveTab('map');
 }
 
 function applyViewportState(): void {
@@ -99,9 +58,6 @@ function applyViewportState(): void {
   const mobile = isMobileViewport();
   rootEl.style.display = mobile ? 'grid' : 'none';
   if (!mobile) {
-    closeAiPanel();
-    closeSidebar();
-    setTimelineVisible(false);
     setActiveTab('map');
   } else {
     syncActiveTab();
@@ -109,64 +65,23 @@ function applyViewportState(): void {
 }
 
 function focusMap(): void {
-  normalizeViewPresetForNavigation();
-  ensureRealtimeModeWhenTimelineHidden();
-  closeAiPanel();
-  closeSidebar();
-  setTimelineVisible(false);
-  exitTimelineModeIfNeeded();
   setActiveTab('map');
+  // On mobile, hide panel by toggling a body class
+  document.body.classList.remove('mobile-panel-visible');
 }
 
-function focusEvents(): void {
-  normalizeViewPresetForNavigation();
-  ensureRealtimeModeWhenTimelineHidden();
-  closeAiPanel();
-  setTimelineVisible(false);
-  exitTimelineModeIfNeeded();
-  openSidebar();
-  setActiveTab('events');
+function focusLive(): void {
+  store.set('activePanel', 'live');
+  store.set('route', { ...store.get('route'), tab: 'live' });
+  document.body.classList.add('mobile-panel-visible');
+  setActiveTab('live');
 }
 
-function focusAi(): void {
-  normalizeViewPresetForNavigation();
-  ensureRealtimeModeWhenTimelineHidden();
-  closeSidebar();
-  setTimelineVisible(false);
-  exitTimelineModeIfNeeded();
-  openAiPanel();
-  setActiveTab('ai');
-}
-
-function focusTimeline(): void {
-  normalizeViewPresetForNavigation();
-  closeAiPanel();
-  closeSidebar();
-  const next = !isTimelineVisible();
-  setTimelineVisible(next);
-  if (next) {
-    store.set('mode', 'timeline');
-    setActiveTab('timeline');
-  } else {
-    exitTimelineModeIfNeeded();
-    setActiveTab('map');
-  }
-}
-
-function openTraining(): void {
-  normalizeViewPresetForNavigation();
-  ensureRealtimeModeWhenTimelineHidden();
-  closeAiPanel();
-  closeSidebar();
-  setTimelineVisible(false);
-  exitTimelineModeIfNeeded();
-  setActiveTab('training');
-  onTrainingAction?.();
-  window.setTimeout(() => {
-    if (!isAiPanelOpen() && !isSidebarOpen() && !isTimelineVisible()) {
-      setActiveTab('map');
-    }
-  }, 250);
+function focusAsk(): void {
+  store.set('activePanel', 'ask');
+  store.set('route', { ...store.get('route'), tab: 'ask' });
+  document.body.classList.add('mobile-panel-visible');
+  setActiveTab('ask');
 }
 
 function createTab(tab: MobileTab, labelKey: string, handler: () => void): HTMLButtonElement {
@@ -182,10 +97,8 @@ function createTab(tab: MobileTab, labelKey: string, handler: () => void): HTMLB
 function refreshLabels(): void {
   const keyMap: Record<MobileTab, string> = {
     map: 'mobile.tab.map',
-    events: 'mobile.tab.events',
-    ai: 'mobile.tab.ai',
-    timeline: 'mobile.tab.timeline',
-    training: 'mobile.tab.training',
+    live: 'mobile.tab.live',
+    ask: 'mobile.tab.ask',
   };
 
   for (const [tab, btn] of tabButtons) {
@@ -198,22 +111,18 @@ function refreshLabels(): void {
   }
 }
 
-export function initMobileShell(container: HTMLElement, options: MobileShellOptions = {}): void {
+export function initMobileShell(container: HTMLElement): void {
   void container;
-  onTrainingAction = options.onTraining ?? null;
 
   rootEl = el('nav', 'mobile-shell');
   rootEl.setAttribute('aria-label', t('mobile.nav.label'));
 
   rootEl.append(
     createTab('map', 'mobile.tab.map', focusMap),
-    createTab('events', 'mobile.tab.events', focusEvents),
-    createTab('ai', 'mobile.tab.ai', focusAi),
-    createTab('timeline', 'mobile.tab.timeline', focusTimeline),
-    createTab('training', 'mobile.tab.training', openTraining),
+    createTab('live', 'mobile.tab.live', focusLive),
+    createTab('ask', 'mobile.tab.ask', focusAsk),
   );
 
-  // Mount to body so the dock is not clipped by app-local stacking contexts.
   document.body.appendChild(rootEl);
 
   viewportQuery = window.matchMedia('(max-width: 768px)');
@@ -223,17 +132,8 @@ export function initMobileShell(container: HTMLElement, options: MobileShellOpti
   unsubLocale = onLocaleChange(() => {
     refreshLabels();
   });
-  unsubAi = onAiPanelOpenChange(() => {
-    syncActiveTab();
-  });
-  unsubSidebar = onSidebarOpenChange(() => {
-    syncActiveTab();
-  });
-  unsubMode = store.subscribe('mode', (mode) => {
-    if (!isMobileViewport()) return;
-    if (mode !== 'timeline' && isTimelineVisible()) {
-      setTimelineVisible(false);
-    }
+
+  unsubPanel = store.subscribe('activePanel', () => {
     syncActiveTab();
   });
 
@@ -244,20 +144,14 @@ export function initMobileShell(container: HTMLElement, options: MobileShellOpti
 export function disposeMobileShell(): void {
   unsubLocale?.();
   unsubLocale = null;
-  unsubAi?.();
-  unsubAi = null;
-  unsubSidebar?.();
-  unsubSidebar = null;
-  unsubMode?.();
-  unsubMode = null;
+  unsubPanel?.();
+  unsubPanel = null;
   if (viewportQuery && onViewportChange) {
     viewportQuery.removeEventListener('change', onViewportChange);
   }
   viewportQuery = null;
   onViewportChange = null;
-  onTrainingAction = null;
   tabButtons.clear();
   rootEl?.remove();
   rootEl = null;
-  document.body.classList.remove('mobile-timeline-visible');
 }

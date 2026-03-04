@@ -102,12 +102,18 @@ const ja: Record<string, string> = {
   'faultType.intraslab': '\u30b9\u30e9\u30d6\u5185',
 
   // Sidebar extras
-  'sidebar.eventCount': '件 / 24時間',
+  'sidebar.eventCount': '件 / 7日間',
+  'sidebar.eventCount.one': '件 / 7日間',
   'sidebar.cinematic': '\u9707\u6e90\u30d5\u30a9\u30fc\u30ab\u30b9',
   'sidebar.scenarios': '\u30b7\u30ca\u30ea\u30aa',
   'sidebar.training': '訓練',
   'sidebar.alert': 'M5+ 警報',
-  'sidebar.empty': '現在の表示範囲に地震はありません',
+  'sidebar.empty': '過去7日間にM2.5以上の地震はありません',
+  'sidebar.loading': '地震データを取得中…',
+  'sidebar.lastUpdated': '更新',
+  'sidebar.justNow': 'たった今',
+  'sidebar.agoMin': '分前',
+  'sidebar.offline': '接続が切れました — 再試行中',
   'sidebar.mmiTitle': '改良メルカリ震度',
   'sidebar.source.shakemap': 'ShakeMap',
   'sidebar.source.gmpe': 'GMPE',
@@ -232,16 +238,29 @@ const ja: Record<string, string> = {
 
   // Mobile shell
   'mobile.tab.map': '地図',
-  'mobile.tab.events': 'イベント',
-  'mobile.tab.ai': 'AI',
-  'mobile.tab.timeline': 'タイムライン',
-  'mobile.tab.training': '訓練',
+  'mobile.tab.live': 'ライブ',
+  'mobile.tab.ask': '質問',
   'mobile.nav.label': 'モバイルナビゲーション',
 
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '한',
   'locale.ja': '日',
+
+  // Left Panel Tabs
+  'panel.tab.live': 'ライブ',
+  'panel.tab.ask': '質問',
+
+  // Ask Panel
+  'ask.welcome.title': 'Namazue AI',
+  'ask.welcome.desc': '地震について質問したり、データベースを検索したり、分析をリクエストできます。AIが結果を検索してグローブ上に可視化します。',
+  'ask.suggest.recent': '最近のM6+地震は？',
+  'ask.suggest.compare': '東北と関東の地震を比較',
+  'ask.suggest.region': '日本海の地震活動の傾向',
+  'ask.suggest.analysis': '最新の大きな地震を分析',
+  'ask.input.placeholder': '地震について質問...',
+  'ask.input.label': '質問入力',
+  'ask.input.send': '送信',
 };
 
 export default ja;

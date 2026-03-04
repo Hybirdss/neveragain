@@ -1,5 +1,5 @@
 /**
- * Left Panel — Tab container shell for Live / Search / AI Chat
+ * Left Panel — Tab container shell for Live / Ask
  *
  * Manages the tab bar and swaps active tab pane.
  * Each tab pane is initialized lazily by the respective module.
@@ -34,13 +34,8 @@ const TABS: TabConfig[] = [
     icon: '<circle cx="5" cy="5" r="3" fill="currentColor"/><circle cx="5" cy="5" r="5" stroke="currentColor" fill="none" stroke-width="1"/>',
   },
   {
-    id: 'search',
-    labelKey: 'panel.tab.search',
-    icon: '<circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
-  },
-  {
-    id: 'chat',
-    labelKey: 'panel.tab.chat',
+    id: 'ask',
+    labelKey: 'panel.tab.ask',
     icon: '<path d="M2 3h10a1 1 0 011 1v6a1 1 0 01-1 1H5l-3 2V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" fill="none"/>',
   },
 ];

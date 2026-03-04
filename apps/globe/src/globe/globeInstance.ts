@@ -68,7 +68,7 @@ function addGsiFallbackImagery(viewer: GlobeInstance): void {
   viewer.imageryLayers.addImageryProvider(
     new Cesium.UrlTemplateImageryProvider({
       url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',
-      minimumLevel: 2,
+      minimumLevel: 3,
       maximumLevel: 18,
       credit: new Cesium.Credit('地理院タイル: 国土地理院', true),
     }),
@@ -80,7 +80,7 @@ function addGsiFallbackImagery(viewer: GlobeInstance): void {
     new Cesium.UrlTemplateImageryProvider({
       url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
       rectangle: japanRect,
-      minimumLevel: 2,
+      minimumLevel: 3,
       maximumLevel: 18,
       credit: new Cesium.Credit('航空写真: 国土地理院', true),
     }),
@@ -165,14 +165,14 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
   console.log('[globe] Viewer created');
 
   // ── Tile loading tuning ─────────────────────────────────────
-  // Balance between visual quality and performance.
-  viewer.scene.globe.tileCacheSize = 200;
-  viewer.scene.globe.maximumScreenSpaceError = 4;
-  viewer.scene.globe.preloadSiblings = false;
-  viewer.scene.globe.loadingDescendantLimit = 4;
+  // Aggressive settings for sharp imagery on first load.
+  viewer.scene.globe.tileCacheSize = 500;
+  viewer.scene.globe.maximumScreenSpaceError = 1.5;  // lower = sharper (default 2)
+  viewer.scene.globe.preloadSiblings = true;          // preload neighbors for snappy panning
+  viewer.scene.globe.loadingDescendantLimit = 8;      // allow deeper tile tree traversal
 
-  Cesium.RequestScheduler.maximumRequests = 12;
-  Cesium.RequestScheduler.maximumRequestsPerServer = 6;
+  Cesium.RequestScheduler.maximumRequests = 24;
+  Cesium.RequestScheduler.maximumRequestsPerServer = 12;
 
   // ── Imagery layer ───────────────────────────────────────────
   // Priority: CF Workers proxy (default) > MapTiler direct > GSI fallback
@@ -192,20 +192,42 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
     }
   }
 
+  // Base layer: dark map that covers z0+ so globe is never black when zoomed out
+  viewer.imageryLayers.addImageryProvider(
+    new Cesium.UrlTemplateImageryProvider({
+      url: 'https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
+      minimumLevel: 0,
+      maximumLevel: 6,  // only used for low zoom (satellite takes over at z1+)
+      credit: new Cesium.Credit('© OpenStreetMap © CARTO', false),
+    }),
+  );
+
   if (proxyOk) {
     viewer.imageryLayers.addImageryProvider(
       new Cesium.UrlTemplateImageryProvider({
         url: satelliteUrl,
+        minimumLevel: 1,
         maximumLevel: 18,
         credit: new Cesium.Credit('© MapTiler © OpenStreetMap contributors | 航空写真: 国土地理院', true),
       }),
     );
-    console.log('[globe] Imagery: satellite (proxy/MapTiler)');
+    console.log('[globe] Imagery: satellite (proxy/MapTiler) + dark base');
   } else {
     // GSI fallback: pale basemap + seamlessphoto (Japan satellite, free)
     addGsiFallbackImagery(viewer);
     console.log('[globe] Imagery: GSI fallback (pale + seamlessphoto, free)');
   }
+
+  // ── Label overlay on top of satellite ──────────────────────
+  // CartoDB dark_only_labels: transparent PNG with white text labels only.
+  const labelLayer = viewer.imageryLayers.addImageryProvider(
+    new Cesium.UrlTemplateImageryProvider({
+      url: 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png',
+      maximumLevel: 18,
+      credit: new Cesium.Credit('Labels: © OpenStreetMap © CARTO', false),
+    }),
+  );
+  labelLayer.alpha = 0.85;
 
   // ── Atmosphere & sky ────────────────────────────────────────
   if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.show = true;
@@ -214,7 +236,8 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
 
   // ── Globe settings ──────────────────────────────────────────
   viewer.scene.globe.depthTestAgainstTerrain = false;
-  viewer.scene.backgroundColor = Cesium.Color.BLACK;
+  viewer.scene.backgroundColor = new Cesium.Color(0.02, 0.02, 0.06, 1.0); // dark navy, not pure black
+  viewer.scene.globe.baseColor = new Cesium.Color(0.04, 0.04, 0.08, 1.0); // globe surface before tiles load
 
   // ── Performance: reduce shadow / lighting overhead ──────────
   viewer.scene.globe.enableLighting = false;
@@ -239,38 +262,38 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
     if (creditContainer) creditContainer.style.display = 'none';
   } catch { /* ignore */ }
 
+  // ── Zoom limit: restrict zoom outside Japan ────────────────
+  // Outside Japan bounding box, enforce minimum altitude (~200km = z7-ish)
+  // to avoid loading blurry/empty tiles at high zoom.
+  const MIN_ALT_OUTSIDE_JAPAN = 200_000; // meters
+  viewer.camera.changed.addEventListener(() => {
+    const carto = viewer.camera.positionCartographic;
+    if (carto.height < MIN_ALT_OUTSIDE_JAPAN) {
+      const lat = Cesium.Math.toDegrees(carto.latitude);
+      const lng = Cesium.Math.toDegrees(carto.longitude);
+      if (!isInsideJapan(lat, lng)) {
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromRadians(
+            carto.longitude,
+            carto.latitude,
+            MIN_ALT_OUTSIDE_JAPAN,
+          ),
+        });
+      }
+    }
+  });
+  viewer.camera.percentageChanged = 0.1;
+
   // ── Globe inertia — natural feel like Google Earth ─────────
   viewer.scene.screenSpaceCameraController.inertiaSpin = 0.9;
   viewer.scene.screenSpaceCameraController.inertiaTranslate = 0.9;
   viewer.scene.screenSpaceCameraController.inertiaZoom = 0.8;
 
-  // ── Initial camera: Japan overview → cinematic zoom-in ──────
-  // Start at Japan overview altitude (~2,500km) so Japan tiles load immediately.
-  // Then smooth zoom-in to detail level once tiles are ready.
+  // ── Initial camera: Japan view directly ──────────────────────
+  // Start at final Japan view immediately so CesiumJS requests the right zoom
+  // level tiles from the start — no wasted low-zoom tile fetches.
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(137, 36, 2_500_000),
-    orientation: {
-      heading: 0,
-      pitch: Cesium.Math.toRadians(-90),
-      roll: 0,
-    },
-  });
-
-  // Wait for Japan tiles to load, then zoom in
-  let tileCheckCount = 0;
-  viewer.scene.postRender.addEventListener(function waitForTiles() {
-    tileCheckCount++;
-    const tilesLoading = viewer.scene.globe.tilesLoaded === false;
-
-    // Wait until tiles are loaded OR max 60 frames (~1s), then fly in
-    if (tilesLoading && tileCheckCount < 60) return;
-
-    viewer.scene.postRender.removeEventListener(waitForTiles);
-    viewer.camera.flyTo({
-      destination: Cesium.Rectangle.fromDegrees(129, 30, 146, 45),
-      duration: 2.0,
-      easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
-    });
+    destination: Cesium.Rectangle.fromDegrees(129, 30, 146, 45),
   });
 
   // ── Error listeners ─────────────────────────────────────────

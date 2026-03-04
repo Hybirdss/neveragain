@@ -1,12 +1,12 @@
-/* --- Chat Panel (Left Panel → Chat Tab) --- */
-.chat-panel {
+/* --- Ask Panel (Left Panel → Ask Tab) --- */
+.ask-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
 /* --- Messages Area --- */
-.chat__messages {
+.ask__messages {
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-panel-y) var(--spacing-panel-x);
@@ -15,21 +15,21 @@
   gap: var(--space-3);
 }
 
-.chat__messages::-webkit-scrollbar {
+.ask__messages::-webkit-scrollbar {
   width: 4px;
 }
 
-.chat__messages::-webkit-scrollbar-track {
+.ask__messages::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.chat__messages::-webkit-scrollbar-thumb {
+.ask__messages::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 2px;
 }
 
 /* --- Welcome --- */
-.chat__welcome {
+.ask__welcome {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -37,7 +37,7 @@
   gap: var(--space-4);
 }
 
-.chat__welcome-title {
+.ask__welcome-title {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-secondary);
@@ -45,7 +45,7 @@
   letter-spacing: 0.5px;
 }
 
-.chat__welcome-desc {
+.ask__welcome-desc {
   font-size: var(--text-xs);
   color: var(--text-tertiary);
   text-align: center;
@@ -53,14 +53,14 @@
   line-height: 1.5;
 }
 
-.chat__suggestions {
+.ask__suggestions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   justify-content: center;
 }
 
-.chat__suggestion {
+.ask__suggestion {
   padding: 6px 12px;
   font-family: var(--font-sans);
   font-size: var(--text-xs);
@@ -72,13 +72,13 @@
   transition: background var(--duration-hover) ease, color var(--duration-hover) ease;
 }
 
-.chat__suggestion:hover {
+.ask__suggestion:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
 
 /* --- Message Bubbles --- */
-.chat__bubble {
+.ask__bubble {
   max-width: 90%;
   padding: var(--space-2) var(--space-3);
   border-radius: 6px;
@@ -86,34 +86,34 @@
   line-height: 1.5;
 }
 
-.chat__bubble--user {
+.ask__bubble--user {
   align-self: flex-end;
   background: var(--surface-card);
   color: var(--text-primary);
   border: 1px solid var(--border-default);
 }
 
-.chat__bubble--assistant {
+.ask__bubble--assistant {
   align-self: flex-start;
   background: var(--surface-panel);
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
 }
 
-.chat__bubble-text {
+.ask__bubble-text {
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 /* --- Tool Results --- */
-.chat__tool-result {
+.ask__tool-result {
   margin-top: var(--space-2);
   border: 1px solid var(--border-default);
   border-radius: var(--panel-radius);
   overflow: hidden;
 }
 
-.chat__tool-header {
+.ask__tool-header {
   padding: 4px 8px;
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -123,7 +123,7 @@
   letter-spacing: 0.3px;
 }
 
-.chat__tool-body {
+.ask__tool-body {
   padding: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -133,7 +133,7 @@
   white-space: pre-wrap;
 }
 
-.chat__tool-tag {
+.ask__tool-tag {
   margin-top: 4px;
   padding: 2px 6px;
   font-family: var(--font-mono);
@@ -144,8 +144,8 @@
   display: inline-block;
 }
 
-/* --- Search Results in Chat --- */
-.chat__search-result {
+/* --- Search Results --- */
+.ask__search-result {
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -159,15 +159,15 @@
   transition: background var(--duration-hover) ease;
 }
 
-.chat__search-result:hover {
+.ask__search-result:hover {
   background: var(--surface-hover);
 }
 
-.chat__search-result:last-child {
+.ask__search-result:last-child {
   border-bottom: none;
 }
 
-.chat__search-mag {
+.ask__search-mag {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   font-weight: 700;
@@ -175,7 +175,7 @@
   flex-shrink: 0;
 }
 
-.chat__search-place {
+.ask__search-place {
   font-size: var(--text-2xs);
   color: var(--text-tertiary);
   overflow: hidden;
@@ -183,7 +183,7 @@
   white-space: nowrap;
 }
 
-.chat__search-more {
+.ask__search-more {
   padding: 4px 8px;
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -191,7 +191,7 @@
 }
 
 /* --- Error --- */
-.chat__error {
+.ask__error {
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -202,7 +202,7 @@
 }
 
 /* --- Input Area --- */
-.chat__input-area {
+.ask__input-area {
   display: flex;
   align-items: flex-end;
   gap: var(--space-2);
@@ -211,7 +211,7 @@
   flex-shrink: 0;
 }
 
-.chat__input {
+.ask__input {
   flex: 1;
   resize: none;
   background: var(--surface-card);
@@ -227,15 +227,15 @@
   transition: border-color var(--duration-hover) ease;
 }
 
-.chat__input:focus {
+.ask__input:focus {
   border-color: var(--border-strong);
 }
 
-.chat__input::placeholder {
+.ask__input::placeholder {
   color: var(--text-disabled);
 }
 
-.chat__send-btn {
+.ask__send-btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -250,21 +250,21 @@
   transition: background var(--duration-hover) ease, color var(--duration-hover) ease;
 }
 
-.chat__send-btn:hover {
+.ask__send-btn:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
 
-.chat__send-btn:disabled {
+.ask__send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.chat__send-btn--loading {
-  animation: pulse 1s ease-in-out infinite;
+.ask__send-btn--loading {
+  animation: ask-pulse 1s ease-in-out infinite;
 }
 
-@keyframes pulse {
+@keyframes ask-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.8; }
 }

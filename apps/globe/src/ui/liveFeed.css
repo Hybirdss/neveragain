@@ -155,11 +155,28 @@
   flex-shrink: 0;
 }
 
+/* --- Status Bar --- */
+.feed__status {
+  padding: 4px var(--spacing-panel-x);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-disabled);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+}
+
+.feed__status--error {
+  color: var(--accent-danger);
+  background: var(--surface-danger-subtle);
+}
+
 /* --- Empty State --- */
 .feed__event-list .empty-state {
-  padding: var(--space-6) var(--spacing-panel-x);
+  padding: 32px var(--spacing-panel-x) 16px;
   text-align: center;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
+  line-height: 1.6;
 }

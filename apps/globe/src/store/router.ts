@@ -4,15 +4,13 @@
  * Routes:
  *   #/live              → Live feed (default)
  *   #/live/us6000xyz    → Live + event selected
- *   #/search            → Search panel
- *   #/search?q=M6+tohoku → Search with query
- *   #/chat              → AI Chat
+ *   #/ask               → AI Ask panel
  */
 
 import { store } from './appState';
 import type { PanelTab, RouteState } from '../types';
 
-const VALID_TABS: PanelTab[] = ['live', 'search', 'chat'];
+const VALID_TABS: PanelTab[] = ['live', 'ask'];
 
 // ---------------------------------------------------------------------------
 // Parse hash → RouteState
