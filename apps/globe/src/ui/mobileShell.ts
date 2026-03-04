@@ -50,6 +50,19 @@ function isTimelineVisible(): boolean {
   return document.body.classList.contains('mobile-timeline-visible');
 }
 
+function normalizeViewPresetForNavigation(): void {
+  const preset = store.get('viewPreset');
+  if (preset === 'crossSection' || preset === 'cinematic') {
+    store.set('viewPreset', 'default');
+  }
+}
+
+function ensureRealtimeModeWhenTimelineHidden(): void {
+  if (store.get('mode') === 'timeline') {
+    store.set('mode', 'realtime');
+  }
+}
+
 function setActiveTab(tab: MobileTab): void {
   for (const [key, btn] of tabButtons) {
     btn.classList.toggle('mobile-shell__btn--active', key === tab);
@@ -89,6 +102,8 @@ function applyViewportState(): void {
 }
 
 function focusMap(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeAiPanel();
   closeSidebar();
   setTimelineVisible(false);
@@ -96,6 +111,8 @@ function focusMap(): void {
 }
 
 function focusEvents(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeAiPanel();
   setTimelineVisible(false);
   openSidebar();
@@ -103,6 +120,8 @@ function focusEvents(): void {
 }
 
 function focusAi(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeSidebar();
   setTimelineVisible(false);
   openAiPanel();
@@ -110,6 +129,7 @@ function focusAi(): void {
 }
 
 function focusTimeline(): void {
+  normalizeViewPresetForNavigation();
   closeAiPanel();
   closeSidebar();
   const next = !isTimelineVisible();
@@ -118,11 +138,14 @@ function focusTimeline(): void {
     store.set('mode', 'timeline');
     setActiveTab('timeline');
   } else {
+    ensureRealtimeModeWhenTimelineHidden();
     setActiveTab('map');
   }
 }
 
 function openTraining(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeAiPanel();
   closeSidebar();
   setTimelineVisible(false);

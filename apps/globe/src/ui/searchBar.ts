@@ -16,6 +16,8 @@ let resultsList: HTMLElement | null = null;
 let hintEl: HTMLElement | null = null;
 let unsubAi: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
+let activeSearchController: AbortController | null = null;
+let activeSearchSeq = 0;
 
 const API_URL = import.meta.env.VITE_API_URL
   ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
@@ -104,11 +106,14 @@ export function openSearch(): void {
 
 export function closeSearch(): void {
   if (!overlay) return;
+  activeSearchController?.abort();
+  activeSearchController = null;
+  activeSearchSeq += 1;
   overlay.style.display = 'none';
   // Clear search highlights on globe
   const ai = store.get('ai');
-  if (ai.searchResults) {
-    store.set('ai', { ...ai, searchResults: null, searchQuery: '' });
+  if (ai.searchResults || ai.searchLoading) {
+    store.set('ai', { ...ai, searchResults: null, searchQuery: '', searchLoading: false });
   }
 }
 
@@ -125,6 +130,11 @@ async function executeSearch(): Promise<void> {
   const query = input.value.trim();
   if (!query) return;
 
+  activeSearchController?.abort();
+  const requestController = new AbortController();
+  activeSearchController = requestController;
+  const requestSeq = ++activeSearchSeq;
+
   const filter = buildSearchFilter(query);
 
   const ai = store.get('ai');
@@ -137,10 +147,12 @@ async function executeSearch(): Promise<void> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(filter),
+        signal: requestController.signal,
       });
 
       if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
       const data = await resp.json();
+      if (requestSeq !== activeSearchSeq) return;
 
       store.set('ai', {
         ...store.get('ai'),
@@ -153,10 +165,12 @@ async function executeSearch(): Promise<void> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw_query: query }),
+        signal: requestController.signal,
       });
 
       if (!resp.ok) throw new Error(`AI search failed: ${resp.status}`);
       const data = await resp.json();
+      if (requestSeq !== activeSearchSeq) return;
 
       store.set('ai', {
         ...store.get('ai'),
@@ -165,12 +179,20 @@ async function executeSearch(): Promise<void> {
       });
     }
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return;
+    }
+    if (requestSeq !== activeSearchSeq) return;
     store.set('ai', {
       ...store.get('ai'),
       searchLoading: false,
       searchResults: [],
     });
     console.error('[search]', err);
+  } finally {
+    if (activeSearchController === requestController) {
+      activeSearchController = null;
+    }
   }
 }
 
@@ -294,6 +316,9 @@ function isSupportedTime(value: unknown): value is string | number | Date {
 }
 
 export function disposeSearchBar(): void {
+  activeSearchController?.abort();
+  activeSearchController = null;
+  activeSearchSeq += 1;
   unsubAi?.();
   unsubAi = null;
   unsubLocale?.();

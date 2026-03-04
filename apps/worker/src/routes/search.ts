@@ -63,10 +63,12 @@ searchRoute.post('/', async (c) => {
   // SQL-based search
   const conditions: SQL[] = [];
 
-  const magMin = getNumber(body.mag_min);
-  const magMax = getNumber(body.mag_max);
-  const depthMin = getNumber(body.depth_min);
-  const depthMax = getNumber(body.depth_max);
+  let magMin = getNumber(body.mag_min);
+  let magMax = getNumber(body.mag_max);
+  let depthMin = getNumber(body.depth_min);
+  let depthMax = getNumber(body.depth_max);
+  [magMin, magMax] = normalizeRange(magMin, magMax);
+  [depthMin, depthMax] = normalizeRange(depthMin, depthMax);
   const lat = getNumber(body.lat);
   const lng = getNumber(body.lng);
   const radiusKm = getNumber(body.radius_km);
@@ -155,8 +157,15 @@ searchRoute.post('/', async (c) => {
 });
 
 function getNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function normalizeRange(min: number | null, max: number | null): [number | null, number | null] {
+  if (min === null || max === null) return [min, max];
+  return min <= max ? [min, max] : [max, min];
 }
 
 function getString(value: unknown): string {

@@ -31,7 +31,7 @@ let currentState: TimelineState | null = null;
 // Stored window-level handlers for cleanup
 let pointerDownHandler: ((e: PointerEvent) => void) | null = null;
 let pointerMoveHandler: ((e: PointerEvent) => void) | null = null;
-let pointerUpHandler: (() => void) | null = null;
+let pointerUpHandler: ((e: PointerEvent) => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 
 // Callbacks
@@ -137,18 +137,31 @@ function buildScrubBar(): HTMLElement {
   let dragging = false;
   pointerDownHandler = (e: PointerEvent) => {
     dragging = true;
+    try {
+      scrubContainer.setPointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture may fail on some browsers/targets; drag still works without it.
+    }
     seekFromClientX(e.clientX);
   };
   pointerMoveHandler = (e: PointerEvent) => {
     if (!dragging || !currentState) return;
     seekFromClientX(e.clientX);
   };
-  pointerUpHandler = () => { dragging = false; };
+  pointerUpHandler = (e: PointerEvent) => {
+    dragging = false;
+    try {
+      if (scrubContainer.hasPointerCapture(e.pointerId)) {
+        scrubContainer.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore pointer release errors.
+    }
+  };
   scrubContainer.addEventListener('pointerdown', pointerDownHandler);
   scrubContainer.addEventListener('pointermove', pointerMoveHandler);
   scrubContainer.addEventListener('pointerup', pointerUpHandler);
   scrubContainer.addEventListener('pointercancel', pointerUpHandler);
-  scrubContainer.addEventListener('pointerleave', pointerUpHandler);
 
   return scrubContainer;
 }
@@ -328,7 +341,6 @@ export function disposeTimeline(): void {
     if (pointerUpHandler) {
       scrubContainer.removeEventListener('pointerup', pointerUpHandler);
       scrubContainer.removeEventListener('pointercancel', pointerUpHandler);
-      scrubContainer.removeEventListener('pointerleave', pointerUpHandler);
     }
   }
   pointerDownHandler = null;
