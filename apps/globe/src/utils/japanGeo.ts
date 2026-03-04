@@ -126,11 +126,10 @@ export interface JapanPlaceName {
  * - "東京都付近" (within 30km of prefecture center)
  * - "宮城県の南東35km" (distance + direction from nearest prefecture)
  */
-export function getJapanPlaceName(lat: number, lng: number): JapanPlaceName {
+export function getJapanPlaceName(lat: number, lng: number): JapanPlaceName | null {
   let nearest: GeoEntry | null = null;
   let nearestDist = Infinity;
 
-  // First pass: check offshore regions (priority for sea quakes)
   for (const entry of GEO_TABLE) {
     const d = distanceKm(lat, lng, entry.lat, entry.lng);
     if (d < nearestDist) {
@@ -139,7 +138,10 @@ export function getJapanPlaceName(lat: number, lng: number): JapanPlaceName {
     }
   }
 
-  if (!nearest) return { ja: '不明', en: 'Unknown' };
+  if (!nearest) return null;
+
+  // Too far from Japan — let caller fall back to USGS place name
+  if (nearestDist > 500) return null;
 
   // Offshore region match — use directly if within reasonable range
   if (nearest.offshore && nearestDist < 200) {

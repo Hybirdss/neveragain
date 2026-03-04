@@ -79,8 +79,17 @@ function flyTo(
   onComplete?: () => void,
   pitchDeg: number = -90,
 ): void {
+  // When pitch is not straight-down (-90°), offset the camera position
+  // so the look-at point (screen center) lands on the target lat/lng.
+  let cameraLat = lat;
+  if (pitchDeg > -90) {
+    const nadirAngleRad = (90 + pitchDeg) * Math.PI / 180;
+    const offsetM = altitude * Math.tan(nadirAngleRad);
+    cameraLat = lat - offsetM / 111_320; // heading=0 → offset south
+  }
+
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat, altitude),
+    destination: Cesium.Cartesian3.fromDegrees(lng, cameraLat, altitude),
     orientation: {
       heading: 0,
       pitch: Cesium.Math.toRadians(pitchDeg),

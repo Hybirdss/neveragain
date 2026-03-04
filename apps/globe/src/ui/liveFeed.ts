@@ -8,7 +8,7 @@
 import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
 import { computeGmpe } from '../engine/gmpe';
 import { store } from '../store/appState';
-import { t, onLocaleChange } from '../i18n/index';
+import { t, onLocaleChange, getLocale } from '../i18n/index';
 import { depthToColor } from '../utils/colorScale';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { clusterEvents, getDisplayEvents, type ClusteredEvent } from '../utils/aftershockCluster';
@@ -53,9 +53,11 @@ let currentClusters: Map<string, ClusteredEvent> = new Map();
 let expandedClusters: Set<string> = new Set();
 let hasReceivedData = false;
 
-/** Get Japanese place name for an event. */
+/** Get locale-aware place name, falling back to USGS text for non-Japan events. */
 function eventPlaceName(event: EarthquakeEvent): string {
-  return getJapanPlaceName(event.lat, event.lng).ja;
+  const place = getJapanPlaceName(event.lat, event.lng);
+  if (!place) return event.place?.text || 'Unknown';
+  return getLocale() === 'ja' ? place.ja : place.en;
 }
 
 // ── Helpers ──
@@ -241,6 +243,23 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean, cluster?: Cl
 }
 
 
+/** Toggle active class on existing items without full re-render. */
+function updateActiveState(selectedId: string | null): void {
+  const items = eventListEl.querySelectorAll('.feed-item');
+  for (const item of items) {
+    const el = item as HTMLElement;
+    const id = el.dataset.eventId;
+    const isActive = id === selectedId;
+    el.classList.toggle('feed-item--active', isActive);
+    if (isActive && id) {
+      const ev = currentEvents.find(e => e.id === id);
+      if (ev) el.style.borderLeftColor = depthToColor(ev.depth_km);
+    } else {
+      el.style.borderLeftColor = 'transparent';
+    }
+  }
+}
+
 function renderEvents(events: EarthquakeEvent[], selectedId: string | null): void {
   // Full re-render for simplicity with clustering
   eventListEl.innerHTML = '';
@@ -412,9 +431,8 @@ export function initLiveFeed(): void {
     const selected = store.get('selectedEvent');
     const intensitySource = store.get('intensitySource');
     refreshDetailPanel(selected, intensitySource);
-    // Re-render list to update active state
-    const displayEvents = getDisplayEvents(currentEvents, currentClusters);
-    renderEvents(displayEvents, selected?.id ?? null);
+    // Fast active-state toggle without full re-render
+    updateActiveState(selected?.id ?? null);
   });
 
   unsubLocale = onLocaleChange(() => {
@@ -593,5 +611,7 @@ export function disposeLiveFeed(): void {
     statusTimerId = null;
   }
   currentEvents = [];
+  currentClusters = new Map();
+  expandedClusters = new Set();
   hasReceivedData = false;
 }

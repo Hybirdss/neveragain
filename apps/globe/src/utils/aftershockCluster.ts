@@ -51,8 +51,8 @@ export function clusterEvents(events: EarthquakeEvent[]): Map<string, ClusteredE
   const result = new Map<string, ClusteredEvent>();
   const claimed = new Set<string>();
 
-  // Sort by magnitude descending — process largest events first
-  const sorted = [...events].sort((a, b) => b.magnitude - a.magnitude);
+  // Sort by magnitude descending, then by time ascending (earlier = mainshock on tie)
+  const sorted = [...events].sort((a, b) => b.magnitude - a.magnitude || a.time - b.time);
 
   for (const ev of sorted) {
     if (claimed.has(ev.id)) continue;
@@ -63,7 +63,9 @@ export function clusterEvents(events: EarthquakeEvent[]): Map<string, ClusteredE
     for (const candidate of sorted) {
       if (candidate.id === ev.id) continue;
       if (claimed.has(candidate.id)) continue;
-      if (candidate.magnitude >= ev.magnitude) continue; // Must be smaller
+      // Must be smaller, or same magnitude but later (tie-break by time)
+      if (candidate.magnitude > ev.magnitude) continue;
+      if (candidate.magnitude === ev.magnitude && candidate.time <= ev.time) continue;
 
       const dist = distanceKm(ev.lat, ev.lng, candidate.lat, candidate.lng);
       if (dist > CLUSTER_RADIUS_KM) continue;
