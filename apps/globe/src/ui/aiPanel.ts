@@ -289,6 +289,29 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+function appendMultilineText(container: HTMLElement, text: string): void {
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, idx) => {
+    if (idx > 0) container.append(document.createElement('br'));
+    container.append(document.createTextNode(line));
+  });
+}
+
+function makeBadge(text: string, variant?: 'warning' | 'positive'): HTMLElement {
+  const className = variant ? `ai-badge ai-badge--${variant}` : 'ai-badge';
+  const badge = el('span', className, text);
+  return badge;
+}
+
+function toSafeFilenameSegment(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const sanitized = value
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return sanitized || fallback;
+}
 // ── Render analysis ──
 
 function renderAnalysis(analysis: any): void {
@@ -483,43 +506,61 @@ function renderExpertTab(analysis: any): void {
 
   // Sequence classification
   if (exp.sequence) {
-    const badge = `<span class="ai-badge">${escapeHtml(String(exp.sequence.classification ?? ''))}</span>`;
-    const confClass = exp.sequence.confidence === 'high' ? 'positive' : 'warning';
-    const conf = `<span class="ai-badge ai-badge--${confClass}">${escapeHtml(String(exp.sequence.confidence ?? ''))}</span>`;
-    pane.append(makeAccordion(
-      t('ai.expert.sequence'),
-      `${badge} ${conf}<br>${escapeHtml(i18n(exp.sequence.reasoning))}`,
-      undefined,
-      false,
-      true,
-    ));
+    const content = el('div');
+    content.append(makeBadge(String(exp.sequence.classification ?? '')));
+    content.append(document.createTextNode(' '));
+    content.append(
+      makeBadge(
+        String(exp.sequence.confidence ?? ''),
+        exp.sequence.confidence === 'high' ? 'positive' : 'warning',
+      ),
+    );
+    const reasoning = i18n(exp.sequence.reasoning);
+    if (reasoning) {
+      content.append(document.createElement('br'));
+      appendMultilineText(content, reasoning);
+    }
+    pane.append(makeAccordion(t('ai.expert.sequence'), '', content));
   }
 
   // Historical comparison
   if (exp.historical_comparison?.narrative) {
-    let content = '';
+    const content = el('div');
     if (exp.historical_comparison.primary_name) {
-      const name = escapeHtml(i18n(exp.historical_comparison.primary_name));
+      const name = i18n(exp.historical_comparison.primary_name);
       const year = exp.historical_comparison.primary_year;
-      content += `<strong>${name}${year ? ` (${year})` : ''}</strong><br>`;
+      const heading = el('strong', undefined, `${name}${year ? ` (${year})` : ''}`);
+      content.append(heading, document.createElement('br'));
     }
-    content += escapeHtml(i18n(exp.historical_comparison.narrative));
-    pane.append(makeAccordion(t('ai.expert.historical'), content, undefined, false, true));
+    appendMultilineText(content, i18n(exp.historical_comparison.narrative));
+    pane.append(makeAccordion(t('ai.expert.historical'), '', content));
   }
 
   // Aftershock assessment (v1 compat)
   if (exp.aftershock_assessment) {
-    let content = escapeHtml(i18n(exp.aftershock_assessment.omori_summary));
-    content += `<br><br><small style="color:var(--text-tertiary)">${escapeHtml(i18n(exp.aftershock_assessment.caveat))}</small>`;
-    pane.append(makeAccordion(t('ai.expert.aftershock'), content, undefined, false, true));
+    const content = el('div');
+    appendMultilineText(content, i18n(exp.aftershock_assessment.omori_summary));
+    const caveat = i18n(exp.aftershock_assessment.caveat);
+    if (caveat) {
+      content.append(document.createElement('br'), document.createElement('br'));
+      const note = el('small');
+      note.style.color = 'var(--text-tertiary)';
+      note.textContent = caveat;
+      content.append(note);
+    }
+    pane.append(makeAccordion(t('ai.expert.aftershock'), '', content));
   }
 
   // Seismic gap (v2: is_gap + note, v1: is_in_gap + analysis)
   const gap = exp.seismic_gap;
   if (gap?.note || gap?.analysis) {
     const isGap = gap.is_gap ?? gap.is_in_gap;
-    const badge = isGap ? '<span class="ai-badge ai-badge--warning">In Gap</span> ' : '';
-    pane.append(makeAccordion(t('ai.expert.gap'), `${badge}${escapeHtml(i18n(gap.note ?? gap.analysis))}`, undefined, false, true));
+    const content = el('div');
+    if (isGap) {
+      content.append(makeBadge('In Gap', 'warning'), document.createTextNode(' '));
+    }
+    appendMultilineText(content, i18n(gap.note ?? gap.analysis));
+    pane.append(makeAccordion(t('ai.expert.gap'), '', content));
   }
 
   // Notable features (v2: claim/because/implication, v1 fallback: feature + note/description)
@@ -580,8 +621,9 @@ function renderDataTab(analysis: any): void {
     const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    const fileId = toSafeFilenameSegment(analysis?.event_id, 'event');
     a.href = url;
-    a.download = `analysis-${analysis.event_id}.json`;
+    a.download = `analysis-${fileId}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };

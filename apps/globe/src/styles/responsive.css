@@ -275,7 +275,7 @@
     border: 1px solid var(--border-strong);
     border-bottom: none;
     border-radius: 18px 18px 0 0;
-    transform: translateY(100%);
+    transform: translateY(calc(100% + var(--mobile-shell-height) + env(safe-area-inset-bottom) + 8px));
   }
 
   .ai-panel.open {

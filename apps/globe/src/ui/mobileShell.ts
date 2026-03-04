@@ -185,6 +185,7 @@ function refreshLabels(): void {
 }
 
 export function initMobileShell(container: HTMLElement, options: MobileShellOptions = {}): void {
+  void container;
   onTrainingAction = options.onTraining ?? null;
 
   rootEl = el('nav', 'mobile-shell');
@@ -198,7 +199,8 @@ export function initMobileShell(container: HTMLElement, options: MobileShellOpti
     createTab('training', 'mobile.tab.training', openTraining),
   );
 
-  container.appendChild(rootEl);
+  // Mount to body so the dock is not clipped by app-local stacking contexts.
+  document.body.appendChild(rootEl);
 
   viewportQuery = window.matchMedia('(max-width: 768px)');
   onViewportChange = () => applyViewportState();

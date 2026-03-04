@@ -99,6 +99,19 @@ function buildHeader(): HTMLElement {
 
 function buildEventList(): HTMLElement {
   eventListEl = el('div', 'sidebar__event-list');
+
+  // Delegated click handler — always uses latest event data, no stale closures
+  eventListEl.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    const item = target.closest('.sidebar-item') as HTMLElement | null;
+    if (!item) return;
+    const eventId = item.dataset.eventId;
+    if (!eventId) return;
+    const event = currentEvents.find(ev => ev.id === eventId);
+    if (event) store.set('selectedEvent', event);
+  });
+
   return eventListEl;
 }
 
@@ -149,11 +162,6 @@ function renderEventItem(event: EarthquakeEvent, index: number, isActive: boolea
   }
 
   item.appendChild(meta);
-
-  // Click handler
-  item.addEventListener('click', () => {
-    store.set('selectedEvent', event);
-  });
 
   return item;
 }
@@ -466,8 +474,9 @@ export function updateSidebar(
   const hasM5 = events.some(e => e.magnitude >= 5.0);
   alertBadgeEl.style.display = hasM5 ? 'block' : 'none';
 
-  // Render event list
-  renderEvents(events, selectedEvent);
+  // Render event list (newest first for better UX)
+  const displayEvents = [...events].sort((a, b) => b.time - a.time);
+  renderEvents(displayEvents, selectedEvent);
 
   // Detail panel
   if (selectedEvent) {
@@ -477,9 +486,13 @@ export function updateSidebar(
     detailPlaceEl.textContent = getPlaceText(selectedEvent.place);
 
     // Meta row
-    detailMetaEl.innerHTML = '';
+    detailMetaEl.textContent = '';
     const depthSpan = el('span');
-    depthSpan.innerHTML = `${t('detail.depth')} <span style="color:var(--text-secondary)">${selectedEvent.depth_km}km</span>`;
+    depthSpan.append(document.createTextNode(`${t('detail.depth')} `));
+    const depthValue = el('span');
+    depthValue.style.color = 'var(--text-secondary)';
+    depthValue.textContent = `${selectedEvent.depth_km}km`;
+    depthSpan.append(depthValue);
     detailMetaEl.appendChild(depthSpan);
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lat).toFixed(3)}°${selectedEvent.lat >= 0 ? 'N' : 'S'}`));

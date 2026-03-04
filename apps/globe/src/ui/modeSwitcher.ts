@@ -233,6 +233,7 @@ export function initModeSwitcher(
   highlightMode(store.get('mode'));
 
   // React to external mode changes (e.g. scenario picker sets mode)
+  unsubMode?.();
   unsubMode = store.subscribe('mode', (mode: AppMode) => {
     highlightMode(mode);
   });
