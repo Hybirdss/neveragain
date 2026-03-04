@@ -21,13 +21,79 @@
     <meta name="twitter:image" content="https://namazue.dev/namazue-hero.jpg" />
 
     <!-- Theme -->
-    <meta name="theme-color" content="#0a0e17" />
+    <meta name="theme-color" content="#0c1017" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- Preload critical fonts for loading screen -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <style>
+      /* Loading screen — rendered before any JS loads */
+      #loading-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #0c1017;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+        transition: opacity 0.6s ease, transform 0.6s ease;
+      }
+      #loading-screen.exit {
+        opacity: 0;
+        transform: translateY(-24px);
+        pointer-events: none;
+      }
+      .loading-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        opacity: 0.9;
+      }
+      .loading-title {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        color: #e2e8f0;
+        letter-spacing: -0.02em;
+        margin-top: 4px;
+      }
+      .loading-status {
+        font-family: 'JetBrains Mono', 'SF Mono', monospace;
+        font-size: 11px;
+        color: #64748b;
+        letter-spacing: 0.02em;
+        min-height: 16px;
+        transition: opacity 0.2s ease;
+      }
+      .loading-bar-track {
+        width: 120px;
+        height: 2px;
+        background: #1a1f2e;
+        border-radius: 1px;
+        overflow: hidden;
+        margin-top: 4px;
+      }
+      .loading-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: #60a5fa;
+        border-radius: 1px;
+        transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+    </style>
   </head>
   <body>
-    <div id="loading-screen" style="position:fixed;inset:0;z-index:9999;background:#080808;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;transition:opacity 0.5s">
-      <div style="font-family:system-ui,sans-serif;font-size:20px;font-weight:600;color:#e0e0e0;letter-spacing:-0.02em">鯰 Namazue</div>
-      <div style="font-family:monospace;font-size:11px;color:#606060">Initializing seismic engine…</div>
+    <div id="loading-screen">
+      <img class="loading-icon" src="/favicon.png" alt="" width="56" height="56" />
+      <div class="loading-title">鯰 Namazue</div>
+      <div class="loading-status" id="loading-status">Initializing…</div>
+      <div class="loading-bar-track">
+        <div class="loading-bar-fill" id="loading-bar"></div>
+      </div>
     </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>

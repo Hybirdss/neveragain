@@ -97,14 +97,26 @@ function createTimelineCallbacks() {
   };
 }
 
+// ── Loading Screen Progress ──
+
+function updateLoading(status: string, percent: number): void {
+  const statusEl = document.getElementById('loading-status');
+  const barEl = document.getElementById('loading-bar');
+  if (statusEl) statusEl.textContent = status;
+  if (barEl) barEl.style.width = `${percent}%`;
+}
+
 // ── Bootstrap ──
 
 async function bootstrap(): Promise<void> {
   // 1. DOM layout
+  updateLoading('Building layout…', 10);
   const layout = createLayout();
 
   // 2. Globe + layers
+  updateLoading('Loading 3D globe…', 20);
   const { globe, disposeGlobeSetup } = await setupGlobe(layout.globeContainer);
+  updateLoading('Globe ready', 50);
 
   // 3. State machine + bridge
   initStateMachine();
@@ -114,6 +126,7 @@ async function bootstrap(): Promise<void> {
   });
 
   // 4. UI modules
+  updateLoading('Setting up interface…', 60);
   initLeftPanel(layout.panelContainer);
   initLiveFeed();
   initImpactPanel(layout.sidebarContainer);
@@ -136,6 +149,7 @@ async function bootstrap(): Promise<void> {
   });
 
   // 5. Data grids (async, non-blocking) + active faults
+  updateLoading('Loading seismic data…', 70);
   const dataGrids = await loadAllDataGrids();
   if (dataGrids.activeFaults.length > 0) {
     initActiveFaults(globe, dataGrids.activeFaults, (event, fault) => {
@@ -155,6 +169,7 @@ async function bootstrap(): Promise<void> {
   }
 
   // 6. Orchestrators (each wires its own subscriptions)
+  updateLoading('Wiring engine…', 85);
   const gmpe = createGmpeOrchestrator(dataGrids.vs30Grid);
   const disposeSelection = initSelectionOrchestrator(globe, gmpe);
   const disposeLayers = initLayerOrchestrator(globe, dataGrids);
@@ -195,12 +210,17 @@ async function bootstrap(): Promise<void> {
   updateTimeline(store.get('timeline'));
 
   // 9. Dismiss loading screen after first poll
+  updateLoading('Fetching earthquakes…', 90);
   const loadingScreen = document.getElementById('loading-screen');
   realtime.pollerHandle.firstPollDone.then(() => {
-    if (loadingScreen) {
-      loadingScreen.style.opacity = '0';
-      setTimeout(() => loadingScreen.remove(), 500);
-    }
+    updateLoading('Ready', 100);
+    // Brief pause to show "Ready" state before dismissing
+    setTimeout(() => {
+      if (loadingScreen) {
+        loadingScreen.classList.add('exit');
+        setTimeout(() => loadingScreen.remove(), 700);
+      }
+    }, 400);
   });
 
   // HMR cleanup
