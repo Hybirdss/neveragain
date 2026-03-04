@@ -185,6 +185,13 @@ const ko: Record<string, string> = {
   'search.placeholder': 'M6 미야기 / 규모 5 이상 도쿄 / 깊은 지진...',
   'search.noResults': '결과 없음',
 
+  // Mobile shell
+  'mobile.tab.map': '지도',
+  'mobile.tab.events': '이벤트',
+  'mobile.tab.ai': 'AI',
+  'mobile.tab.timeline': '타임라인',
+  'mobile.tab.training': '훈련',
+
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '한',

@@ -88,6 +88,7 @@ import { initLayerToggles, disposeLayerToggles } from './ui/layerToggles';
 import { initModeSwitcher, disposeModeSwitcher } from './ui/modeSwitcher';
 import { initLocaleSwitcher, disposeLocaleSwitcher } from './ui/localeSwitcher';
 import { initDepthScale, disposeDepthScale } from './ui/depthScale';
+import { initMobileShell, disposeMobileShell } from './ui/mobileShell';
 
 // Data (new)
 import { loadTimelineData } from './data/timelineLoader';
@@ -958,6 +959,9 @@ async function bootstrap(): Promise<void> {
   initAiPanel();
   initSearchBar();
   initCrossSection(globeArea);
+  initMobileShell(globeArea, {
+    onTraining: () => showPicker(),
+  });
   initModeSwitcher(timelineContainer, {
     onLoadTimeline: (start, end) => {
       loadTimelineData(start, end).catch((err) =>
@@ -1098,6 +1102,7 @@ async function bootstrap(): Promise<void> {
       disposeActiveFaults(globe);
       disposeImpactPanel();
       disposeSearchBar();
+      disposeMobileShell();
       clearLandslideOverlay(globe);
       clearComparisonOverlay(globe);
       disposeSidebar();

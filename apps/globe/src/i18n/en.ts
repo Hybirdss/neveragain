@@ -185,6 +185,13 @@ const en: Record<string, string> = {
   'search.placeholder': 'M6 Tokyo / deep M7+ / last 30 days...',
   'search.noResults': 'No results found',
 
+  // Mobile shell
+  'mobile.tab.map': 'Map',
+  'mobile.tab.events': 'Events',
+  'mobile.tab.ai': 'AI',
+  'mobile.tab.timeline': 'Timeline',
+  'mobile.tab.training': 'Training',
+
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '\ud55c',

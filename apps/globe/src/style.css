@@ -28,6 +28,7 @@
 @import './ui/impactPanel.css';
 @import './ui/aiPanel.css';
 @import './ui/searchBar.css';
+@import './ui/mobileShell.css';
 
 /* Responsive (must be last for override specificity) */
 @import './styles/responsive.css';

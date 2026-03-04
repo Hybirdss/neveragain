@@ -39,6 +39,7 @@ let sidebarToggleBtn: HTMLButtonElement | null = null;
 let mobileViewportQuery: MediaQueryList | null = null;
 let onViewportChange: ((event: MediaQueryListEvent) => void) | null = null;
 let syncSidebarToggleState: (() => void) | null = null;
+const sidebarOpenListeners = new Set<(open: boolean) => void>();
 
 // Track current events for click handlers
 let currentEvents: EarthquakeEvent[] = [];
@@ -255,6 +256,21 @@ function mmiDescription(mmi: number): string {
   return t('mmi.weak');
 }
 
+function notifySidebarOpenChange(): void {
+  if (!sidebarEl) return;
+  const open = sidebarEl.classList.contains('sidebar--open');
+  for (const fn of sidebarOpenListeners) {
+    fn(open);
+  }
+}
+
+function setSidebarOpenState(open: boolean): void {
+  if (!sidebarEl) return;
+  sidebarEl.classList.toggle('sidebar--open', open);
+  syncSidebarToggleState?.();
+  notifySidebarOpenChange();
+}
+
 // ---- Public API ----
 
 export function initSidebar(container: HTMLElement): void {
@@ -281,15 +297,14 @@ export function initSidebar(container: HTMLElement): void {
   };
 
   sidebarToggleBtn.addEventListener('click', () => {
-    sidebarEl.classList.toggle('sidebar--open');
-    syncSidebarToggleState?.();
+    setSidebarOpenState(!sidebarEl.classList.contains('sidebar--open'));
   });
   container.appendChild(sidebarToggleBtn);
 
   mobileViewportQuery = window.matchMedia('(max-width: 768px)');
   onViewportChange = (event: MediaQueryListEvent) => {
     if (!event.matches) {
-      sidebarEl.classList.remove('sidebar--open');
+      setSidebarOpenState(false);
     }
     syncSidebarToggleState?.();
   };
@@ -323,6 +338,30 @@ export function disposeSidebar(): void {
   mobileViewportQuery = null;
   onViewportChange = null;
   syncSidebarToggleState = null;
+  sidebarOpenListeners.clear();
+}
+
+export function isSidebarOpen(): boolean {
+  return !!sidebarEl?.classList.contains('sidebar--open');
+}
+
+export function openSidebar(): void {
+  setSidebarOpenState(true);
+}
+
+export function closeSidebar(): void {
+  setSidebarOpenState(false);
+}
+
+export function toggleSidebar(): void {
+  setSidebarOpenState(!isSidebarOpen());
+}
+
+export function onSidebarOpenChange(fn: (open: boolean) => void): () => void {
+  sidebarOpenListeners.add(fn);
+  return () => {
+    sidebarOpenListeners.delete(fn);
+  };
 }
 
 function renderEvents(events: EarthquakeEvent[], selectedEvent?: EarthquakeEvent | null): void {

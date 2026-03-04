@@ -37,6 +37,7 @@ const CHEVRON_SVG = `<svg class="ai-accordion__chevron" viewBox="0 0 16 16" fill
 
 // ── AI Panel Badge ──
 let badgeEl: HTMLElement;
+const aiPanelOpenListeners = new Set<(open: boolean) => void>();
 
 export function initAiPanel(): void {
   panelEl = el('aside', 'ai-panel');
@@ -93,6 +94,7 @@ export function initAiPanel(): void {
 
   // Set initial tab
   switchTab('easy');
+  notifyAiPanelOpenChange();
 
   // Subscribe to AI state changes
   store.subscribe('ai', (aiState) => {
@@ -120,26 +122,48 @@ export function initAiPanel(): void {
 
 // ── Panel control ──
 
+function notifyAiPanelOpenChange(): void {
+  const open = panelEl?.classList.contains('open') ?? false;
+  for (const fn of aiPanelOpenListeners) {
+    fn(open);
+  }
+}
+
 export function openAiPanel(): void {
+  if (!panelEl) return;
   panelEl.classList.add('open');
   if (badgeEl) badgeEl.classList.remove('visible');
+  notifyAiPanelOpenChange();
 }
 
 export function closeAiPanel(): void {
+  if (!panelEl) return;
   panelEl.classList.remove('open');
   const aiState = store.get('ai');
   if (aiState.currentAnalysis || aiState.analysisLoading) {
     if (badgeEl) badgeEl.classList.add('visible');
   }
+  notifyAiPanelOpenChange();
 }
 
 export function toggleAiPanel(): void {
-  const isOpen = panelEl.classList.contains('open');
+  const isOpen = panelEl?.classList.contains('open') ?? false;
   if (isOpen) {
     closeAiPanel();
   } else {
     openAiPanel();
   }
+}
+
+export function isAiPanelOpen(): boolean {
+  return panelEl?.classList.contains('open') ?? false;
+}
+
+export function onAiPanelOpenChange(fn: (open: boolean) => void): () => void {
+  aiPanelOpenListeners.add(fn);
+  return () => {
+    aiPanelOpenListeners.delete(fn);
+  };
 }
 
 // ── Tab switching ──

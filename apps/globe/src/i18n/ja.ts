@@ -185,6 +185,13 @@ const ja: Record<string, string> = {
   'search.placeholder': 'M6 宮城 / 深発 M7+ / 最近30日...',
   'search.noResults': '結果なし',
 
+  // Mobile shell
+  'mobile.tab.map': '地図',
+  'mobile.tab.events': 'イベント',
+  'mobile.tab.ai': 'AI',
+  'mobile.tab.timeline': 'タイムライン',
+  'mobile.tab.training': '訓練',
+
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '한',

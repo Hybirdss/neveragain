@@ -1,0 +1,62 @@
+/* ============================================================
+ * Mobile Shell — native-style tab dock for phone UX
+ * ============================================================ */
+
+.mobile-shell {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-shell {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(env(safe-area-inset-bottom) + 8px);
+    z-index: calc(var(--z-timeline) + 2);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+    background: rgba(12, 12, 12, 0.94);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.36);
+  }
+
+  .mobile-shell__btn {
+    min-height: 44px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--duration-hover) var(--ease-panel),
+      color var(--duration-hover) var(--ease-panel),
+      border-color var(--duration-hover) var(--ease-panel);
+  }
+
+  .mobile-shell__btn:hover {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .mobile-shell__btn--active {
+    color: var(--text-primary);
+    border-color: var(--border-emphasis);
+    background: var(--surface-card);
+  }
+
+  .mobile-shell__btn[data-tab='training'].mobile-shell__btn--active {
+    color: var(--accent-danger);
+    border-color: var(--border-danger-subtle);
+    background: var(--surface-danger-subtle);
+  }
+}
+
