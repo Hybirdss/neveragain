@@ -55,23 +55,26 @@ export function isInsideJapan(lat: number, lng: number): boolean {
   return Cesium.Rectangle.contains(JAPAN_RECT, carto);
 }
 
+/** Default CF Workers tile proxy — always available, no API key needed client-side. */
+const DEFAULT_TILE_PROXY = 'https://seismic-tile-proxy.narukys.workers.dev';
+
 /**
- * Add free, rate-limit-free base imagery:
- *   1. CartoDB Dark Matter (global, z0-z19) — dark theme, free, no API key
- *   2. GSI seamlessphoto (Japan only, z2-z18) — high-res satellite, free
- *   3. GSI std labels overlay (Japan only, z5-z18) — Japanese place names
+ * Add GSI-only fallback imagery (used when tile proxy is completely unreachable):
+ *   - GSI seamlessphoto (Japan, z2-z18) — free satellite, no API key
+ *   - GSI pale map (global-ish, z2-z18) — light basemap for context outside Japan
  */
-function addFreeBaseImagery(viewer: GlobeInstance): void {
-  // Layer 1: Global dark base map (always visible)
+function addGsiFallbackImagery(viewer: GlobeInstance): void {
+  // GSI pale map as global base (light basemap, covers Japan well)
   viewer.imageryLayers.addImageryProvider(
     new Cesium.UrlTemplateImageryProvider({
-      url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      maximumLevel: 19,
-      credit: new Cesium.Credit('© OpenStreetMap contributors © CARTO', true),
+      url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',
+      minimumLevel: 2,
+      maximumLevel: 18,
+      credit: new Cesium.Credit('地理院タイル: 国土地理院', true),
     }),
   );
 
-  // Layer 2: GSI seamlessphoto for Japan (satellite imagery, Japan only)
+  // GSI seamlessphoto for Japan (high-res satellite overlay)
   const japanRect = Cesium.Rectangle.fromDegrees(122, 20, 154, 46);
   const gsiSatellite = viewer.imageryLayers.addImageryProvider(
     new Cesium.UrlTemplateImageryProvider({
@@ -92,40 +95,31 @@ function addFreeBaseImagery(viewer: GlobeInstance): void {
 export async function createGlobe(container: HTMLElement): Promise<GlobeInstance> {
   console.log('[globe] Starting CesiumJS initialization...');
 
-  const tileProxyUrl = import.meta.env.VITE_TILE_PROXY_URL ?? ''; // e.g. https://tiles.seismicjapan.com
+  const tileProxyUrl = import.meta.env.VITE_TILE_PROXY_URL || DEFAULT_TILE_PROXY;
   const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY ?? '';
   const isDev = import.meta.env.DEV;
 
   // ── Satellite imagery URL ───────────────────────────────────
-  // Priority: CF Workers proxy > Vite dev proxy > Esri fallback
+  // Priority: CF Workers proxy (default) > Vite dev proxy > MapTiler direct
   let satelliteUrl = '';
   let useProxy = false;
 
-  if (tileProxyUrl) {
-    // Production: CF Workers handles routing (MapTiler z0-13, GSI z14-18 Japan)
-    satelliteUrl = `${tileProxyUrl}/satellite/{z}/{x}/{y}.jpg`;
-    useProxy = true;
-    console.log(`[globe] Satellite: CF Workers proxy (${tileProxyUrl})`);
-  } else if (mapTilerKey && isDev) {
-    // Dev: Vite proxy for CORS-free MapTiler access
+  if (isDev && mapTilerKey && mapTilerKey !== 'your_key_here') {
+    // Dev: Vite proxy for CORS-free MapTiler access (override tile proxy)
     satelliteUrl = `/maptiler-proxy/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${mapTilerKey}`;
     useProxy = true;
     console.log('[globe] Satellite: Vite dev proxy → MapTiler');
-  } else if (mapTilerKey) {
-    // Direct MapTiler (no proxy, CORS risk)
-    satelliteUrl = `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${mapTilerKey}`;
+  } else {
+    // Production + default: CF Workers proxy (MapTiler z0-13, GSI z14-18 Japan)
+    satelliteUrl = `${tileProxyUrl}/satellite/{z}/{x}/{y}.jpg`;
     useProxy = true;
-    console.log('[globe] Satellite: MapTiler direct (no proxy)');
+    console.log(`[globe] Satellite: CF Workers proxy (${tileProxyUrl})`);
   }
 
   // ── Terrain URL ─────────────────────────────────────────────
-  const terrainUrl = tileProxyUrl
-    ? `${tileProxyUrl}/terrain/`
-    : isDev && mapTilerKey
-      ? `/maptiler-proxy/tiles/terrain-quantized-mesh-v2/?key=${mapTilerKey}`
-      : mapTilerKey
-        ? `https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/?key=${mapTilerKey}`
-        : '';
+  const terrainUrl = (isDev && mapTilerKey && mapTilerKey !== 'your_key_here')
+    ? `/maptiler-proxy/tiles/terrain-quantized-mesh-v2/?key=${mapTilerKey}`
+    : `${tileProxyUrl}/terrain/`;
 
   // ── Terrain provider ────────────────────────────────────────
   // Probe terrain availability before committing — avoids persistent 503 errors
@@ -181,7 +175,7 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
   Cesium.RequestScheduler.maximumRequestsPerServer = 6;
 
   // ── Imagery layer ───────────────────────────────────────────
-  // Priority: CF Workers proxy > MapTiler direct > Free GSI + CartoDB dark
+  // Priority: CF Workers proxy (default) > MapTiler direct > GSI fallback
   let proxyOk = false;
   if (useProxy) {
     try {
@@ -208,9 +202,9 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
     );
     console.log('[globe] Imagery: satellite (proxy/MapTiler)');
   } else {
-    // Free tiles: CartoDB dark (global) + GSI seamlessphoto (Japan satellite)
-    addFreeBaseImagery(viewer);
-    console.log('[globe] Imagery: CartoDB dark + GSI seamlessphoto (free, no API key)');
+    // GSI fallback: pale basemap + seamlessphoto (Japan satellite, free)
+    addGsiFallbackImagery(viewer);
+    console.log('[globe] Imagery: GSI fallback (pale + seamlessphoto, free)');
   }
 
   // ── Atmosphere & sky ────────────────────────────────────────
