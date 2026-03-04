@@ -23,6 +23,10 @@ type EarthquakeInsert = typeof earthquakes.$inferInsert;
 const VALID_SOURCES = new Set(['usgs', 'jma', 'gcmt']);
 const VALID_FAULT_TYPES = new Set(['crustal', 'interface', 'intraslab']);
 const BULK_LIMIT = 500;
+const BULK_UPSERT_CONCURRENCY = 20;
+const MAX_SYNC_ANALYSIS_EVENTS = 25;
+const MIN_EVENT_TIMESTAMP_MS = Date.UTC(1900, 0, 1);
+const MAX_EVENT_FUTURE_SKEW_MS = 24 * 3600 * 1000;
 
 interface IngestEventInput {
   id?: unknown;
@@ -74,7 +78,7 @@ eventsRoute.get('/', async (c) => {
     return c.json({ error: 'limit must be an integer between 1 and 1000' }, 400);
   }
 
-  const db = createDb(c.env.DATABASE_URL);
+    const db = createDb(c.env.DATABASE_URL);
 
   const conditions = [];
   if (mag_min !== null && mag_min > 0) {
@@ -149,7 +153,12 @@ eventsRoute.post('/ingest', async (c) => {
   }
 
   const db = createDb(c.env.DATABASE_URL);
-  await upsertEvent(db, parsed.value);
+  try {
+    await upsertEvent(db, parsed.value);
+  } catch (err) {
+    console.error(`[events] failed to upsert event ${parsed.value.id}:`, err);
+    return c.json({ error: 'Failed to store event' }, 500);
+  }
 
   const generateAnalysis = body.generate_analysis !== false;
   const waitForAnalysis = body.wait_for_analysis === true;
@@ -217,6 +226,7 @@ eventsRoute.post('/ingest/bulk', async (c) => {
 
   const db = createDb(c.env.DATABASE_URL);
   const accepted: string[] = [];
+  const acceptedEvents: EarthquakeInsert[] = [];
   const rejected: Array<{ index: number; error: string }> = [];
 
   for (let i = 0; i < body.events.length; i++) {
@@ -225,8 +235,15 @@ eventsRoute.post('/ingest/bulk', async (c) => {
       rejected.push({ index: i, error: parsed.error });
       continue;
     }
-    await upsertEvent(db, parsed.value);
     accepted.push(parsed.value.id);
+    acceptedEvents.push(parsed.value);
+  }
+
+  try {
+    await upsertEvents(db, acceptedEvents);
+  } catch (err) {
+    console.error('[events] bulk upsert failed:', err);
+    return c.json({ error: 'Failed to store events' }, 500);
   }
 
   const generateAnalysis = body.generate_analysis !== false;
@@ -247,6 +264,12 @@ eventsRoute.post('/ingest/bulk', async (c) => {
   }
 
   if (waitForAnalysis) {
+    if (accepted.length > MAX_SYNC_ANALYSIS_EVENTS) {
+      return c.json({
+        error: `wait_for_analysis supports up to ${MAX_SYNC_ANALYSIS_EVENTS} events per request`,
+      }, 400);
+    }
+
     let generated = 0;
     let cached = 0;
     let failed = 0;

@@ -81,6 +81,10 @@
   border-color: var(--accent-danger);
 }
 
+.mode-date-picker__input--invalid {
+  border-color: var(--accent-danger);
+}
+
 /* Override native date-picker icon color for dark theme */
 .mode-date-picker__input::-webkit-calendar-picker-indicator {
   filter: invert(0.8);
@@ -106,3 +110,17 @@
   border-color: var(--accent-danger);
 }
 
+.mode-date-picker__load:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--surface-panel);
+  border-color: var(--border-subtle);
+  color: var(--text-disabled);
+}
+
+.mode-date-picker__error {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--accent-danger);
+  line-height: 1.3;
+}

@@ -265,16 +265,7 @@ export async function generateAndStoreAnalysis(
       recurrence_years: f.recurrence_years,
       probability_30yr: f.probability_30yr,
     })),
-    moment_tensor: event.mt_strike ? {
-      type: 'reverse' as const,
-      strike: event.mt_strike,
-      dip: event.mt_dip!,
-      rake: event.mt_rake!,
-      nodal_planes: [
-        { strike: event.mt_strike, dip: event.mt_dip!, rake: event.mt_rake! },
-        { strike: event.mt_strike2 ?? 0, dip: event.mt_dip2 ?? 0, rake: event.mt_rake2 ?? 0 },
-      ],
-    } : undefined,
+    moment_tensor: buildMomentTensor(event),
   };
 
   const context = buildContext(builderInput);

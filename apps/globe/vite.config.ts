@@ -7,6 +7,11 @@ export default defineConfig({
     rebuildCesium: true,
     cesiumBuildPath: resolve(__dirname, '../../node_modules/cesium/Build/Cesium'),
   })],
+  optimizeDeps: {
+    esbuildOptions: {
+      sourcemap: 'inline',
+    },
+  },
   // COOP/COEP disabled — blocks MapTiler tile loading.
   // Nankai scenario uses SAB fallback (slower but functional).
   // Re-evaluate when CF Workers proxy is in place (same-origin tiles).

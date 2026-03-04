@@ -96,6 +96,8 @@ function applyViewportState(): void {
 }
 
 function focusMap(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeAiPanel();
   closeSidebar();
   setTimelineVisible(false);
@@ -104,6 +106,8 @@ function focusMap(): void {
 }
 
 function focusEvents(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeAiPanel();
   setTimelineVisible(false);
   exitTimelineModeIfNeeded();
@@ -112,6 +116,8 @@ function focusEvents(): void {
 }
 
 function focusAi(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeSidebar();
   setTimelineVisible(false);
   exitTimelineModeIfNeeded();
@@ -120,6 +126,7 @@ function focusAi(): void {
 }
 
 function focusTimeline(): void {
+  normalizeViewPresetForNavigation();
   closeAiPanel();
   closeSidebar();
   const next = !isTimelineVisible();
@@ -134,6 +141,8 @@ function focusTimeline(): void {
 }
 
 function openTraining(): void {
+  normalizeViewPresetForNavigation();
+  ensureRealtimeModeWhenTimelineHidden();
   closeAiPanel();
   closeSidebar();
   setTimelineVisible(false);

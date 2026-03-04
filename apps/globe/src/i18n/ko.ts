@@ -56,6 +56,10 @@ const ko: Record<string, string> = {
   'mode.to': '\uc885\ub8cc',
   'mode.start': '\uc2dc\uc791\uc77c',
   'mode.end': '\uc885\ub8cc\uc77c',
+  'mode.error.required': '\uc2dc\uc791\uc77c\uacfc \uc885\ub8cc\uc77c\uc744 \ubaa8\ub450 \uc120\ud0dd\ud574\uc8fc\uc138\uc694.',
+  'mode.error.invalidDate': '\ub0a0\uc9dc \ud615\uc2dd\uc774 \uc798\ubabb\ub418\uc5c8\uc2b5\ub2c8\ub2e4.',
+  'mode.error.order': '\uc2dc\uc791\uc77c\uc740 \uc885\ub8cc\uc77c\ubcf4\ub2e4 \uc774\uc804\uc774\uc5b4\uc57c \ud569\ub2c8\ub2e4.',
+  'mode.error.rangeTooLong': '\uae30\uac04\uc740 \ucd5c\ub300 366\uc77c\uae4c\uc9c0 \uc120\ud0dd\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.',
 
   // Layer toggles
   'layer.title': '\ub808\uc774\uc5b4',
@@ -102,6 +106,11 @@ const ko: Record<string, string> = {
   'sidebar.cinematic': '\uc9c4\uc6d0 \ud3ec\ucee4\uc2a4',
   'sidebar.scenarios': '\uc2dc\ub098\ub9ac\uc624',
   'sidebar.training': '훈련',
+  'sidebar.alert': 'M5+ 경보',
+  'sidebar.empty': '현재 화면 범위에 지진이 없습니다',
+  'sidebar.mmiTitle': '수정 메르칼리 진도',
+  'sidebar.source.shakemap': '셰이크맵',
+  'sidebar.source.gmpe': 'GMPE',
 
   // Detail panel — intensity source
   'detail.intensitySource': '\uc9c4\ub3c4 \uc18c\uc2a4',

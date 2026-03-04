@@ -56,6 +56,10 @@ const ja: Record<string, string> = {
   'mode.to': '\u7d42\u4e86',
   'mode.start': '\u958b\u59cb\u65e5',
   'mode.end': '\u7d42\u4e86\u65e5',
+  'mode.error.required': '\u958b\u59cb\u65e5\u3068\u7d42\u4e86\u65e5\u306e\u4e21\u65b9\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+  'mode.error.invalidDate': '\u65e5\u4ed8\u5f62\u5f0f\u304c\u4e0d\u6b63\u3067\u3059\u3002',
+  'mode.error.order': '\u958b\u59cb\u65e5\u306f\u7d42\u4e86\u65e5\u3088\u308a\u524d\u3067\u3042\u308b\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059\u3002',
+  'mode.error.rangeTooLong': '\u671f\u9593\u306f366\u65e5\u4ee5\u5185\u3067\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
 
   // Layer toggles
   'layer.title': '\u30ec\u30a4\u30e4\u30fc',
@@ -102,6 +106,11 @@ const ja: Record<string, string> = {
   'sidebar.cinematic': '\u9707\u6e90\u30d5\u30a9\u30fc\u30ab\u30b9',
   'sidebar.scenarios': '\u30b7\u30ca\u30ea\u30aa',
   'sidebar.training': '訓練',
+  'sidebar.alert': 'M5+ 警報',
+  'sidebar.empty': '現在の表示範囲に地震はありません',
+  'sidebar.mmiTitle': '改良メルカリ震度',
+  'sidebar.source.shakemap': 'ShakeMap',
+  'sidebar.source.gmpe': 'GMPE',
 
   // Detail panel — intensity source
   'detail.intensitySource': '\u9707\u5ea6\u30bd\u30fc\u30b9',

@@ -13,13 +13,19 @@ import { store } from '../store/appState';
 
 const USGS_FEED_URL =
   'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const RUNTIME_HOSTNAME = typeof window !== 'undefined' ? window.location.hostname : '';
+const IS_LOCAL_RUNTIME = LOCAL_HOSTS.has(RUNTIME_HOSTNAME);
 const API_URL = import.meta.env.VITE_API_URL
-  ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
-const SERVER_EVENTS_URL =
-  `${API_URL}/api/events?mag_min=2.5&lat_min=24&lat_max=46&lng_min=122&lng_max=150&limit=200`;
+  ?? (import.meta.env.PROD && !IS_LOCAL_RUNTIME ? 'https://api.namazue.dev' : '');
+const SERVER_EVENTS_URL = API_URL
+  ? `${API_URL}/api/events?mag_min=2.5&lat_min=24&lat_max=46&lng_min=122&lng_max=150&limit=200`
+  : '';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const SEEN_CACHE_LIMIT = 5_000;
+const FALLBACK_WARN_COOLDOWN_MS = 5 * 60_000;
+let lastFallbackWarnAt = 0;
 
 const JAPAN_BBOX = {
   minLat: 24,
@@ -82,12 +88,28 @@ function isInJapanRegion(feature: USGSFeature): boolean {
   );
 }
 
-function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent {
+function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent | null {
+  if (
+    !Number.isFinite(ev.lat) ||
+    !Number.isFinite(ev.lng) ||
+    !Number.isFinite(ev.depth_km) ||
+    !Number.isFinite(ev.magnitude)
+  ) {
+    return null;
+  }
+  if (ev.lat < -90 || ev.lat > 90 || ev.lng < -180 || ev.lng > 180) {
+    return null;
+  }
+  if (ev.depth_km < 0 || ev.depth_km > 700) {
+    return null;
+  }
+
   const fallbackFaultType = classifyFaultType(ev.depth_km, ev.lat, ev.lng);
   const faultType = ev.fault_type === 'crustal' || ev.fault_type === 'interface' || ev.fault_type === 'intraslab'
     ? ev.fault_type
     : fallbackFaultType;
   const parsedTime = typeof ev.time === 'number' ? ev.time : Date.parse(ev.time);
+  if (!Number.isFinite(parsedTime)) return null;
 
   return {
     id: ev.id,
@@ -95,7 +117,7 @@ function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent {
     lng: ev.lng,
     depth_km: ev.depth_km,
     magnitude: ev.magnitude,
-    time: Number.isFinite(parsedTime) ? parsedTime : Date.now(),
+    time: parsedTime,
     faultType,
     tsunami: ev.tsunami === true,
     place: { text: ev.place ?? 'Unknown location' },
@@ -126,9 +148,14 @@ async function fetchJsonWithTimeout<T>(url: string): Promise<T> {
 }
 
 async function fetchFromServer(): Promise<EarthquakeEvent[]> {
+  if (!SERVER_EVENTS_URL) {
+    throw new Error('Server events API URL is not configured');
+  }
   const data = await fetchJsonWithTimeout<ServerEventsResponse>(SERVER_EVENTS_URL);
   if (!Array.isArray(data.events)) return [];
-  return data.events.map(toEarthquakeEventFromServer);
+  return data.events
+    .map(toEarthquakeEventFromServer)
+    .filter((event): event is EarthquakeEvent => event !== null);
 }
 
 async function fetchFromUSGS(): Promise<EarthquakeEvent[]> {
@@ -160,10 +187,19 @@ function isTimeoutError(error: unknown): boolean {
 }
 
 async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
+  if (!SERVER_EVENTS_URL) {
+    // Local preview/dev without API proxy: go straight to USGS.
+    return await fetchFromUSGS();
+  }
+
   try {
     return await fetchFromServer();
   } catch (serverErr) {
-    console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
+    const now = Date.now();
+    if (now - lastFallbackWarnAt > FALLBACK_WARN_COOLDOWN_MS) {
+      console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
+      lastFallbackWarnAt = now;
+    }
     return await fetchFromUSGS();
   }
 }

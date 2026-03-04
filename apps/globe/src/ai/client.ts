@@ -12,6 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL
   ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
 const ANALYSIS_FETCH_ATTEMPTS = 3;
 const ANALYSIS_RETRY_DELAY_MS = 1500;
+const ANALYSIS_REQUEST_TIMEOUT_MS = 10_000;
 
 /** Tracks the event ID of the latest fetch request to prevent stale results. */
 let activeEventId: string | null = null;
@@ -51,7 +52,6 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
           await delay(ANALYSIS_RETRY_DELAY_MS, controller.signal);
           continue;
         }
-        throw new Error('AI 분석이 서버에서 준비 중입니다. 잠시 후 다시 확인해주세요.');
       }
 
       if (!resp.ok) {
@@ -75,10 +75,14 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
     // Only update error state if this is still the active request
     if (activeEventId !== eventId || controller.signal.aborted) return;
 
+    const isAbortError = err instanceof DOMException && err.name === 'AbortError';
+
     store.set('ai', {
       ...store.get('ai'),
       analysisLoading: false,
-      analysisError: (err as Error).message,
+      analysisError: isAbortError
+        ? '분석 요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.'
+        : (err as Error).message,
     });
   } finally {
     if (activeController === controller) {

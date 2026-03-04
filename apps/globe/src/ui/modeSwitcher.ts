@@ -13,10 +13,13 @@ import { t, onLocaleChange } from '../i18n/index';
 
 // ── Internal references ─────────────────────────────────────────
 let barEl: HTMLElement | null = null;
+let wrapperEl: HTMLElement | null = null;
 let datePickerEl: HTMLElement | null = null;
 let startInput: HTMLInputElement | null = null;
 let endInput: HTMLInputElement | null = null;
 let loadBtn: HTMLButtonElement | null = null;
+let rangeErrorEl: HTMLElement | null = null;
+let currentRangeErrorKey: string | null = null;
 
 const modeButtons = new Map<AppMode, HTMLButtonElement>();
 
@@ -51,10 +54,70 @@ function el<K extends keyof HTMLElementTagNameMap>(
 /** Default "end" = today, "start" = 7 days ago (ISO date strings). */
 function defaultDateRange(): { start: string; end: string } {
   const now = new Date();
-  const end = now.toISOString().slice(0, 10);
+  const end = toLocalDateInputValue(now);
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
-  const start = weekAgo.toISOString().slice(0, 10);
+  const start = toLocalDateInputValue(weekAgo);
   return { start, end };
+}
+
+function toLocalDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateInputValue(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function setRangeError(key: string | null): void {
+  currentRangeErrorKey = key;
+  if (!rangeErrorEl) return;
+  if (!key) {
+    rangeErrorEl.textContent = '';
+    rangeErrorEl.style.display = 'none';
+    return;
+  }
+  rangeErrorEl.textContent = t(key);
+  rangeErrorEl.style.display = 'block';
+}
+
+function applyDateValidation(): boolean {
+  if (!startInput || !endInput || !loadBtn) return false;
+  const startRaw = startInput.value;
+  const endRaw = endInput.value;
+  const startDate = parseDateInputValue(startRaw);
+  const endDate = parseDateInputValue(endRaw);
+
+  const hasRequired = Boolean(startRaw && endRaw);
+  const formatValid = hasRequired && Boolean(startDate && endDate);
+  const orderValid = formatValid && startDate!.getTime() <= endDate!.getTime();
+  const daySpan = formatValid
+    ? Math.floor((endDate!.getTime() - startDate!.getTime()) / 86_400_000) + 1
+    : 0;
+  const spanValid = orderValid && daySpan <= 366;
+  const valid = hasRequired && formatValid && orderValid && spanValid;
+
+  startInput.classList.toggle('mode-date-picker__input--invalid', !valid);
+  endInput.classList.toggle('mode-date-picker__input--invalid', !valid);
+  loadBtn.disabled = !valid;
+
+  if (!hasRequired) {
+    setRangeError('mode.error.required');
+  } else if (!formatValid) {
+    setRangeError('mode.error.invalidDate');
+  } else if (!orderValid) {
+    setRangeError('mode.error.order');
+  } else if (!spanValid) {
+    setRangeError('mode.error.rangeTooLong');
+  } else {
+    setRangeError(null);
+  }
+
+  return valid;
 }
 
 // ── Highlight active mode ───────────────────────────────────────
@@ -103,6 +166,8 @@ function buildDatePicker(): HTMLElement {
   startInput.type = 'date';
   startInput.className = 'mode-date-picker__input';
   startInput.value = defaults.start;
+  startInput.addEventListener('change', applyDateValidation);
+  startInput.addEventListener('input', applyDateValidation);
   startLabelEl.appendChild(startInput);
   picker.appendChild(startLabelEl);
 
@@ -111,18 +176,27 @@ function buildDatePicker(): HTMLElement {
   endInput.type = 'date';
   endInput.className = 'mode-date-picker__input';
   endInput.value = defaults.end;
+  endInput.addEventListener('change', applyDateValidation);
+  endInput.addEventListener('input', applyDateValidation);
   endLabelEl.appendChild(endInput);
   picker.appendChild(endLabelEl);
 
   loadBtn = el('button', 'mode-date-picker__load', t('mode.load')) as HTMLButtonElement;
   loadBtn.addEventListener('click', () => {
     if (!startInput || !endInput) return;
+    if (!applyDateValidation()) return;
     const s = startInput.value;
     const e = endInput.value;
     if (!s || !e) return;
     onLoadTimeline?.(s, e);
   });
   picker.appendChild(loadBtn);
+
+  rangeErrorEl = el('div', 'mode-date-picker__error');
+  rangeErrorEl.style.display = 'none';
+  picker.appendChild(rangeErrorEl);
+
+  applyDateValidation();
 
   return picker;
 }
@@ -142,17 +216,18 @@ export function initModeSwitcher(
   container: HTMLElement,
   options: ModeSwitcherOptions = {},
 ): void {
+  disposeModeSwitcher();
   onLoadTimeline = options.onLoadTimeline ?? null;
 
-  const wrapper = el('div', 'mode-switcher-wrapper');
+  wrapperEl = el('div', 'mode-switcher-wrapper');
 
   barEl = buildModeBar();
-  wrapper.appendChild(barEl);
+  wrapperEl.appendChild(barEl);
 
   datePickerEl = buildDatePicker();
-  wrapper.appendChild(datePickerEl);
+  wrapperEl.appendChild(datePickerEl);
 
-  container.appendChild(wrapper);
+  container.appendChild(wrapperEl);
 
   // Set initial highlight
   highlightMode(store.get('mode'));
@@ -177,6 +252,9 @@ export function initModeSwitcher(
       endLabelEl.firstChild!.textContent = t('mode.to');
     }
     if (loadBtn) loadBtn.textContent = t('mode.load');
+    if (currentRangeErrorKey) {
+      setRangeError(currentRangeErrorKey);
+    }
   });
 }
 

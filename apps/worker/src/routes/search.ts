@@ -15,6 +15,8 @@ import {
 } from '../lib/earthquakeValidation.ts';
 
 export const searchRoute = new Hono<{ Bindings: Env }>();
+const MAX_QUERY_LENGTH = 256;
+const MAX_REGION_LENGTH = 120;
 
 /**
  * POST /api/search
@@ -31,6 +33,9 @@ searchRoute.post('/', async (c) => {
 
   // Determine if this is an AI fallback request
   const rawQuery = getString(body.raw_query);
+  if (rawQuery.length > MAX_QUERY_LENGTH) {
+    return c.json({ error: `raw_query too long (max ${MAX_QUERY_LENGTH})` }, 400);
+  }
   const isAiFallback = rawQuery.length > 0;
   const route = isAiFallback ? 'search_ai' : 'search_sql';
   const rl = await checkRateLimit(c.env.RATE_LIMIT, ip, route);
@@ -72,14 +77,16 @@ searchRoute.post('/', async (c) => {
   // SQL-based search
   const conditions: SQL[] = [];
 
-  const magMin = getNumber(body.mag_min);
-  const magMax = getNumber(body.mag_max);
-  const depthMin = getNumber(body.depth_min);
-  const depthMax = getNumber(body.depth_max);
+  let magMin = getNumber(body.mag_min);
+  let magMax = getNumber(body.mag_max);
+  let depthMin = getNumber(body.depth_min);
+  let depthMax = getNumber(body.depth_max);
+  [magMin, magMax] = normalizeRange(magMin, magMax);
+  [depthMin, depthMax] = normalizeRange(depthMin, depthMax);
   const lat = getNumber(body.lat);
   const lng = getNumber(body.lng);
   const radiusKm = getNumber(body.radius_km);
-  const region = getString(body.region);
+  const region = getString(body.region).slice(0, MAX_REGION_LENGTH);
   const depthClass = getDepthClass(body.depth_class);
   const relative = getRelativeWindow(body.relative);
   const tags = getTags(body.tags);
@@ -227,6 +234,11 @@ searchRoute.post('/', async (c) => {
 
 function getNumber(value: unknown): number | null {
   return parseFiniteNumber(value);
+}
+
+function normalizeRange(min: number | null, max: number | null): [number | null, number | null] {
+  if (min === null || max === null) return [min, max];
+  return min <= max ? [min, max] : [max, min];
 }
 
 function getString(value: unknown): string {

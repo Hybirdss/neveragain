@@ -56,6 +56,10 @@ const en: Record<string, string> = {
   'mode.to': 'To',
   'mode.start': 'Start Date',
   'mode.end': 'End Date',
+  'mode.error.required': 'Select both start and end dates.',
+  'mode.error.invalidDate': 'Invalid date format.',
+  'mode.error.order': 'Start date must be before end date.',
+  'mode.error.rangeTooLong': 'Range must be 366 days or less.',
 
   // Layer toggles
   'layer.title': 'Layers',
@@ -102,6 +106,11 @@ const en: Record<string, string> = {
   'sidebar.cinematic': 'Epicenter Focus',
   'sidebar.scenarios': 'Scenarios',
   'sidebar.training': 'Training',
+  'sidebar.alert': 'M5+ ALERT',
+  'sidebar.empty': 'No earthquakes in current view',
+  'sidebar.mmiTitle': 'MODIFIED MERCALLI INTENSITY',
+  'sidebar.source.shakemap': 'ShakeMap',
+  'sidebar.source.gmpe': 'GMPE',
 
   // Detail panel — intensity source
   'detail.intensitySource': 'Intensity Source',

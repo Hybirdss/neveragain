@@ -879,6 +879,7 @@ function makeAccordion(
   contentHtml: string,
   contentEl?: HTMLElement,
   startOpen = false,
+  allowHtml = false,
 ): HTMLElement {
   const acc = el('div', `ai-accordion${startOpen ? ' open' : ''}`);
 
@@ -900,7 +901,11 @@ function makeAccordion(
   if (contentEl) {
     inner.append(contentEl);
   } else {
-    inner.innerHTML = contentHtml;
+    if (allowHtml) {
+      inner.innerHTML = contentHtml;
+    } else {
+      inner.textContent = contentHtml;
+    }
   }
   body.append(inner);
 

@@ -754,15 +754,15 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
   if (store.get('mode') !== 'realtime') return;
 
   const timeline = store.get('timeline');
-  const allEvents = [...timeline.events, ...newEvents];
-
-  // Deduplicate by ID
-  const seen = new Set<string>();
-  const deduped = allEvents.filter((e) => {
-    if (seen.has(e.id)) return false;
-    seen.add(e.id);
-    return true;
-  });
+  const byId = new Map<string, EarthquakeEvent>();
+  for (const event of timeline.events) {
+    byId.set(event.id, event);
+  }
+  for (const event of newEvents) {
+    // New payload must override stale records with the same ID.
+    byId.set(event.id, event);
+  }
+  const deduped = Array.from(byId.values());
 
   // Sort by time ascending
   deduped.sort((a, b) => a.time - b.time);

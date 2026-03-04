@@ -31,6 +31,7 @@ let detailSourceTag: HTMLElement;
 let mmiBarContainer: HTMLElement;
 let mmiBarEl: HTMLElement;
 let mmiLevelEl: HTMLElement;
+let mmiTitleEl: HTMLElement;
 let crossSectionBtn: HTMLElement;
 let cinematicBtn: HTMLElement;
 
@@ -69,6 +70,16 @@ function magColorClass(mag: number): string {
   return 'sidebar-item__mag--low';
 }
 
+function getListSourceTag(mag: number): { className: string; label: string } | null {
+  if (mag >= 5.0) {
+    return { className: 'source-tag--shakemap', label: t('sidebar.source.shakemap') };
+  }
+  if (mag >= 4.0) {
+    return { className: 'source-tag--gmpe', label: t('sidebar.source.gmpe') };
+  }
+  return null;
+}
+
 function buildHeader(): HTMLElement {
   const header = el('div', 'sidebar__header');
 
@@ -79,7 +90,7 @@ function buildHeader(): HTMLElement {
   left.appendChild(headerCountEl);
   header.appendChild(left);
 
-  alertBadgeEl = el('div', 'sidebar__alert-badge', 'M5+ ALERT');
+  alertBadgeEl = el('div', 'sidebar__alert-badge', t('sidebar.alert'));
   alertBadgeEl.style.display = 'none';
   header.appendChild(alertBadgeEl);
 
@@ -144,12 +155,9 @@ function renderEventItem(event: EarthquakeEvent, index: number, isActive: boolea
   coords.textContent = `${Math.abs(event.lat).toFixed(2)}°${latDir} ${Math.abs(event.lng).toFixed(2)}°${lngDir}`;
   meta.appendChild(coords);
 
-  // Source tag (if ShakeMap data available for M5+)
-  if (event.magnitude >= 5.0) {
-    const tag = el('span', 'source-tag source-tag--shakemap', 'ShakeMap');
-    meta.appendChild(tag);
-  } else if (event.magnitude >= 4.0) {
-    const tag = el('span', 'source-tag source-tag--gmpe', 'GMPE');
+  const sourceTag = getListSourceTag(event.magnitude);
+  if (sourceTag) {
+    const tag = el('span', `source-tag ${sourceTag.className}`, sourceTag.label);
     meta.appendChild(tag);
   }
 
@@ -188,8 +196,8 @@ function buildDetailPanel(): HTMLElement {
   mmiBarContainer.style.marginTop = '10px';
   mmiBarContainer.style.display = 'none';
 
-  const mmiTitle = el('div', 'mmi-bar__title', 'MODIFIED MERCALLI INTENSITY');
-  mmiBarContainer.appendChild(mmiTitle);
+  mmiTitleEl = el('div', 'mmi-bar__title', t('sidebar.mmiTitle'));
+  mmiBarContainer.appendChild(mmiTitleEl);
 
   mmiBarEl = el('div', 'mmi-bar');
   for (let i = 1; i <= 10; i++) {
@@ -322,8 +330,10 @@ export function initSidebar(container: HTMLElement): void {
   // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
     headerTitleEl.textContent = t('sidebar.title');
+    alertBadgeEl.textContent = t('sidebar.alert');
     crossSectionBtn.textContent = t('detail.crossSection');
     cinematicBtn.textContent = `▶ ${t('sidebar.cinematic')}`;
+    mmiTitleEl.textContent = t('sidebar.mmiTitle');
     if (sidebarToggleBtn) {
       sidebarToggleBtn.setAttribute('aria-label', t('sidebar.title'));
     }
@@ -413,7 +423,7 @@ function renderEvents(events: EarthquakeEvent[], selectedEvent?: EarthquakeEvent
   // Empty state
   if (events.length === 0) {
     if (!eventListEl.querySelector('.empty-state')) {
-      const empty = el('div', 'empty-state', 'No earthquakes in current view');
+      const empty = el('div', 'empty-state', t('sidebar.empty'));
       eventListEl.appendChild(empty);
     }
   }
@@ -495,12 +505,12 @@ export function updateSidebar(
     // Source tag
     if (intensitySource === 'shakemap') {
       detailSourceTag.className = 'source-tag source-tag--shakemap';
-      detailSourceTag.textContent = 'USGS ShakeMap';
+      detailSourceTag.textContent = t('detail.source.shakemap');
       detailSourceTag.style.display = 'inline-block';
       detailSourceTag.style.fontSize = 'var(--text-xs)';
     } else if (intensitySource === 'gmpe') {
       detailSourceTag.className = 'source-tag source-tag--gmpe';
-      detailSourceTag.textContent = 'Estimated (GMPE)';
+      detailSourceTag.textContent = t('detail.source.gmpe');
       detailSourceTag.style.display = 'inline-block';
       detailSourceTag.style.fontSize = 'var(--text-xs)';
     } else {
