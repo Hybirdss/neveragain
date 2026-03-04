@@ -17,11 +17,12 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
     padding: 6px;
-    background: rgba(12, 12, 12, 0.94);
-    border: 1px solid var(--border-strong);
-    border-radius: 16px;
-    backdrop-filter: blur(14px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.36);
+    background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl, 20px);
+    backdrop-filter: blur(var(--blur-lg, 24px));
+    -webkit-backdrop-filter: blur(var(--blur-lg, 24px));
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.5));
   }
 
   .mobile-shell__btn {
@@ -53,9 +54,9 @@
   }
 
   .mobile-shell__btn--active {
-    color: var(--text-primary);
-    border-color: var(--border-emphasis);
-    background: var(--surface-card);
+    color: var(--accent, var(--text-primary));
+    border-color: var(--accent-subtle, var(--border-emphasis));
+    background: var(--accent-subtle, var(--surface-card));
   }
 
   .mobile-shell__btn[data-tab='training'].mobile-shell__btn--active {

@@ -106,6 +106,10 @@ import { shouldFetchOnClick } from './ai/tierRouter';
 import { initSearchBar, disposeSearchBar } from './ui/searchBar';
 import { initAskPanel, disposeAskPanel } from './ui/askPanel';
 
+// State Machine
+import { initStateMachine, disposeStateMachine, dispatch } from './store/stateMachine';
+import { earthquakeStore } from './data/earthquakeStore';
+
 // Feature 1-5: Data integration engine
 import type {
   Vs30Grid,
@@ -765,6 +769,9 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
 function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
   if (store.get('mode') !== 'realtime') return;
 
+  // Feed into normalized store for O(1) lookups
+  earthquakeStore.upsert(newEvents);
+
   const timeline = store.get('timeline');
   const byId = new Map<string, EarthquakeEvent>();
   for (const event of timeline.events) {
@@ -1021,7 +1028,21 @@ async function bootstrap(): Promise<void> {
     console.log('[main] Data integration engine ready');
   });
 
-  // 3. Initialise UI
+  // 3. Initialise UI + State Machine
+  initStateMachine();
+
+  // Bridge: selectedEvent → viewState (bidirectional sync)
+  store.subscribe('selectedEvent', (event) => {
+    if (event) {
+      dispatch({ type: 'SELECT_EARTHQUAKE', id: event.id });
+    } else {
+      dispatch({ type: 'DESELECT' });
+    }
+  });
+
+  // Feed earthquakes into normalized store
+  // (existing onNewRealtimeEvents already pushes to liveFeed; we also populate the store)
+
   initLeftPanel(panelContainer);
   initLiveFeed();
   initAskPanel();
@@ -1169,6 +1190,7 @@ async function bootstrap(): Promise<void> {
       disposeCamera();
       disposeGlobe(globe);
       disposeSubscriptions();
+      disposeStateMachine();
       disposeLayout();
       worker.terminate();
     });

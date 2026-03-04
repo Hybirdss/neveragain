@@ -42,7 +42,7 @@
 }
 
 .cinematic-btn:hover {
-  background: #2a0c0c;
+  background: rgba(220, 38, 38, 0.15);
   border-color: var(--accent-danger);
 }
 
@@ -218,13 +218,13 @@
 .detail-action-btn {
   flex: 1;
   padding: 7px 0;
-  background: var(--surface-panel);
+  background: var(--surface-card);
   border: 1px solid var(--border-strong);
   color: var(--text-secondary);
   font-size: var(--text-sm);
   font-family: var(--font-sans);
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm, 8px);
   transition: all var(--duration-hover) ease;
 }
 
@@ -243,7 +243,7 @@
 }
 
 .detail-action-btn--danger:hover {
-  background: #2a0c0c;
-  border-color: #441111;
+  background: rgba(220, 38, 38, 0.15);
+  border-color: rgba(220, 38, 38, 0.3);
 }
 

@@ -44,8 +44,8 @@
 }
 
 .panel-tab--active {
-  color: var(--text-primary);
-  border-bottom-color: var(--text-primary);
+  color: var(--accent, var(--text-primary));
+  border-bottom-color: var(--accent, var(--text-primary));
 }
 
 .panel-tab__icon {

@@ -39,10 +39,10 @@
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   padding: 3px 8px;
-  background: var(--surface-danger-subtle);
+  background: var(--danger-bg, var(--surface-danger-subtle));
   border: 1px solid var(--border-danger-subtle);
   color: var(--accent-danger);
-  border-radius: 2px;
+  border-radius: var(--radius-sm, 8px);
 }
 
 /* --- Event List --- */
