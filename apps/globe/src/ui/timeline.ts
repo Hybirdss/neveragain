@@ -10,15 +10,17 @@ import { t, onLocaleChange } from '../i18n/index';
 
 // ---- Internal references ----
 let timelineEl: HTMLElement;
-let playBtn: HTMLElement;
-let prevBtn: HTMLElement;
-let nextBtn: HTMLElement;
+let playBtn: HTMLButtonElement;
+let prevBtn: HTMLButtonElement;
+let nextBtn: HTMLButtonElement;
 let scrubTrack: HTMLElement;
 let scrubProgress: HTMLElement;
 let scrubHandle: HTMLElement;
 let scrubContainer: HTMLElement;
 let timeDisplay: HTMLElement;
 let markerContainer: HTMLElement;
+let markerRenderSignature = '';
+let suppressClickUntil = 0;
 
 const speedButtons: Map<number, HTMLElement> = new Map();
 const SPEEDS = [1, 10, 100, 1000];
@@ -31,7 +33,9 @@ let currentState: TimelineState | null = null;
 // Stored window-level handlers for cleanup
 let pointerDownHandler: ((e: PointerEvent) => void) | null = null;
 let pointerMoveHandler: ((e: PointerEvent) => void) | null = null;
-let pointerUpHandler: (() => void) | null = null;
+let pointerUpHandler: ((e: PointerEvent) => void) | null = null;
+let scrubClickHandler: ((e: MouseEvent) => void) | null = null;
+let scrubKeyDownHandler: ((e: KeyboardEvent) => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 
 // Callbacks
@@ -76,15 +80,20 @@ function getProgress(state: TimelineState): number {
 function buildPlaybackControls(): HTMLElement {
   const controls = el('div', 'playback-controls');
 
-  prevBtn = el('button', 'playback-btn');
-  prevBtn.innerHTML = '&#9198;'; // prev track ⏮
+  prevBtn = el('button', 'playback-btn') as HTMLButtonElement;
+  prevBtn.type = 'button';
+  prevBtn.textContent = '⏮';
   prevBtn.title = t('timeline.prev');
+  prevBtn.setAttribute('aria-label', t('timeline.prev'));
   prevBtn.addEventListener('click', () => onPrev?.());
   controls.appendChild(prevBtn);
 
-  playBtn = el('button', 'playback-btn');
-  playBtn.innerHTML = '&#9654;'; // play triangle
+  playBtn = el('button', 'playback-btn') as HTMLButtonElement;
+  playBtn.type = 'button';
+  playBtn.textContent = '▶';
   playBtn.title = `${t('timeline.play')} / ${t('timeline.pause')}`;
+  playBtn.setAttribute('aria-label', `${t('timeline.play')} / ${t('timeline.pause')}`);
+  playBtn.setAttribute('aria-pressed', 'false');
   playBtn.addEventListener('click', () => {
     if (currentState?.isPlaying) {
       onPause?.();
@@ -94,9 +103,11 @@ function buildPlaybackControls(): HTMLElement {
   });
   controls.appendChild(playBtn);
 
-  nextBtn = el('button', 'playback-btn');
-  nextBtn.innerHTML = '&#9197;'; // next track ⏭
+  nextBtn = el('button', 'playback-btn') as HTMLButtonElement;
+  nextBtn.type = 'button';
+  nextBtn.textContent = '⏭';
   nextBtn.title = t('timeline.next');
+  nextBtn.setAttribute('aria-label', t('timeline.next'));
   nextBtn.addEventListener('click', () => onNext?.());
   controls.appendChild(nextBtn);
 
@@ -118,10 +129,16 @@ function buildScrubBar(): HTMLElement {
   markerContainer = el('div');
   markerContainer.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
   scrubContainer.appendChild(markerContainer);
+  scrubContainer.tabIndex = 0;
+  scrubContainer.setAttribute('role', 'slider');
+  scrubContainer.setAttribute('aria-label', t('timeline.scrub'));
+  scrubContainer.setAttribute('aria-valuemin', '0');
+  scrubContainer.setAttribute('aria-valuemax', '100');
 
   const seekFromClientX = (clientX: number): void => {
     if (!currentState) return;
     const rect = scrubContainer.getBoundingClientRect();
+    if (rect.width <= 0) return;
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const [start, end] = currentState.timeRange;
     const time = start + pct * (end - start);
@@ -129,26 +146,86 @@ function buildScrubBar(): HTMLElement {
   };
 
   // Click-to-seek
-  scrubContainer.addEventListener('click', (e: MouseEvent) => {
+  scrubClickHandler = (e: MouseEvent) => {
+    if (Date.now() < suppressClickUntil) return;
     seekFromClientX(e.clientX);
-  });
+  };
+  scrubContainer.addEventListener('click', scrubClickHandler);
 
   // Pointer drag support (mouse + touch + pen)
   let dragging = false;
+  let activePointerId: number | null = null;
+  let movedDuringDrag = false;
   pointerDownHandler = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     dragging = true;
+    movedDuringDrag = false;
+    activePointerId = e.pointerId;
+    scrubContainer.setPointerCapture(e.pointerId);
+    window.addEventListener('pointermove', pointerMoveHandler!);
+    window.addEventListener('pointerup', pointerUpHandler!);
+    window.addEventListener('pointercancel', pointerUpHandler!);
     seekFromClientX(e.clientX);
+    e.preventDefault();
   };
   pointerMoveHandler = (e: PointerEvent) => {
     if (!dragging || !currentState) return;
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    movedDuringDrag = true;
     seekFromClientX(e.clientX);
   };
-  pointerUpHandler = () => { dragging = false; };
+  pointerUpHandler = (e: PointerEvent) => {
+    if (!dragging) return;
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    dragging = false;
+    if (movedDuringDrag) {
+      suppressClickUntil = Date.now() + 200;
+    }
+    if (activePointerId !== null && scrubContainer.hasPointerCapture(activePointerId)) {
+      scrubContainer.releasePointerCapture(activePointerId);
+    }
+    activePointerId = null;
+    window.removeEventListener('pointermove', pointerMoveHandler!);
+    window.removeEventListener('pointerup', pointerUpHandler!);
+    window.removeEventListener('pointercancel', pointerUpHandler!);
+  };
   scrubContainer.addEventListener('pointerdown', pointerDownHandler);
-  scrubContainer.addEventListener('pointermove', pointerMoveHandler);
   scrubContainer.addEventListener('pointerup', pointerUpHandler);
   scrubContainer.addEventListener('pointercancel', pointerUpHandler);
-  scrubContainer.addEventListener('pointerleave', pointerUpHandler);
+
+  scrubKeyDownHandler = (e: KeyboardEvent) => {
+    if (!currentState) return;
+    const [start, end] = currentState.timeRange;
+    const span = end - start;
+    if (span <= 0) return;
+    const coarseStep = Math.max(60_000, span / 20);
+    const fineStep = Math.max(1_000, span / 200);
+    const seekBy = (delta: number) => {
+      const next = Math.max(start, Math.min(end, currentState!.currentTime + delta));
+      onSeek?.(next);
+    };
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      seekBy(fineStep);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      seekBy(-fineStep);
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      seekBy(coarseStep);
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      seekBy(-coarseStep);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      onSeek?.(start);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      onSeek?.(end);
+    }
+  };
+  scrubContainer.addEventListener('keydown', scrubKeyDownHandler);
 
   return scrubContainer;
 }
@@ -189,6 +266,21 @@ function renderMarkers(state: TimelineState): void {
     marker.style.left = `${pct}%`;
     markerContainer.appendChild(marker);
   }
+}
+
+function getMarkerSignature(state: TimelineState): string {
+  const [start, end] = state.timeRange;
+  const first = state.events[0];
+  const last = state.events[state.events.length - 1];
+  return [
+    start,
+    end,
+    state.events.length,
+    first?.id ?? '',
+    first?.time ?? 0,
+    last?.id ?? '',
+    last?.time ?? 0,
+  ].join('|');
 }
 
 // ---- RAF-based playback loop ----
@@ -271,13 +363,16 @@ export function initTimeline(
   // Subscribe to locale changes to update tooltips
   unsubLocale = onLocaleChange(() => {
     prevBtn.title = t('timeline.prev');
+    prevBtn.setAttribute('aria-label', t('timeline.prev'));
     playBtn.title = `${t('timeline.play')} / ${t('timeline.pause')}`;
+    playBtn.setAttribute('aria-label', `${t('timeline.play')} / ${t('timeline.pause')}`);
     nextBtn.title = t('timeline.next');
+    nextBtn.setAttribute('aria-label', t('timeline.next'));
+    scrubContainer.setAttribute('aria-label', t('timeline.scrub'));
   });
 }
 
 export function updateTimeline(state: TimelineState): void {
-  const prev = currentState;
   currentState = state;
 
   // Update progress bar
@@ -291,12 +386,16 @@ export function updateTimeline(state: TimelineState): void {
 
   // Update play/pause button
   if (state.isPlaying) {
-    playBtn.innerHTML = '&#9646;&#9646;'; // pause bars
+    playBtn.textContent = '▮▮';
     playBtn.classList.add('playback-btn--active');
+    playBtn.setAttribute('aria-pressed', 'true');
   } else {
-    playBtn.innerHTML = '&#9654;'; // play triangle
+    playBtn.textContent = '▶';
     playBtn.classList.remove('playback-btn--active');
+    playBtn.setAttribute('aria-pressed', 'false');
   }
+  scrubContainer.setAttribute('aria-valuenow', (progress * 100).toFixed(2));
+  scrubContainer.setAttribute('aria-valuetext', formatTime(state.currentTime));
 
   // Update speed buttons
   for (const [spd, btn] of speedButtons) {
@@ -307,9 +406,11 @@ export function updateTimeline(state: TimelineState): void {
     }
   }
 
-  // Render markers only if events list changed
-  if (!prev || prev.events !== state.events) {
+  // Render markers when event shape or time range changed.
+  const signature = getMarkerSignature(state);
+  if (signature !== markerRenderSignature) {
     renderMarkers(state);
+    markerRenderSignature = signature;
   }
 
   // Start/stop RAF playback
@@ -323,17 +424,26 @@ export function updateTimeline(state: TimelineState): void {
 export function disposeTimeline(): void {
   stopPlayback();
   if (scrubContainer) {
+    if (scrubClickHandler) scrubContainer.removeEventListener('click', scrubClickHandler);
+    if (scrubKeyDownHandler) scrubContainer.removeEventListener('keydown', scrubKeyDownHandler);
     if (pointerDownHandler) scrubContainer.removeEventListener('pointerdown', pointerDownHandler);
-    if (pointerMoveHandler) scrubContainer.removeEventListener('pointermove', pointerMoveHandler);
     if (pointerUpHandler) {
       scrubContainer.removeEventListener('pointerup', pointerUpHandler);
       scrubContainer.removeEventListener('pointercancel', pointerUpHandler);
-      scrubContainer.removeEventListener('pointerleave', pointerUpHandler);
+    }
+    if (pointerMoveHandler) window.removeEventListener('pointermove', pointerMoveHandler);
+    if (pointerUpHandler) {
+      window.removeEventListener('pointerup', pointerUpHandler);
+      window.removeEventListener('pointercancel', pointerUpHandler);
     }
   }
+  scrubClickHandler = null;
+  scrubKeyDownHandler = null;
   pointerDownHandler = null;
   pointerMoveHandler = null;
   pointerUpHandler = null;
+  markerRenderSignature = '';
+  suppressClickUntil = 0;
   if (unsubLocale) {
     unsubLocale();
     unsubLocale = null;

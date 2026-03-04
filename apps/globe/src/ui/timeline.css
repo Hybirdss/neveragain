@@ -38,6 +38,11 @@
   color: var(--accent-danger);
 }
 
+.playback-btn:focus-visible {
+  outline: 2px solid var(--accent-danger);
+  outline-offset: 1px;
+}
+
 .playback-btn--active {
   background: var(--surface-danger-subtle);
   border-color: var(--accent-danger);
@@ -51,6 +56,12 @@
   height: 28px;
   cursor: pointer;
   touch-action: none;
+}
+
+.scrub-bar:focus-visible {
+  outline: 2px solid var(--accent-danger);
+  outline-offset: 3px;
+  border-radius: 8px;
 }
 
 .scrub-bar__track {
@@ -127,6 +138,11 @@
 .speed-btn:hover {
   border-color: var(--accent-danger);
   color: var(--accent-danger);
+}
+
+.speed-btn:focus-visible {
+  outline: 2px solid var(--accent-danger);
+  outline-offset: 1px;
 }
 
 .speed-btn--active {

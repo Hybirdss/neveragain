@@ -24,6 +24,7 @@ const ko: Record<string, string> = {
   'timeline.pause': '\uc77c\uc2dc\uc815\uc9c0',
   'timeline.prev': '\uc774\uc804 \uc9c0\uc9c4',
   'timeline.next': '\ub2e4\uc74c \uc9c0\uc9c4',
+  'timeline.scrub': '\ud0c0\uc784\ub77c\uc778 \uc2a4\ud06c\ub7fd\ubc14',
 
   // Intensity legend
   'legend.title': 'JMA \uc9c4\ub3c4',
@@ -182,12 +183,19 @@ const ko: Record<string, string> = {
   'ai.badge.loading': 'AI 분석 생성중...',
   'ai.badge.ready': 'AI 분석 준비됨',
   'ai.loading': '분석 중...',
+  'ai.panelLabel': 'AI 분석 패널',
+  'ai.close': 'AI 패널 닫기',
+  'ai.noPublic': '공개 분석 데이터가 없습니다',
+  'ai.noExpert': '전문 분석 데이터가 없습니다',
 
   // Search
   'search.placeholder': 'M6 미야기 / 규모 5 이상 도쿄 / 깊은 지진...',
   'search.hint': 'Enter 검색 · ESC 닫기',
   'search.loading': '검색 중...',
   'search.noResults': '결과 없음',
+  'search.dialogLabel': '지진 검색',
+  'search.inputLabel': '지진 검색 입력',
+  'search.resultsLabel': '검색 결과',
   'search.stats.countSuffix': '건',
   'search.stats.avgPrefix': '평균',
   'search.stats.offshoreSuffix': '건 해역',
@@ -199,6 +207,7 @@ const ko: Record<string, string> = {
   'mobile.tab.ai': 'AI',
   'mobile.tab.timeline': '타임라인',
   'mobile.tab.training': '훈련',
+  'mobile.nav.label': '모바일 내비게이션',
 
   // Locale switcher
   'locale.en': 'EN',

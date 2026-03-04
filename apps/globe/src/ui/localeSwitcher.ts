@@ -5,7 +5,7 @@
  * Pure DOM manipulation — no frameworks.
  */
 
-import { setLocale, getLocale, onLocaleChange } from '../i18n/index';
+import { setLocale, getLocale, onLocaleChange, t } from '../i18n/index';
 import type { Locale } from '../i18n/index';
 
 const LOCALE_OPTIONS: Array<{ locale: Locale; label: string }> = [
@@ -34,9 +34,9 @@ function applyStyle(btn: HTMLButtonElement, isActive: boolean): void {
     background: isActive ? 'var(--color-cyan-dim)' : 'transparent',
     color: isActive ? 'var(--color-cyan)' : 'var(--color-text-secondary)',
     transition: 'all 150ms ease-out',
-    outline: 'none',
     lineHeight: '1',
   });
+  btn.setAttribute('aria-pressed', String(isActive));
 }
 
 /**
@@ -76,8 +76,9 @@ export function initLocaleSwitcher(container: HTMLElement): void {
   for (const { locale, label } of LOCALE_OPTIONS) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = label;
+    btn.textContent = t(`locale.${locale}`) || label;
     btn.dataset.locale = locale;
+    btn.setAttribute('aria-label', t(`locale.${locale}`) || label);
 
     applyStyle(btn, locale === current);
 
@@ -94,6 +95,13 @@ export function initLocaleSwitcher(container: HTMLElement): void {
   // Subscribe to external locale changes
   unsubscribe = onLocaleChange((locale: Locale) => {
     highlightActive(locale);
+    for (const { locale: optionLocale, label } of LOCALE_OPTIONS) {
+      const btn = buttonMap.get(optionLocale);
+      if (!btn) continue;
+      const text = t(`locale.${optionLocale}`) || label;
+      btn.textContent = text;
+      btn.setAttribute('aria-label', text);
+    }
   });
 }
 

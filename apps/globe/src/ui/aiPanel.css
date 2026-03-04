@@ -65,6 +65,11 @@
   color: var(--text-primary);
 }
 
+.ai-panel__close:focus-visible {
+  outline: 2px solid var(--accent, #f97316);
+  outline-offset: 2px;
+}
+
 /* ── Tabs ── */
 
 .ai-panel__tabs {
@@ -90,6 +95,11 @@
 
 .ai-panel__tab:hover {
   color: var(--text-secondary);
+}
+
+.ai-panel__tab:focus-visible {
+  outline: 2px solid var(--accent, #f97316);
+  outline-offset: -1px;
 }
 
 .ai-panel__tab.active {
@@ -141,6 +151,11 @@
 
 .ai-accordion__trigger:hover {
   background: var(--ai-accordion-hover);
+}
+
+.ai-accordion__trigger:focus-visible {
+  outline: 2px solid var(--accent, #f97316);
+  outline-offset: -2px;
 }
 
 .ai-accordion__chevron {

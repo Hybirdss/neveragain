@@ -12,6 +12,10 @@
   padding-top: 15vh;
 }
 
+.search-open {
+  overflow: hidden;
+}
+
 .search-backdrop {
   position: absolute;
   inset: 0;
@@ -26,6 +30,9 @@
   border-radius: var(--radius-xl, 12px);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
   overflow: hidden;
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
 }
 
 .search-input-row {
@@ -69,6 +76,8 @@
 
 .search-results {
   max-height: 320px;
+  min-height: 120px;
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -88,8 +97,14 @@
   transition: background 0.1s;
 }
 
+.search-result-item--active,
 .search-result-item:hover {
   background: var(--bg-elevated, #1f2937);
+}
+
+.search-result-item:focus-visible {
+  outline: 2px solid var(--accent, #f97316);
+  outline-offset: -2px;
 }
 
 .search-result-mag {

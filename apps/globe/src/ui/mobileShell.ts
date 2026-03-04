@@ -50,10 +50,17 @@ function isTimelineVisible(): boolean {
   return document.body.classList.contains('mobile-timeline-visible');
 }
 
+function exitTimelineModeIfNeeded(): void {
+  if (store.get('mode') === 'timeline') {
+    store.set('mode', 'realtime');
+  }
+}
+
 function setActiveTab(tab: MobileTab): void {
   for (const [key, btn] of tabButtons) {
     btn.classList.toggle('mobile-shell__btn--active', key === tab);
     btn.setAttribute('aria-pressed', String(key === tab));
+    btn.setAttribute('aria-current', key === tab ? 'page' : 'false');
   }
 }
 
@@ -92,12 +99,14 @@ function focusMap(): void {
   closeAiPanel();
   closeSidebar();
   setTimelineVisible(false);
+  exitTimelineModeIfNeeded();
   setActiveTab('map');
 }
 
 function focusEvents(): void {
   closeAiPanel();
   setTimelineVisible(false);
+  exitTimelineModeIfNeeded();
   openSidebar();
   setActiveTab('events');
 }
@@ -105,6 +114,7 @@ function focusEvents(): void {
 function focusAi(): void {
   closeSidebar();
   setTimelineVisible(false);
+  exitTimelineModeIfNeeded();
   openAiPanel();
   setActiveTab('ai');
 }
@@ -118,6 +128,7 @@ function focusTimeline(): void {
     store.set('mode', 'timeline');
     setActiveTab('timeline');
   } else {
+    exitTimelineModeIfNeeded();
     setActiveTab('map');
   }
 }
@@ -126,6 +137,7 @@ function openTraining(): void {
   closeAiPanel();
   closeSidebar();
   setTimelineVisible(false);
+  exitTimelineModeIfNeeded();
   setActiveTab('training');
   onTrainingAction?.();
   window.setTimeout(() => {
@@ -159,13 +171,16 @@ function refreshLabels(): void {
     btn.textContent = label;
     btn.setAttribute('aria-label', label);
   }
+  if (rootEl) {
+    rootEl.setAttribute('aria-label', t('mobile.nav.label'));
+  }
 }
 
 export function initMobileShell(container: HTMLElement, options: MobileShellOptions = {}): void {
   onTrainingAction = options.onTraining ?? null;
 
   rootEl = el('nav', 'mobile-shell');
-  rootEl.setAttribute('aria-label', 'Mobile Navigation');
+  rootEl.setAttribute('aria-label', t('mobile.nav.label'));
 
   rootEl.append(
     createTab('map', 'mobile.tab.map', focusMap),

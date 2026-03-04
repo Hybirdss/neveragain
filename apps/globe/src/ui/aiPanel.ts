@@ -18,6 +18,7 @@ let subtitleEl: HTMLElement;
 let contentEl: HTMLElement;
 let tabButtons: HTMLButtonElement[] = [];
 let tabPanes: HTMLElement[] = [];
+let closeBtnEl: HTMLButtonElement | null = null;
 let unsubAiState: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 let badgeState: 'idle' | 'loading' | 'ready' = 'idle';
@@ -33,6 +34,15 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (className) e.className = className;
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 // ── Chevron SVG ──
@@ -63,6 +73,8 @@ function updateStaticLabels(): void {
     else if (tab === 'expert') btn.textContent = t('ai.tab.expert');
     else if (tab === 'data') btn.textContent = t('ai.tab.data');
   }
+  panelEl?.setAttribute('aria-label', t('ai.panelLabel'));
+  closeBtnEl?.setAttribute('aria-label', t('ai.close'));
   setBadgeState(badgeState);
 }
 
@@ -75,6 +87,10 @@ export function initAiPanel(): void {
 
   panelEl = el('aside', 'ai-panel');
   panelEl.id = 'ai-panel';
+  panelEl.setAttribute('role', 'dialog');
+  panelEl.setAttribute('aria-modal', 'false');
+  panelEl.setAttribute('aria-hidden', 'true');
+  panelEl.setAttribute('aria-label', t('ai.panelLabel'));
 
   // Badge button
   badgeEl = el('button', 'ai-badge-btn');
@@ -91,14 +107,18 @@ export function initAiPanel(): void {
   titleEl = el('h2', 'ai-panel__title');
   subtitleEl = el('p', 'ai-panel__subtitle');
 
-  const closeBtn = el('button', 'ai-panel__close');
+  const closeBtn = el('button', 'ai-panel__close') as HTMLButtonElement;
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', t('ai.close'));
   closeBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
   closeBtn.onclick = () => closeAiPanel();
+  closeBtnEl = closeBtn;
 
   header.append(titleEl, subtitleEl, closeBtn);
 
   // Tabs
   const tabBar = el('div', 'ai-panel__tabs');
+  tabBar.setAttribute('role', 'tablist');
   const tabs: { id: AiTab; label: string }[] = [
     { id: 'easy', label: 'ai.tab.easy' },
     { id: 'expert', label: 'ai.tab.expert' },
@@ -106,8 +126,14 @@ export function initAiPanel(): void {
   ];
 
   tabs.forEach(({ id, label }) => {
-    const btn = el('button', 'ai-panel__tab', t(label));
+    const btn = el('button', 'ai-panel__tab', t(label)) as HTMLButtonElement;
+    btn.type = 'button';
     btn.dataset.tab = id;
+    btn.id = `ai-tab-${id}`;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-controls', `ai-pane-${id}`);
+    btn.setAttribute('aria-selected', 'false');
+    btn.tabIndex = -1;
     btn.onclick = () => switchTab(id);
     tabButtons.push(btn);
     tabBar.append(btn);
@@ -119,6 +145,10 @@ export function initAiPanel(): void {
   tabs.forEach(({ id }) => {
     const pane = el('div', 'ai-panel__tab-pane');
     pane.dataset.tab = id;
+    pane.id = `ai-pane-${id}`;
+    pane.setAttribute('role', 'tabpanel');
+    pane.setAttribute('aria-labelledby', `ai-tab-${id}`);
+    pane.setAttribute('aria-hidden', 'true');
     tabPanes.push(pane);
     contentEl.append(pane);
   });
@@ -179,6 +209,7 @@ function notifyAiPanelOpenChange(): void {
 export function openAiPanel(): void {
   if (!panelEl) return;
   panelEl.classList.add('open');
+  panelEl.setAttribute('aria-hidden', 'false');
   if (badgeEl) badgeEl.classList.remove('visible');
   notifyAiPanelOpenChange();
 }
@@ -186,6 +217,7 @@ export function openAiPanel(): void {
 export function closeAiPanel(): void {
   if (!panelEl) return;
   panelEl.classList.remove('open');
+  panelEl.setAttribute('aria-hidden', 'true');
   const aiState = store.get('ai');
   if (aiState.currentAnalysis || aiState.analysisLoading) {
     if (badgeEl) badgeEl.classList.add('visible');
@@ -221,6 +253,7 @@ export function disposeAiPanel(): void {
   aiPanelOpenListeners.clear();
   tabButtons = [];
   tabPanes = [];
+  closeBtnEl = null;
   panelEl?.remove();
   badgeEl?.remove();
 }
@@ -232,11 +265,16 @@ function switchTab(tabId: AiTab): void {
   store.set('ai', { ...current, activeTab: tabId });
 
   tabButtons.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabId);
+    const active = btn.dataset.tab === tabId;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
+    btn.tabIndex = active ? 0 : -1;
   });
 
   tabPanes.forEach(pane => {
-    pane.classList.toggle('active', pane.dataset.tab === tabId);
+    const active = pane.dataset.tab === tabId;
+    pane.classList.toggle('active', active);
+    pane.setAttribute('aria-hidden', String(!active));
   });
 }
 
@@ -261,12 +299,12 @@ function renderSkeleton(): void {
 
 function renderError(error: string): void {
   tabPanes.forEach(pane => {
-    pane.innerHTML = `
-      <div class="ai-error">
-        <div class="ai-error__icon">!</div>
-        <p>${error}</p>
-      </div>
-    `;
+    pane.textContent = '';
+    const wrapper = el('div', 'ai-error');
+    const icon = el('div', 'ai-error__icon', '!');
+    const message = el('p', undefined, error);
+    wrapper.append(icon, message);
+    pane.append(wrapper);
   });
 }
 
@@ -307,7 +345,8 @@ function renderEasyTab(analysis: any): void {
 
   const pub = analysis.public;
   if (!pub) {
-    pane.innerHTML = '<p class="ai-error">No public analysis available</p>';
+    pane.textContent = '';
+    pane.append(el('p', 'ai-error', t('ai.noPublic')));
     return;
   }
 
@@ -358,13 +397,13 @@ function renderEasyTab(analysis: any): void {
   // Why it happened (v2: pub.why, v1 fallback: pub.why_it_happened)
   const why = pub.why ?? pub.why_it_happened;
   if (why) {
-    pane.append(makeAccordion(t('ai.why'), i18n(why)));
+    pane.append(makeAccordion(t('ai.why'), escapeHtml(i18n(why))));
   }
 
   // Aftershock note (v2: pub.aftershock_note, v1 fallback: pub.will_it_shake_again)
   const afterNote = pub.aftershock_note ?? pub.will_it_shake_again;
   if (afterNote) {
-    pane.append(makeAccordion(t('ai.aftershock'), i18n(afterNote)));
+    pane.append(makeAccordion(t('ai.aftershock'), escapeHtml(i18n(afterNote))));
   }
 
   // Do now / Action items (v2: pub.do_now, v1 fallback: pub.action_items)
@@ -387,13 +426,16 @@ function renderEasyTab(analysis: any): void {
 
   // ELI5
   if (pub.eli5) {
-    pane.append(makeAccordion(t('ai.eli5'), i18n(pub.eli5)));
+    pane.append(makeAccordion(t('ai.eli5'), escapeHtml(i18n(pub.eli5))));
   }
 
   // FAQ (v2: q/a fields, v1 fallback: question/answer)
   if (pub.faq?.length) {
     pub.faq.forEach((faq: any) => {
-      pane.append(makeAccordion(i18n(faq.q ?? faq.question), i18n(faq.a ?? faq.answer)));
+      pane.append(makeAccordion(
+        escapeHtml(i18n(faq.q ?? faq.question)),
+        escapeHtml(i18n(faq.a ?? faq.answer))
+      ));
     });
   }
 }
@@ -415,7 +457,8 @@ function renderExpertTab(analysis: any): void {
 
   const exp = analysis.expert;
   if (!exp) {
-    pane.innerHTML = '<p class="ai-error">No expert analysis available</p>';
+    pane.textContent = '';
+    pane.append(el('p', 'ai-error', t('ai.noExpert')));
     return;
   }
 
@@ -462,22 +505,26 @@ function renderExpertTab(analysis: any): void {
   // Tectonic summary (v2: tectonic_summary, v1 fallback: tectonic_context)
   const tecSummary = exp.tectonic_summary ?? exp.tectonic_context;
   if (tecSummary) {
-    pane.append(makeAccordion(t('ai.expert.tectonic'), i18n(tecSummary)));
+    pane.append(makeAccordion(t('ai.expert.tectonic'), escapeHtml(i18n(tecSummary))));
   }
 
   // Mechanism note (v2: mechanism_note, v1 fallback: mechanism_interpretation)
   const mechNote = exp.mechanism_note ?? exp.mechanism_interpretation;
   if (mechNote) {
-    pane.append(makeAccordion(t('ai.expert.mechanism'), i18n(mechNote)));
+    pane.append(makeAccordion(t('ai.expert.mechanism'), escapeHtml(i18n(mechNote))));
   }
 
   // Sequence classification
   if (exp.sequence) {
-    const badge = `<span class="ai-badge">${exp.sequence.classification}</span>`;
-    const conf = `<span class="ai-badge ai-badge--${exp.sequence.confidence === 'high' ? 'positive' : 'warning'}">${exp.sequence.confidence}</span>`;
+    const classification = escapeHtml(String(exp.sequence.classification ?? ''));
+    const confidenceRaw = String(exp.sequence.confidence ?? '');
+    const confidence = escapeHtml(confidenceRaw);
+    const reasoning = escapeHtml(i18n(exp.sequence.reasoning));
+    const badge = `<span class="ai-badge">${classification}</span>`;
+    const conf = `<span class="ai-badge ai-badge--${confidenceRaw === 'high' ? 'positive' : 'warning'}">${confidence}</span>`;
     pane.append(makeAccordion(
       t('ai.expert.sequence'),
-      `${badge} ${conf}<br>${i18n(exp.sequence.reasoning)}`
+      `${badge} ${conf}<br>${reasoning}`
     ));
   }
 
@@ -485,18 +532,18 @@ function renderExpertTab(analysis: any): void {
   if (exp.historical_comparison?.narrative) {
     let content = '';
     if (exp.historical_comparison.primary_name) {
-      const name = i18n(exp.historical_comparison.primary_name);
+      const name = escapeHtml(i18n(exp.historical_comparison.primary_name));
       const year = exp.historical_comparison.primary_year;
-      content += `<strong>${name}${year ? ` (${year})` : ''}</strong><br>`;
+      content += `<strong>${name}${year ? ` (${escapeHtml(String(year))})` : ''}</strong><br>`;
     }
-    content += i18n(exp.historical_comparison.narrative);
+    content += escapeHtml(i18n(exp.historical_comparison.narrative));
     pane.append(makeAccordion(t('ai.expert.historical'), content));
   }
 
   // Aftershock assessment (v1 compat)
   if (exp.aftershock_assessment) {
-    let content = i18n(exp.aftershock_assessment.omori_summary);
-    content += `<br><br><small style="color:var(--text-tertiary)">${i18n(exp.aftershock_assessment.caveat)}</small>`;
+    let content = escapeHtml(i18n(exp.aftershock_assessment.omori_summary));
+    content += `<br><br><small style="color:var(--text-tertiary)">${escapeHtml(i18n(exp.aftershock_assessment.caveat))}</small>`;
     pane.append(makeAccordion(t('ai.expert.aftershock'), content));
   }
 
@@ -505,7 +552,7 @@ function renderExpertTab(analysis: any): void {
   if (gap?.note || gap?.analysis) {
     const isGap = gap.is_gap ?? gap.is_in_gap;
     const badge = isGap ? '<span class="ai-badge ai-badge--warning">In Gap</span> ' : '';
-    pane.append(makeAccordion(t('ai.expert.gap'), `${badge}${i18n(gap.note ?? gap.analysis)}`));
+    pane.append(makeAccordion(t('ai.expert.gap'), `${badge}${escapeHtml(i18n(gap.note ?? gap.analysis))}`));
   }
 
   // Notable features (v2: claim/because/implication, v1 fallback: feature + note/description)
@@ -530,7 +577,8 @@ function renderExpertTab(analysis: any): void {
       } else {
         // v1 fallback: feature + note/description
         const p = el('p');
-        p.innerHTML = `<strong>${i18n(nf.feature)}:</strong> ${i18n(nf.note ?? nf.description)}`;
+        const title = el('strong', undefined, `${i18n(nf.feature)}:`);
+        p.append(title, document.createTextNode(` ${i18n(nf.note ?? nf.description)}`));
         p.style.fontSize = 'var(--text-sm)';
         p.style.color = 'var(--text-secondary)';
         p.style.marginBottom = 'var(--space-2)';
@@ -543,7 +591,9 @@ function renderExpertTab(analysis: any): void {
 
 function addFactRow(container: HTMLElement, label: string, value: string): void {
   const row = el('div', 'ai-fact-row');
-  row.innerHTML = `<span class="ai-fact-label">${label}</span><span class="ai-fact-value">${value}</span>`;
+  const labelEl = el('span', 'ai-fact-label', label);
+  const valueEl = el('span', 'ai-fact-value', value);
+  row.append(labelEl, valueEl);
   container.append(row);
 }
 
@@ -572,22 +622,27 @@ function renderDataTab(analysis: any): void {
   // Key metrics table
   if (analysis.public?.intensity_guide?.length) {
     const table = el('table', 'ai-data-table');
-    table.innerHTML = `
-      <thead><tr>
-        <th>${t('ai.data.intensity')}</th>
-        <th>${t('ai.data.cities')}</th>
-        <th>${t('ai.data.population')}</th>
-      </tr></thead>
-      <tbody>
-        ${analysis.public.intensity_guide.map((ig: any) => `
-          <tr>
-            <td>${ig.intensity}</td>
-            <td>${(ig.cities || []).join(', ')}</td>
-            <td>${(ig.population || 0).toLocaleString()}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    `;
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headRow.append(
+      el('th', undefined, t('ai.data.intensity')),
+      el('th', undefined, t('ai.data.cities')),
+      el('th', undefined, t('ai.data.population')),
+    );
+    thead.append(headRow);
+    table.append(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const ig of analysis.public.intensity_guide as any[]) {
+      const row = document.createElement('tr');
+      row.append(
+        el('td', undefined, String(ig?.intensity ?? '')),
+        el('td', undefined, Array.isArray(ig?.cities) ? ig.cities.join(', ') : ''),
+        el('td', undefined, Number(ig?.population ?? 0).toLocaleString()),
+      );
+      tbody.append(row);
+    }
+    table.append(tbody);
     pane.append(table);
   }
 
@@ -622,7 +677,9 @@ function makeAccordion(
 ): HTMLElement {
   const acc = el('div', `ai-accordion${startOpen ? ' open' : ''}`);
 
-  const trigger = el('button', 'ai-accordion__trigger');
+  const trigger = el('button', 'ai-accordion__trigger') as HTMLButtonElement;
+  trigger.type = 'button';
+  trigger.setAttribute('aria-expanded', String(startOpen));
   const titleSpan = el('span');
   titleSpan.textContent = title;
   trigger.innerHTML = '';
@@ -642,7 +699,10 @@ function makeAccordion(
   }
   body.append(inner);
 
-  trigger.onclick = () => acc.classList.toggle('open');
+  trigger.onclick = () => {
+    const nowOpen = acc.classList.toggle('open');
+    trigger.setAttribute('aria-expanded', String(nowOpen));
+  };
 
   acc.append(trigger, body);
   return acc;

@@ -24,6 +24,7 @@ const en: Record<string, string> = {
   'timeline.pause': 'Pause',
   'timeline.prev': 'Previous event',
   'timeline.next': 'Next event',
+  'timeline.scrub': 'Timeline scrubber',
 
   // Intensity legend
   'legend.title': 'JMA Intensity',
@@ -182,12 +183,19 @@ const en: Record<string, string> = {
   'ai.badge.loading': 'AI analyzing...',
   'ai.badge.ready': 'AI brief ready',
   'ai.loading': 'Analyzing...',
+  'ai.panelLabel': 'AI analysis panel',
+  'ai.close': 'Close AI panel',
+  'ai.noPublic': 'No public analysis available',
+  'ai.noExpert': 'No expert analysis available',
 
   // Search
   'search.placeholder': 'M6 Tokyo / deep M7+ / last 30 days...',
   'search.hint': 'Enter to search · ESC to close',
   'search.loading': 'Searching...',
   'search.noResults': 'No results found',
+  'search.dialogLabel': 'Earthquake search',
+  'search.inputLabel': 'Search earthquakes',
+  'search.resultsLabel': 'Search results',
   'search.stats.countSuffix': ' events',
   'search.stats.avgPrefix': 'Avg',
   'search.stats.offshoreSuffix': ' offshore',
@@ -199,6 +207,7 @@ const en: Record<string, string> = {
   'mobile.tab.ai': 'AI',
   'mobile.tab.timeline': 'Timeline',
   'mobile.tab.training': 'Training',
+  'mobile.nav.label': 'Mobile navigation',
 
   // Locale switcher
   'locale.en': 'EN',

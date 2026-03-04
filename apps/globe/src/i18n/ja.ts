@@ -24,6 +24,7 @@ const ja: Record<string, string> = {
   'timeline.pause': '\u4e00\u6642\u505c\u6b62',
   'timeline.prev': '\u524d\u3078',
   'timeline.next': '\u6b21\u3078',
+  'timeline.scrub': '\u30bf\u30a4\u30e0\u30e9\u30a4\u30f3\u30b9\u30af\u30e9\u30d0\u30fc',
 
   // Intensity legend
   'legend.title': 'JMA\u9707\u5ea6',
@@ -182,12 +183,19 @@ const ja: Record<string, string> = {
   'ai.badge.loading': 'AI分析を生成中...',
   'ai.badge.ready': 'AI分析の準備完了',
   'ai.loading': '分析中...',
+  'ai.panelLabel': 'AI分析パネル',
+  'ai.close': 'AIパネルを閉じる',
+  'ai.noPublic': '公開分析データがありません',
+  'ai.noExpert': '専門分析データがありません',
 
   // Search
   'search.placeholder': 'M6 宮城 / 深発 M7+ / 最近30日...',
   'search.hint': 'Enterで検索 · ESCで閉じる',
   'search.loading': '検索中...',
   'search.noResults': '結果なし',
+  'search.dialogLabel': '地震検索',
+  'search.inputLabel': '地震を検索',
+  'search.resultsLabel': '検索結果',
   'search.stats.countSuffix': '件',
   'search.stats.avgPrefix': '平均',
   'search.stats.offshoreSuffix': '件 海域',
@@ -199,6 +207,7 @@ const ja: Record<string, string> = {
   'mobile.tab.ai': 'AI',
   'mobile.tab.timeline': 'タイムライン',
   'mobile.tab.training': '訓練',
+  'mobile.nav.label': 'モバイルナビゲーション',
 
   // Locale switcher
   'locale.en': 'EN',
