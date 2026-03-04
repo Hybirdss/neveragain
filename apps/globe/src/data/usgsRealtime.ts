@@ -13,13 +13,19 @@ import { store } from '../store/appState';
 
 const USGS_FEED_URL =
   'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const RUNTIME_HOSTNAME = typeof window !== 'undefined' ? window.location.hostname : '';
+const IS_LOCAL_RUNTIME = LOCAL_HOSTS.has(RUNTIME_HOSTNAME);
 const API_URL = import.meta.env.VITE_API_URL
-  ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
-const SERVER_EVENTS_URL =
-  `${API_URL}/api/events?mag_min=2.5&lat_min=24&lat_max=46&lng_min=122&lng_max=150&limit=200`;
+  ?? (import.meta.env.PROD && !IS_LOCAL_RUNTIME ? 'https://api.namazue.dev' : '');
+const SERVER_EVENTS_URL = API_URL
+  ? `${API_URL}/api/events?mag_min=2.5&lat_min=24&lat_max=46&lng_min=122&lng_max=150&limit=200`
+  : '';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const SEEN_CACHE_LIMIT = 5_000;
+const FALLBACK_WARN_COOLDOWN_MS = 5 * 60_000;
+let lastFallbackWarnAt = 0;
 
 const JAPAN_BBOX = {
   minLat: 24,
@@ -142,6 +148,9 @@ async function fetchJsonWithTimeout<T>(url: string): Promise<T> {
 }
 
 async function fetchFromServer(): Promise<EarthquakeEvent[]> {
+  if (!SERVER_EVENTS_URL) {
+    throw new Error('Server events API URL is not configured');
+  }
   const data = await fetchJsonWithTimeout<ServerEventsResponse>(SERVER_EVENTS_URL);
   if (!Array.isArray(data.events)) return [];
   return data.events
@@ -178,10 +187,19 @@ function isTimeoutError(error: unknown): boolean {
 }
 
 async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
+  if (!SERVER_EVENTS_URL) {
+    // Local preview/dev without API proxy: go straight to USGS.
+    return await fetchFromUSGS();
+  }
+
   try {
     return await fetchFromServer();
   } catch (serverErr) {
-    console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
+    const now = Date.now();
+    if (now - lastFallbackWarnAt > FALLBACK_WARN_COOLDOWN_MS) {
+      console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
+      lastFallbackWarnAt = now;
+    }
     return await fetchFromUSGS();
   }
 }
