@@ -40,6 +40,7 @@ Return a JSON object with this structure:
     "do_now": [{ "action": { "ja": "", "ko": "", "en": "" }, "urgency": "immediate|within_hours|preparedness" }],
     "eli5": { "ja": "", "ko": "", "en": "" },
     "faq": [{ "q": { "ja": "", "ko": "", "en": "" }, "a": { "ja": "", "ko": "", "en": "" } }]
+    BANNED FAQ patterns: NEVER generate questions asking about future predictions ("Will there be a bigger earthquake?", "When will it end?"). Good FAQ examples: "Why here?", "How was the shaking different?", "Is there tsunami risk?", "How to prepare for aftershocks?"
   },
   "expert": {
     "tectonic_summary": { "ja": "", "ko": "", "en": "" },
