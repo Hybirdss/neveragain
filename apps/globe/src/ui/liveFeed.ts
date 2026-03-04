@@ -86,12 +86,12 @@ function formatTimeShort(ts: number): string {
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'たった今';
-  if (mins < 60) return `${mins}分前`;
+  if (mins < 1) return t('time.justNow');
+  if (mins < 60) return `${mins}${t('time.minAgo')}`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}時間前`;
+  if (hours < 24) return `${hours}${t('time.hrAgo')}`;
   const days = Math.floor(hours / 24);
-  return `${days}日前`;
+  return `${days}${t('time.dayAgo')}`;
 }
 
 function magColorClass(mag: number): string {
@@ -212,7 +212,7 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean, cluster?: Cl
   item.appendChild(top);
 
   const meta = el('div', 'feed-item__meta');
-  meta.appendChild(el('span', 'feed-item__depth', `${event.depth_km}km`));
+  meta.appendChild(el('span', 'feed-item__depth', `${Math.round(event.depth_km)}km`));
   const dot = el('div', 'feed-item__depth-dot');
   dot.style.background = depthToColor(event.depth_km);
   meta.appendChild(dot);
@@ -519,7 +519,7 @@ function refreshDetailPanel(
     depthSpan.append(document.createTextNode(`${t('detail.depth')} `));
     const depthValue = el('span');
     depthValue.style.color = 'var(--text-secondary)';
-    depthValue.textContent = `${selectedEvent.depth_km}km`;
+    depthValue.textContent = `${Math.round(selectedEvent.depth_km)}km`;
     depthSpan.append(depthValue);
     detailMetaEl.appendChild(depthSpan);
     detailMetaEl.appendChild(el('span', undefined,
@@ -571,7 +571,8 @@ function refreshDetailPanel(
       aiSectionEl.style.display = 'block';
       aiSkeletonEl.style.display = 'none';
 
-      const oneLiner = a.dashboard?.one_liner?.ja || a.dashboard?.one_liner?.en || '';
+      const aiLocale = getLocale();
+      const oneLiner = a.dashboard?.one_liner?.[aiLocale] || a.dashboard?.one_liner?.en || '';
       if (oneLiner) {
         aiOneLinerEl.textContent = oneLiner;
         aiOneLinerEl.style.display = 'block';
@@ -579,7 +580,7 @@ function refreshDetailPanel(
         aiOneLinerEl.style.display = 'none';
       }
 
-      const why = a.public?.why?.ja || a.public?.why?.en || '';
+      const why = a.public?.why?.[aiLocale] || a.public?.why?.en || '';
       if (why) {
         aiWhyEl.textContent = why;
         aiWhyEl.style.display = 'block';

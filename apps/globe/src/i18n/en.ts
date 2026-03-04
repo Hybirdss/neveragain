@@ -114,6 +114,12 @@ const en: Record<string, string> = {
   'sidebar.justNow': 'just now',
   'sidebar.agoMin': 'min ago',
   'sidebar.offline': 'Connection lost — retrying',
+
+  // Relative time
+  'time.justNow': 'just now',
+  'time.minAgo': ' min ago',
+  'time.hrAgo': ' hr ago',
+  'time.dayAgo': ' days ago',
   'sidebar.mmiTitle': 'MODIFIED MERCALLI INTENSITY',
   'sidebar.source.shakemap': 'ShakeMap',
   'sidebar.source.gmpe': 'GMPE',

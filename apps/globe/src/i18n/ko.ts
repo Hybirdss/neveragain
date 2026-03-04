@@ -114,8 +114,14 @@ const ko: Record<string, string> = {
   'sidebar.justNow': '방금',
   'sidebar.agoMin': '분 전',
   'sidebar.offline': '연결 끊김 — 재시도 중',
+
+  // Relative time
+  'time.justNow': '방금',
+  'time.minAgo': '분 전',
+  'time.hrAgo': '시간 전',
+  'time.dayAgo': '일 전',
   'sidebar.mmiTitle': '수정 메르칼리 진도',
-  'sidebar.source.shakemap': '셰이크맵',
+  'sidebar.source.shakemap': 'ShakeMap',
   'sidebar.source.gmpe': 'GMPE',
 
   // Detail panel — intensity source

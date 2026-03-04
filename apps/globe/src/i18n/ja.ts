@@ -114,6 +114,12 @@ const ja: Record<string, string> = {
   'sidebar.justNow': 'たった今',
   'sidebar.agoMin': '分前',
   'sidebar.offline': '接続が切れました — 再試行中',
+
+  // Relative time
+  'time.justNow': 'たった今',
+  'time.minAgo': '分前',
+  'time.hrAgo': '時間前',
+  'time.dayAgo': '日前',
   'sidebar.mmiTitle': '改良メルカリ震度',
   'sidebar.source.shakemap': 'ShakeMap',
   'sidebar.source.gmpe': 'GMPE',
