@@ -18,7 +18,7 @@ import { callGrok } from '../lib/grok.ts';
 import { buildContext } from '../context/builder.ts';
 import { analyses, earthquakes } from '@namazue/db';
 import type { AnalysisTier, BuilderInput } from '@namazue/db';
-import { eq, and, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
 
 export const analyzeRoute = new Hono<{ Bindings: Env }>();
 
@@ -38,6 +38,7 @@ async function getLatestAnalysis(
       eq(analyses.event_id, eventId),
       eq(analyses.is_latest, true),
     ))
+    .orderBy(desc(analyses.created_at), desc(analyses.id))
     .limit(1);
 
   return rows[0] ?? null;
@@ -63,6 +64,29 @@ function derivePlatePair(plate: string): string {
   if (plate === 'philippine') return 'Philippine Sea ↔ Eurasian';
   if (plate === 'north_american') return 'North American ↔ Eurasian';
   return 'Unknown';
+}
+
+function buildMomentTensor(event: typeof earthquakes.$inferSelect): BuilderInput['moment_tensor'] {
+  if (
+    event.mt_strike === null || event.mt_dip === null || event.mt_rake === null
+  ) {
+    return undefined;
+  }
+
+  const secondaryStrike = event.mt_strike2 ?? event.mt_strike;
+  const secondaryDip = event.mt_dip2 ?? event.mt_dip;
+  const secondaryRake = event.mt_rake2 ?? event.mt_rake;
+
+  return {
+    type: 'reverse',
+    strike: event.mt_strike,
+    dip: event.mt_dip,
+    rake: event.mt_rake,
+    nodal_planes: [
+      { strike: event.mt_strike, dip: event.mt_dip, rake: event.mt_rake },
+      { strike: secondaryStrike, dip: secondaryDip, rake: secondaryRake },
+    ],
+  };
 }
 
 export async function generateAndStoreAnalysis(
@@ -163,16 +187,7 @@ export async function generateAndStoreAnalysis(
       recurrence_years: f.recurrence_years,
       probability_30yr: f.probability_30yr,
     })),
-    moment_tensor: event.mt_strike ? {
-      type: 'reverse' as const,
-      strike: event.mt_strike,
-      dip: event.mt_dip!,
-      rake: event.mt_rake!,
-      nodal_planes: [
-        { strike: event.mt_strike, dip: event.mt_dip!, rake: event.mt_rake! },
-        { strike: event.mt_strike2 ?? 0, dip: event.mt_dip2 ?? 0, rake: event.mt_rake2 ?? 0 },
-      ],
-    } : undefined,
+    moment_tensor: buildMomentTensor(event),
   };
 
   const context = buildContext(builderInput);
@@ -240,6 +255,13 @@ export async function generateAndStoreAnalysis(
       region_keywords: grok.search_index?.region_keywords ?? { ja: [], ko: [], en: [] },
     },
   };
+
+  await db.update(analyses)
+    .set({ is_latest: false })
+    .where(and(
+      eq(analyses.event_id, event.id),
+      eq(analyses.is_latest, true),
+    ));
 
   await db.insert(analyses).values({
     event_id: event.id,

@@ -261,12 +261,13 @@ function renderSkeleton(): void {
 
 function renderError(error: string): void {
   tabPanes.forEach(pane => {
-    pane.innerHTML = `
-      <div class="ai-error">
-        <div class="ai-error__icon">!</div>
-        <p>${error}</p>
-      </div>
-    `;
+    pane.textContent = '';
+    const wrap = el('div', 'ai-error');
+    const icon = el('div', 'ai-error__icon', '!');
+    const msg = el('p');
+    msg.textContent = error;
+    wrap.append(icon, msg);
+    pane.append(wrap);
   });
 }
 
@@ -277,6 +278,15 @@ function i18n(field: { ko?: string; ja?: string; en?: string } | string | null |
   if (typeof field === 'string') return field;
   const locale = getLocale();
   return (field as any)[locale] ?? field.en ?? field.ko ?? '';
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 // ── Render analysis ──
@@ -473,11 +483,15 @@ function renderExpertTab(analysis: any): void {
 
   // Sequence classification
   if (exp.sequence) {
-    const badge = `<span class="ai-badge">${exp.sequence.classification}</span>`;
-    const conf = `<span class="ai-badge ai-badge--${exp.sequence.confidence === 'high' ? 'positive' : 'warning'}">${exp.sequence.confidence}</span>`;
+    const badge = `<span class="ai-badge">${escapeHtml(String(exp.sequence.classification ?? ''))}</span>`;
+    const confClass = exp.sequence.confidence === 'high' ? 'positive' : 'warning';
+    const conf = `<span class="ai-badge ai-badge--${confClass}">${escapeHtml(String(exp.sequence.confidence ?? ''))}</span>`;
     pane.append(makeAccordion(
       t('ai.expert.sequence'),
-      `${badge} ${conf}<br>${i18n(exp.sequence.reasoning)}`
+      `${badge} ${conf}<br>${escapeHtml(i18n(exp.sequence.reasoning))}`,
+      undefined,
+      false,
+      true,
     ));
   }
 
@@ -485,19 +499,19 @@ function renderExpertTab(analysis: any): void {
   if (exp.historical_comparison?.narrative) {
     let content = '';
     if (exp.historical_comparison.primary_name) {
-      const name = i18n(exp.historical_comparison.primary_name);
+      const name = escapeHtml(i18n(exp.historical_comparison.primary_name));
       const year = exp.historical_comparison.primary_year;
       content += `<strong>${name}${year ? ` (${year})` : ''}</strong><br>`;
     }
-    content += i18n(exp.historical_comparison.narrative);
-    pane.append(makeAccordion(t('ai.expert.historical'), content));
+    content += escapeHtml(i18n(exp.historical_comparison.narrative));
+    pane.append(makeAccordion(t('ai.expert.historical'), content, undefined, false, true));
   }
 
   // Aftershock assessment (v1 compat)
   if (exp.aftershock_assessment) {
-    let content = i18n(exp.aftershock_assessment.omori_summary);
-    content += `<br><br><small style="color:var(--text-tertiary)">${i18n(exp.aftershock_assessment.caveat)}</small>`;
-    pane.append(makeAccordion(t('ai.expert.aftershock'), content));
+    let content = escapeHtml(i18n(exp.aftershock_assessment.omori_summary));
+    content += `<br><br><small style="color:var(--text-tertiary)">${escapeHtml(i18n(exp.aftershock_assessment.caveat))}</small>`;
+    pane.append(makeAccordion(t('ai.expert.aftershock'), content, undefined, false, true));
   }
 
   // Seismic gap (v2: is_gap + note, v1: is_in_gap + analysis)
@@ -505,7 +519,7 @@ function renderExpertTab(analysis: any): void {
   if (gap?.note || gap?.analysis) {
     const isGap = gap.is_gap ?? gap.is_in_gap;
     const badge = isGap ? '<span class="ai-badge ai-badge--warning">In Gap</span> ' : '';
-    pane.append(makeAccordion(t('ai.expert.gap'), `${badge}${i18n(gap.note ?? gap.analysis)}`));
+    pane.append(makeAccordion(t('ai.expert.gap'), `${badge}${escapeHtml(i18n(gap.note ?? gap.analysis))}`, undefined, false, true));
   }
 
   // Notable features (v2: claim/because/implication, v1 fallback: feature + note/description)
@@ -530,7 +544,9 @@ function renderExpertTab(analysis: any): void {
       } else {
         // v1 fallback: feature + note/description
         const p = el('p');
-        p.innerHTML = `<strong>${i18n(nf.feature)}:</strong> ${i18n(nf.note ?? nf.description)}`;
+        const strong = el('strong');
+        strong.textContent = `${i18n(nf.feature)}: `;
+        p.append(strong, document.createTextNode(i18n(nf.note ?? nf.description)));
         p.style.fontSize = 'var(--text-sm)';
         p.style.color = 'var(--text-secondary)';
         p.style.marginBottom = 'var(--space-2)';
@@ -543,7 +559,9 @@ function renderExpertTab(analysis: any): void {
 
 function addFactRow(container: HTMLElement, label: string, value: string): void {
   const row = el('div', 'ai-fact-row');
-  row.innerHTML = `<span class="ai-fact-label">${label}</span><span class="ai-fact-value">${value}</span>`;
+  const labelEl = el('span', 'ai-fact-label', label);
+  const valueEl = el('span', 'ai-fact-value', value);
+  row.append(labelEl, valueEl);
   container.append(row);
 }
 
@@ -572,22 +590,34 @@ function renderDataTab(analysis: any): void {
   // Key metrics table
   if (analysis.public?.intensity_guide?.length) {
     const table = el('table', 'ai-data-table');
-    table.innerHTML = `
-      <thead><tr>
-        <th>${t('ai.data.intensity')}</th>
-        <th>${t('ai.data.cities')}</th>
-        <th>${t('ai.data.population')}</th>
-      </tr></thead>
-      <tbody>
-        ${analysis.public.intensity_guide.map((ig: any) => `
-          <tr>
-            <td>${ig.intensity}</td>
-            <td>${(ig.cities || []).join(', ')}</td>
-            <td>${(ig.population || 0).toLocaleString()}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    `;
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    const intensityTh = document.createElement('th');
+    intensityTh.textContent = t('ai.data.intensity');
+    const citiesTh = document.createElement('th');
+    citiesTh.textContent = t('ai.data.cities');
+    const populationTh = document.createElement('th');
+    populationTh.textContent = t('ai.data.population');
+    headerRow.append(intensityTh, citiesTh, populationTh);
+    thead.append(headerRow);
+
+    const tbody = document.createElement('tbody');
+    for (const ig of analysis.public.intensity_guide as any[]) {
+      const row = document.createElement('tr');
+      const intensityTd = document.createElement('td');
+      intensityTd.textContent = String(ig.intensity ?? '');
+      const citiesTd = document.createElement('td');
+      citiesTd.textContent = Array.isArray(ig.cities) ? ig.cities.join(', ') : '';
+      const populationTd = document.createElement('td');
+      const population = Number(ig.population);
+      populationTd.textContent = Number.isFinite(population)
+        ? population.toLocaleString()
+        : '0';
+      row.append(intensityTd, citiesTd, populationTd);
+      tbody.append(row);
+    }
+
+    table.append(thead, tbody);
     pane.append(table);
   }
 
@@ -619,6 +649,7 @@ function makeAccordion(
   contentHtml: string,
   contentEl?: HTMLElement,
   startOpen = false,
+  allowHtml = false,
 ): HTMLElement {
   const acc = el('div', `ai-accordion${startOpen ? ' open' : ''}`);
 
@@ -638,7 +669,11 @@ function makeAccordion(
   if (contentEl) {
     inner.append(contentEl);
   } else {
-    inner.innerHTML = contentHtml;
+    if (allowHtml) {
+      inner.innerHTML = contentHtml;
+    } else {
+      inner.textContent = contentHtml;
+    }
   }
   body.append(inner);
 

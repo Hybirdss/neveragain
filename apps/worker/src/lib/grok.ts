@@ -8,6 +8,7 @@
 import type { Env } from '../index.ts';
 
 const XAI_API = 'https://api.x.ai/v1/chat/completions';
+const REQUEST_TIMEOUT_MS = 15_000;
 
 interface GrokResult {
   analysis: Record<string, unknown>;
@@ -75,14 +76,22 @@ export async function callGrok(
   context: Record<string, unknown>,
   tier: string,
 ): Promise<GrokResult> {
+  if (!env.XAI_API_KEY) {
+    throw new Error('XAI_API_KEY is not configured');
+  }
+
   const userMsg = `Tier: ${tier}\n\nFacts:\n${JSON.stringify(context, null, 2)}\n\nGenerate the narrative analysis JSON referencing these facts.`;
 
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
     try {
       const resp = await fetch(XAI_API, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${env.XAI_API_KEY}`,
@@ -122,10 +131,16 @@ export async function callGrok(
         },
       };
     } catch (err) {
-      lastError = err as Error;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        lastError = new Error(`Grok request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      } else {
+        lastError = err as Error;
+      }
       if (attempt < 1) {
         await new Promise(r => setTimeout(r, 2000));
       }
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

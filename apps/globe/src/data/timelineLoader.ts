@@ -19,6 +19,15 @@ export async function loadTimelineData(
   start: string,
   end: string,
 ): Promise<void> {
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    throw new Error('Invalid timeline date range');
+  }
+  if (startMs > endMs) {
+    throw new Error('Timeline start must be earlier than end');
+  }
+
   const events = await fetchHistoricalQuakes({
     starttime: start,
     endtime: end,
@@ -27,9 +36,6 @@ export async function loadTimelineData(
 
   // Sort ascending by time
   events.sort((a, b) => a.time - b.time);
-
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
 
   // Switch to timeline mode
   store.set('mode', 'timeline');

@@ -82,12 +82,28 @@ function isInJapanRegion(feature: USGSFeature): boolean {
   );
 }
 
-function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent {
+function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent | null {
+  if (
+    !Number.isFinite(ev.lat) ||
+    !Number.isFinite(ev.lng) ||
+    !Number.isFinite(ev.depth_km) ||
+    !Number.isFinite(ev.magnitude)
+  ) {
+    return null;
+  }
+  if (ev.lat < -90 || ev.lat > 90 || ev.lng < -180 || ev.lng > 180) {
+    return null;
+  }
+  if (ev.depth_km < 0 || ev.depth_km > 700) {
+    return null;
+  }
+
   const fallbackFaultType = classifyFaultType(ev.depth_km, ev.lat, ev.lng);
   const faultType = ev.fault_type === 'crustal' || ev.fault_type === 'interface' || ev.fault_type === 'intraslab'
     ? ev.fault_type
     : fallbackFaultType;
   const parsedTime = typeof ev.time === 'number' ? ev.time : Date.parse(ev.time);
+  if (!Number.isFinite(parsedTime)) return null;
 
   return {
     id: ev.id,
@@ -95,7 +111,7 @@ function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent {
     lng: ev.lng,
     depth_km: ev.depth_km,
     magnitude: ev.magnitude,
-    time: Number.isFinite(parsedTime) ? parsedTime : Date.now(),
+    time: parsedTime,
     faultType,
     tsunami: ev.tsunami === true,
     place: { text: ev.place ?? 'Unknown location' },
@@ -119,7 +135,9 @@ async function fetchJsonWithTimeout<T>(url: string): Promise<T> {
 async function fetchFromServer(): Promise<EarthquakeEvent[]> {
   const data = await fetchJsonWithTimeout<ServerEventsResponse>(SERVER_EVENTS_URL);
   if (!Array.isArray(data.events)) return [];
-  return data.events.map(toEarthquakeEventFromServer);
+  return data.events
+    .map(toEarthquakeEventFromServer)
+    .filter((event): event is EarthquakeEvent => event !== null);
 }
 
 async function fetchFromUSGS(): Promise<EarthquakeEvent[]> {

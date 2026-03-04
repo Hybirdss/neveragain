@@ -55,6 +55,13 @@ app.use('/api/*', async (c, next) => {
   }
 });
 
+app.onError((err, c) => {
+  console.error('[worker] unhandled error:', err);
+  return c.json({ error: 'Internal server error' }, 500);
+});
+
+app.notFound((c) => c.json({ error: 'Not found' }, 404));
+
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }));
 

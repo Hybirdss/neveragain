@@ -9,6 +9,8 @@ import {
 } from 'drizzle-orm';
 
 export const searchRoute = new Hono<{ Bindings: Env }>();
+const MAX_QUERY_LENGTH = 256;
+const MAX_REGION_LENGTH = 120;
 
 /**
  * POST /api/search
@@ -25,6 +27,9 @@ searchRoute.post('/', async (c) => {
 
   // Determine if this is an AI fallback request
   const rawQuery = getString(body.raw_query);
+  if (rawQuery.length > MAX_QUERY_LENGTH) {
+    return c.json({ error: `raw_query too long (max ${MAX_QUERY_LENGTH})` }, 400);
+  }
   const isAiFallback = rawQuery.length > 0;
   const route = isAiFallback ? 'search_ai' : 'search_sql';
   const rl = await checkRateLimit(c.env.RATE_LIMIT, ip, route);
@@ -72,7 +77,7 @@ searchRoute.post('/', async (c) => {
   const lat = getNumber(body.lat);
   const lng = getNumber(body.lng);
   const radiusKm = getNumber(body.radius_km);
-  const region = getString(body.region);
+  const region = getString(body.region).slice(0, MAX_REGION_LENGTH);
   const depthClass = getDepthClass(body.depth_class);
   const relative = getRelativeWindow(body.relative);
   const tags = getTags(body.tags);

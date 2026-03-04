@@ -207,7 +207,13 @@ function renderResults(results: any[]): void {
   resultsList.textContent = '';
 
   // Stats summary
-  const rows = results.map(toSearchRow);
+  const rows = results
+    .map(toSearchRow)
+    .filter(isValidSearchRow);
+  if (rows.length === 0) {
+    resultsList.innerHTML = `<div class="search-empty">${t('search.noResults')}</div>`;
+    return;
+  }
   const avgMag = rows.reduce((s, r) => s + r.magnitude, 0) / rows.length;
   const offshore = rows.filter(r => r.place.match(/沖|offshore|off\s|海/i)).length;
   const inland = rows.length - offshore;
@@ -221,10 +227,9 @@ function renderResults(results: any[]): void {
   resultsList.appendChild(statsEl);
 
   const fragment = document.createDocumentFragment();
-  const sliced = results.slice(0, 20);
+  const sliced = rows.slice(0, 20);
 
-  for (const result of sliced) {
-    const row = toSearchRow(result);
+  for (const row of sliced) {
     const button = document.createElement('button');
     button.className = 'search-result-item';
     button.type = 'button';
@@ -282,6 +287,16 @@ interface SearchRow {
   place: string;
 }
 
+function isValidSearchRow(row: SearchRow): boolean {
+  return (
+    row.id.length > 0 &&
+    Number.isFinite(row.lat) &&
+    Number.isFinite(row.lng) &&
+    Number.isFinite(row.depth_km) &&
+    Number.isFinite(row.magnitude)
+  );
+}
+
 function toSearchRow(value: unknown): SearchRow {
   const r = (typeof value === 'object' && value !== null)
     ? value as Record<string, unknown>
@@ -308,7 +323,7 @@ function toSearchRow(value: unknown): SearchRow {
 
 function toNumber(value: unknown): number {
   const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : Number.NaN;
 }
 
 function isSupportedTime(value: unknown): value is string | number | Date {
