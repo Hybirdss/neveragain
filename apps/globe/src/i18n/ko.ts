@@ -243,6 +243,9 @@ const ko: Record<string, string> = {
   'mobile.tab.ask': '질문',
   'mobile.nav.label': '모바일 내비게이션',
 
+  // Navigation
+  'nav.returnToJapan': '일본으로 돌아가기',
+
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '한',

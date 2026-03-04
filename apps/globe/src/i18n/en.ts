@@ -256,6 +256,9 @@ const en: Record<string, string> = {
   'ask.input.label': 'Ask input',
   'ask.input.send': 'Send',
 
+  // Navigation
+  'nav.returnToJapan': 'Return to Japan',
+
   // Mobile shell
   'mobile.tab.map': 'Map',
   'mobile.tab.live': 'Live',

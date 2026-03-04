@@ -54,6 +54,7 @@ import { initMobileShell, disposeMobileShell } from './ui/mobileShell';
 import { initSearchBar, disposeSearchBar } from './ui/searchBar';
 import { initCrossSection, disposeCrossSection } from './ui/crossSection';
 import { initImpactPanel, disposeImpactPanel } from './ui/impactPanel';
+import { initHomeButton, disposeHomeButton } from './ui/homeButton';
 
 // Data
 import { loadTimelineData } from './data/timelineLoader';
@@ -140,6 +141,7 @@ async function bootstrap(): Promise<void> {
   initSearchBar();
   initCrossSection(layout.globeArea);
   initMobileShell(layout.globeArea);
+  initHomeButton(layout.globeArea, globe);
   initModeSwitcher(layout.globeArea, {
     onLoadTimeline: (start, end) => {
       loadTimelineData(start, end).catch((err) =>
@@ -260,6 +262,7 @@ async function bootstrap(): Promise<void> {
       disposeImpactPanel();
       disposeSearchBar();
       disposeMobileShell();
+      disposeHomeButton();
       disposeGeocoder();
       disposeModeSwitcher();
       disposeIntensityLegend();

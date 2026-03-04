@@ -242,6 +242,9 @@ const ja: Record<string, string> = {
   'mobile.tab.ask': '質問',
   'mobile.nav.label': 'モバイルナビゲーション',
 
+  // Navigation
+  'nav.returnToJapan': '日本に戻る',
+
   // Locale switcher
   'locale.en': 'EN',
   'locale.ko': '한',

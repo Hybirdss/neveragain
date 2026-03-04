@@ -1,8 +1,9 @@
 /**
  * japanGeo.ts — Static Japan reverse geocoder
  *
- * Converts lat/lng to a natural Japanese place name.
+ * Converts lat/lng to a natural place name in ja/en/ko.
  * Uses a table of prefecture centers + offshore seismic regions.
+ * Handles disputed territory naming per locale.
  * No external API calls — fully client-side.
  */
 
@@ -10,7 +11,8 @@ interface GeoEntry {
   lat: number;
   lng: number;
   ja: string;        // Japanese name
-  en: string;        // English name (fallback)
+  en: string;        // English name
+  ko?: string;       // Korean name (only for disputed/sensitive regions)
   offshore?: boolean; // true = sea region
 }
 
@@ -70,7 +72,7 @@ const GEO_TABLE: GeoEntry[] = [
   { lat: 37.5, lng: 143.0, ja: '福島県沖', en: 'Off Fukushima', offshore: true },
   { lat: 36.0, lng: 142.0, ja: '茨城県沖', en: 'Off Ibaraki', offshore: true },
   { lat: 34.5, lng: 142.0, ja: '千葉県東方沖', en: 'Off east Chiba', offshore: true },
-  { lat: 33.0, lng: 137.0, ja: '南海トラフ', en: 'Nankai Trough', offshore: true },
+  { lat: 33.0, lng: 137.0, ja: '南海トラフ', en: 'Nankai Trough', ko: '난카이 해구', offshore: true },
   { lat: 34.0, lng: 139.0, ja: '伊豆諸島', en: 'Izu Islands', offshore: true },
   { lat: 30.0, lng: 140.0, ja: '小笠原諸島', en: 'Ogasawara', offshore: true },
   { lat: 29.5, lng: 129.5, ja: '奄美大島近海', en: 'Near Amami', offshore: true },
@@ -79,10 +81,23 @@ const GEO_TABLE: GeoEntry[] = [
   { lat: 24.0, lng: 123.0, ja: '石垣島近海', en: 'Near Ishigaki', offshore: true },
   { lat: 42.5, lng: 145.0, ja: '根室半島南東沖', en: 'Off SE Nemuro', offshore: true },
   { lat: 43.5, lng: 146.5, ja: '択捉島南東沖', en: 'Off Etorofu', offshore: true },
-  { lat: 38.5, lng: 134.0, ja: '日本海中部', en: 'Central Sea of Japan', offshore: true },
   { lat: 35.0, lng: 136.0, ja: '紀伊水道', en: 'Kii Channel', offshore: true },
   { lat: 33.5, lng: 132.0, ja: '豊後水道', en: 'Bungo Channel', offshore: true },
+
+  // ── Disputed / sensitive naming regions ──
+  // Sea of Japan / East Sea
+  { lat: 38.5, lng: 134.0, ja: '日本海中部', en: 'Central Sea of Japan', ko: '동해 중부', offshore: true },
+  // Dokdo / Takeshima area
+  { lat: 37.24, lng: 131.87, ja: '竹島近海', en: 'Near Liancourt Rocks', ko: '독도 근해', offshore: true },
+  // Senkaku area (use Japanese naming per project policy)
+  { lat: 25.8, lng: 123.5, ja: '尖閣諸島近海', en: 'Near Senkaku Islands', ko: '센카쿠 제도 근해', offshore: true },
 ];
+
+// ── Compass directions per locale ──
+
+const DIRS_JA = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+const DIRS_EN = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const DIRS_KO = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
 
 /**
  * Haversine distance in km between two lat/lng points.
@@ -99,32 +114,38 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
 }
 
 /**
- * Determine compass direction from reference point to target.
+ * Compute compass direction index (0-7) from reference point to target.
  */
-function compassDir(fromLat: number, fromLng: number, toLat: number, toLng: number): string {
+function compassIdx(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
   const dLat = toLat - fromLat;
   const dLng = toLng - fromLng;
   const angle = Math.atan2(dLng, dLat) * 180 / Math.PI;
-  // Normalize to 0-360
   const a = ((angle % 360) + 360) % 360;
+  return Math.round(a / 45) % 8;
+}
 
-  const DIRS = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
-  const idx = Math.round(a / 45) % 8;
-  return DIRS[idx];
+/** Get the localized name from a GeoEntry. */
+function entryName(entry: GeoEntry, locale: string): string {
+  if (locale === 'ko' && entry.ko) return entry.ko;
+  return locale === 'ja' ? entry.ja : entry.en;
 }
 
 export interface JapanPlaceName {
   ja: string;   // Japanese display name
-  en: string;   // English fallback
+  en: string;   // English name
+  ko: string;   // Korean name
 }
 
 /**
- * Get a natural Japanese place name for the given coordinates.
+ * Get a locale-aware place name for the given coordinates.
+ *
+ * Returns null if coordinates are >500km from any Japan reference point
+ * (caller should fall back to USGS place text).
  *
  * Returns formats like:
- * - "福島県沖" (offshore region match)
- * - "東京都付近" (within 30km of prefecture center)
- * - "宮城県の南東35km" (distance + direction from nearest prefecture)
+ * - "福島県沖" / "Off Fukushima" / "후쿠시마현 앞바다" (offshore)
+ * - "東京都付近" / "Near Tokyo" / "Tokyo 부근" (within 30km)
+ * - "宮城県 南東35km" / "35km SE of Miyagi" / "Miyagi 남동 35km" (with direction)
  */
 export function getJapanPlaceName(lat: number, lng: number): JapanPlaceName | null {
   let nearest: GeoEntry | null = null;
@@ -145,12 +166,20 @@ export function getJapanPlaceName(lat: number, lng: number): JapanPlaceName | nu
 
   // Offshore region match — use directly if within reasonable range
   if (nearest.offshore && nearestDist < 200) {
-    return { ja: nearest.ja, en: nearest.en };
+    return {
+      ja: nearest.ja,
+      en: nearest.en,
+      ko: nearest.ko || nearest.en,
+    };
   }
 
   // Very close to a land prefecture — "XX付近"
   if (!nearest.offshore && nearestDist < 30) {
-    return { ja: `${nearest.ja}付近`, en: `Near ${nearest.en}` };
+    return {
+      ja: `${nearest.ja}付近`,
+      en: `Near ${nearest.en}`,
+      ko: `${entryName(nearest, 'ko')} 부근`,
+    };
   }
 
   // Find nearest land prefecture for direction-based name
@@ -165,21 +194,29 @@ export function getJapanPlaceName(lat: number, lng: number): JapanPlaceName | nu
     }
   }
 
-  if (!nearestLand) return { ja: nearest.ja, en: nearest.en };
+  if (!nearestLand) {
+    return {
+      ja: nearest.ja,
+      en: nearest.en,
+      ko: nearest.ko || nearest.en,
+    };
+  }
 
   // Offshore from land prefecture — "XX県沖"
   if (nearestLandDist > 80) {
     return {
       ja: `${nearestLand.ja}沖`,
       en: `Off ${nearestLand.en}`,
+      ko: `${entryName(nearestLand, 'ko')} 앞바다`,
     };
   }
 
-  // Moderate distance — "XX県の南東35km"
-  const dir = compassDir(nearestLand.lat, nearestLand.lng, lat, lng);
+  // Moderate distance — "XX県 南東35km"
+  const idx = compassIdx(nearestLand.lat, nearestLand.lng, lat, lng);
   const km = Math.round(nearestLandDist);
   return {
-    ja: `${nearestLand.ja} ${dir}${km}km`,
-    en: `${km}km ${dir} of ${nearestLand.en}`,
+    ja: `${nearestLand.ja} ${DIRS_JA[idx]}${km}km`,
+    en: `${km}km ${DIRS_EN[idx]} of ${nearestLand.en}`,
+    ko: `${entryName(nearestLand, 'ko')} ${DIRS_KO[idx]} ${km}km`,
   };
 }

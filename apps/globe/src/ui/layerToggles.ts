@@ -8,7 +8,6 @@
 import { store } from '../store/appState';
 import type { LayerVisibility } from '../types';
 import type { GlobeInstance } from '../globe/globeInstance';
-import { flyToJapan } from '../globe/globeInstance';
 import { t, onLocaleChange } from '../i18n/index';
 
 // ── Layer definitions ───────────────────────────────────────────
@@ -34,7 +33,6 @@ let toggleEls: Map<keyof LayerVisibility, { row: HTMLElement; dot: HTMLElement; 
 let unsubscribe: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 let titleEl: HTMLElement | null = null;
-let viewerRef: GlobeInstance | null = null;
 
 function setExpanded(open: boolean): void {
   expanded = open;
@@ -72,8 +70,8 @@ function createToggleRow(
 
 // ── Init ────────────────────────────────────────────────────────
 
-export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance): void {
-  viewerRef = viewer ?? null;
+export function initLayerToggles(container: HTMLElement, _viewer?: GlobeInstance): void {
+  // viewer param retained for future layer-specific globe integration
 
   // Wrapper holds trigger button + expandable panel
   wrapperEl = document.createElement('div');
@@ -109,20 +107,6 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
     });
     panelEl.appendChild(row);
   }
-
-  // Japan focus button
-  const sep = document.createElement('div');
-  sep.className = 'layer-toggles__separator';
-  panelEl.appendChild(sep);
-
-  const japanBtn = document.createElement('button');
-  japanBtn.type = 'button';
-  japanBtn.className = 'layer-toggles__action-btn';
-  japanBtn.textContent = '🇯🇵 Japan';
-  japanBtn.addEventListener('click', () => {
-    if (viewerRef) flyToJapan(viewerRef);
-  });
-  panelEl.appendChild(japanBtn);
 
   wrapperEl.appendChild(panelEl);
   container.appendChild(wrapperEl);

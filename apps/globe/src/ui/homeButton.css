@@ -1,0 +1,49 @@
+/* --- Home Button (Return to Japan) --- */
+.home-button {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  z-index: var(--z-hud);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 8px 16px;
+  background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  color: var(--text-primary);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.home-button--visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.home-button:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-emphasis);
+}
+
+.home-button svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .home-button {
+    top: auto;
+    bottom: calc(var(--mobile-shell-height, 66px) + env(safe-area-inset-bottom) + 74px);
+    font-size: 11px;
+    padding: 8px 14px;
+  }
+}

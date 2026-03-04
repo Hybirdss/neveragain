@@ -57,7 +57,9 @@ let hasReceivedData = false;
 function eventPlaceName(event: EarthquakeEvent): string {
   const place = getJapanPlaceName(event.lat, event.lng);
   if (!place) return event.place?.text || 'Unknown';
-  return getLocale() === 'ja' ? place.ja : place.en;
+  const locale = getLocale();
+  if (locale === 'ko') return place.ko;
+  return locale === 'ja' ? place.ja : place.en;
 }
 
 // ── Helpers ──
