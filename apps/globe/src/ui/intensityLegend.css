@@ -4,7 +4,7 @@
   bottom: calc(var(--timeline-height) + var(--space-6));
   right: calc(var(--sidebar-width) + var(--space-6));
   z-index: var(--z-hud);
-  background: rgba(8, 8, 8, 0.85);
+  background: var(--surface-glass, rgba(18, 22, 32, 0.82));
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   padding: var(--spacing-panel-y) var(--spacing-panel-x);

@@ -208,6 +208,59 @@
   letter-spacing: 0.5px;
 }
 
+/* --- AI Analysis Section --- */
+.detail-ai {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.detail-ai__one-liner {
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  line-height: 1.7;
+  font-weight: 500;
+}
+
+.detail-ai__why {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-top: 8px;
+}
+
+.detail-ai__disclaimer {
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid var(--text-disabled);
+}
+
+.detail-ai__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg,
+    var(--surface-card) 0%,
+    var(--surface-hover) 40%,
+    var(--surface-card) 80%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-scan 1.5s ease-in-out infinite;
+}
+
+.skeleton-line--short {
+  width: 60%;
+}
+
 /* --- Detail Action Buttons --- */
 .detail-actions {
   display: flex;

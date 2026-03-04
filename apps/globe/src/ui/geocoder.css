@@ -14,7 +14,7 @@
   gap: 8px;
   padding: 0 12px;
   height: 40px;
-  background: rgba(12, 12, 12, 0.88);
+  background: var(--surface-glass, rgba(18, 22, 32, 0.82));
   border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.12));
   border-radius: 10px;
   backdrop-filter: blur(12px);
@@ -66,7 +66,7 @@
   list-style: none;
   margin: 4px 0 0;
   padding: 0;
-  background: rgba(12, 12, 12, 0.94);
+  background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
   border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.12));
   border-radius: 10px;
   backdrop-filter: blur(12px);

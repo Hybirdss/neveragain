@@ -35,11 +35,17 @@ let mmiLevelEl: HTMLElement;
 let mmiTitleEl: HTMLElement;
 let crossSectionBtn: HTMLElement;
 let cinematicBtn: HTMLElement;
+let aiSectionEl: HTMLElement;
+let aiOneLinerEl: HTMLElement;
+let aiWhyEl: HTMLElement;
+let aiDisclaimerEl: HTMLElement;
+let aiSkeletonEl: HTMLElement;
 
 let statusBarEl: HTMLElement;
 let unsubLocale: (() => void) | null = null;
 let unsubSelected: (() => void) | null = null;
 let unsubNetworkError: (() => void) | null = null;
+let unsubAi: (() => void) | null = null;
 let statusTimerId: ReturnType<typeof setInterval> | null = null;
 let currentEvents: EarthquakeEvent[] = [];
 let hasReceivedData = false;
@@ -313,6 +319,25 @@ function buildDetailPanel(): HTMLElement {
   mmiBarContainer.appendChild(labels);
   detailPanel.appendChild(mmiBarContainer);
 
+  // AI Analysis Section
+  aiSectionEl = el('div', 'detail-ai');
+  aiSectionEl.style.display = 'none';
+
+  aiSkeletonEl = el('div', 'detail-ai__skeleton');
+  aiSkeletonEl.innerHTML = '<div class="skeleton-line"></div><div class="skeleton-line skeleton-line--short"></div>';
+  aiSectionEl.appendChild(aiSkeletonEl);
+
+  aiOneLinerEl = el('div', 'detail-ai__one-liner');
+  aiSectionEl.appendChild(aiOneLinerEl);
+
+  aiWhyEl = el('div', 'detail-ai__why');
+  aiSectionEl.appendChild(aiWhyEl);
+
+  aiDisclaimerEl = el('div', 'detail-ai__disclaimer', '⚠ AI分析は参考情報です。公式情報は気象庁をご確認ください。');
+  aiSectionEl.appendChild(aiDisclaimerEl);
+
+  detailPanel.appendChild(aiSectionEl);
+
   // Action buttons
   const actions = el('div', 'detail-actions');
   crossSectionBtn = el('button', 'detail-action-btn', t('detail.crossSection'));
@@ -377,6 +402,15 @@ export function initLiveFeed(): void {
   // Update status bar on network error changes
   unsubNetworkError = store.subscribe('networkError', () => {
     refreshStatusBar();
+  });
+
+  // Update detail panel when AI analysis arrives
+  unsubAi = store.subscribe('ai', () => {
+    const selected = store.get('selectedEvent');
+    if (selected) {
+      const intensitySource = store.get('intensitySource');
+      refreshDetailPanel(selected, intensitySource);
+    }
   });
 
   // Refresh "Updated X min ago" periodically
@@ -454,6 +488,40 @@ function refreshDetailPanel(
       mmiBarContainer.style.display = 'none';
     }
 
+    // AI Analysis rendering
+    const aiState = store.get('ai');
+    if (aiState.analysisLoading) {
+      aiSectionEl.style.display = 'block';
+      aiSkeletonEl.style.display = 'block';
+      aiOneLinerEl.style.display = 'none';
+      aiWhyEl.style.display = 'none';
+      aiDisclaimerEl.style.display = 'none';
+    } else if (aiState.currentAnalysis) {
+      const a = aiState.currentAnalysis as any;
+      aiSectionEl.style.display = 'block';
+      aiSkeletonEl.style.display = 'none';
+
+      const oneLiner = a.dashboard?.one_liner?.ja || a.dashboard?.one_liner?.en || '';
+      if (oneLiner) {
+        aiOneLinerEl.textContent = oneLiner;
+        aiOneLinerEl.style.display = 'block';
+      } else {
+        aiOneLinerEl.style.display = 'none';
+      }
+
+      const why = a.public?.why?.ja || a.public?.why?.en || '';
+      if (why) {
+        aiWhyEl.textContent = why;
+        aiWhyEl.style.display = 'block';
+      } else {
+        aiWhyEl.style.display = 'none';
+      }
+
+      aiDisclaimerEl.style.display = 'block';
+    } else {
+      aiSectionEl.style.display = 'none';
+    }
+
     crossSectionBtn.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';
     cinematicBtn.style.display = selectedEvent.magnitude >= 5.0 ? 'block' : 'none';
   } else {
@@ -468,6 +536,8 @@ export function disposeLiveFeed(): void {
   unsubSelected = null;
   unsubNetworkError?.();
   unsubNetworkError = null;
+  unsubAi?.();
+  unsubAi = null;
   if (statusTimerId !== null) {
     clearInterval(statusTimerId);
     statusTimerId = null;
