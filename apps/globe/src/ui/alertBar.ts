@@ -26,6 +26,14 @@ export function initAlertBar(container: HTMLElement): void {
   alertTextEl.className = 'alert-bar__text';
   alertBarEl.appendChild(alertTextEl);
 
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'alert-bar__close';
+  closeBtn.type = 'button';
+  closeBtn.innerHTML = '\u00d7';
+  closeBtn.setAttribute('aria-label', 'Dismiss alert');
+  closeBtn.addEventListener('click', () => hideAlert());
+  alertBarEl.appendChild(closeBtn);
+
   container.appendChild(alertBarEl);
 }
 

@@ -56,25 +56,35 @@ export function isInsideJapan(lat: number, lng: number): boolean {
 }
 
 /**
- * Add Esri World Imagery (satellite) + Reference overlay (labels).
- * Fallback when tile proxy is unavailable or MapTiler is rate-limited.
+ * Add free, rate-limit-free base imagery:
+ *   1. CartoDB Dark Matter (global, z0-z19) — dark theme, free, no API key
+ *   2. GSI seamlessphoto (Japan only, z2-z18) — high-res satellite, free
+ *   3. GSI std labels overlay (Japan only, z5-z18) — Japanese place names
  */
-function addEsriFallbackImagery(viewer: GlobeInstance): void {
+function addFreeBaseImagery(viewer: GlobeInstance): void {
+  // Layer 1: Global dark base map (always visible)
   viewer.imageryLayers.addImageryProvider(
     new Cesium.UrlTemplateImageryProvider({
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      maximumLevel: 18,
-      credit: new Cesium.Credit('© Esri, Maxar, Earthstar Geographics', true),
+      url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+      maximumLevel: 19,
+      credit: new Cesium.Credit('© OpenStreetMap contributors © CARTO', true),
     }),
   );
-  viewer.imageryLayers.addImageryProvider(
+
+  // Layer 2: GSI seamlessphoto for Japan (satellite imagery, Japan only)
+  const japanRect = Cesium.Rectangle.fromDegrees(122, 20, 154, 46);
+  const gsiSatellite = viewer.imageryLayers.addImageryProvider(
     new Cesium.UrlTemplateImageryProvider({
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+      rectangle: japanRect,
+      minimumLevel: 2,
       maximumLevel: 18,
-      credit: new Cesium.Credit('© Esri', true),
+      credit: new Cesium.Credit('航空写真: 国土地理院', true),
     }),
   );
+  gsiSatellite.alpha = 1.0;
 }
+
 
 /**
  * Create and mount a CesiumJS Viewer into the given container element.
@@ -171,7 +181,7 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
   Cesium.RequestScheduler.maximumRequestsPerServer = 6;
 
   // ── Imagery layer ───────────────────────────────────────────
-  // Probe proxy/MapTiler availability, fall back to Esri if down.
+  // Priority: CF Workers proxy > MapTiler direct > Free GSI + CartoDB dark
   let proxyOk = false;
   if (useProxy) {
     try {
@@ -181,10 +191,10 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
       const resp = await fetch(probeTarget, { method: 'HEAD' });
       proxyOk = resp.ok;
       if (!resp.ok) {
-        console.warn(`[globe] Tile probe returned ${resp.status} — falling back to Esri`);
+        console.warn(`[globe] Tile probe returned ${resp.status} — using free tiles`);
       }
     } catch {
-      console.warn('[globe] Tile source unreachable — falling back to Esri');
+      console.warn('[globe] Tile source unreachable — using free tiles');
     }
   }
 
@@ -192,14 +202,15 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
     viewer.imageryLayers.addImageryProvider(
       new Cesium.UrlTemplateImageryProvider({
         url: satelliteUrl,
-        maximumLevel: 18, // Workers caps non-Japan at z13, returns 204 for z14+
+        maximumLevel: 18,
         credit: new Cesium.Credit('© MapTiler © OpenStreetMap contributors | 航空写真: 国土地理院', true),
       }),
     );
     console.log('[globe] Imagery: satellite (proxy/MapTiler)');
   } else {
-    addEsriFallbackImagery(viewer);
-    console.log('[globe] Imagery: Esri fallback');
+    // Free tiles: CartoDB dark (global) + GSI seamlessphoto (Japan satellite)
+    addFreeBaseImagery(viewer);
+    console.log('[globe] Imagery: CartoDB dark + GSI seamlessphoto (free, no API key)');
   }
 
   // ── Atmosphere & sky ────────────────────────────────────────

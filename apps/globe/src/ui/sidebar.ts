@@ -327,6 +327,40 @@ export function initSidebar(container: HTMLElement): void {
   mobileViewportQuery.addEventListener('change', onViewportChange);
   syncSidebarToggleState();
 
+  // Swipe-to-dismiss for mobile bottom sheet
+  let swipeStartY = 0;
+  let swipeDeltaY = 0;
+  let isSwiping = false;
+
+  sidebarEl.addEventListener('touchstart', (e) => {
+    if (!mobileViewportQuery?.matches) return;
+    if (!sidebarEl.classList.contains('sidebar--open')) return;
+    swipeStartY = e.touches[0].clientY;
+    isSwiping = true;
+    sidebarEl.style.transition = 'none';
+  }, { passive: true });
+
+  sidebarEl.addEventListener('touchmove', (e) => {
+    if (!isSwiping) return;
+    const deltaY = e.touches[0].clientY - swipeStartY;
+    if (deltaY > 0) {
+      swipeDeltaY = deltaY;
+      sidebarEl.style.transform = `translateY(${deltaY}px)`;
+    }
+  }, { passive: true });
+
+  sidebarEl.addEventListener('touchend', () => {
+    if (!isSwiping) return;
+    isSwiping = false;
+    sidebarEl.style.transition = '';
+    if (swipeDeltaY > 100) {
+      closeSidebar();
+    } else {
+      sidebarEl.style.transform = '';
+    }
+    swipeDeltaY = 0;
+  }, { passive: true });
+
   // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
     headerTitleEl.textContent = t('sidebar.title');
