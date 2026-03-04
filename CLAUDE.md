@@ -1,4 +1,4 @@
-# NeverAgain — Japan Earthquake Simulation Dashboard
+# 鯰 Namazue — Japan Earthquake Simulation Dashboard
 
 ## Mission
 JMA EEW 파이프라인을 재현하는 지진공학 엔진 위에 Google Earth급 3D 글로브 시각화를 얹어, 일반인도 매일 들어와서 보는 지진 시뮬레이션 도구를 만든다.

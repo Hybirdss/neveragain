@@ -122,6 +122,13 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+.search-stats {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-tertiary, #64748b);
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+}
+
 .search-footer {
   padding: 8px 16px;
   border-top: 1px solid var(--border-default, #1f2937);

@@ -12,8 +12,10 @@ dist
 dist-ssr
 *.local
 .env
+.dev.vars
 .agents/
 workers/tile-proxy/wrangler.toml
+apps/worker/wrangler.toml
 
 # Editor directories and files
 .vscode/*

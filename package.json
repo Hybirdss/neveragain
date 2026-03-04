@@ -1,34 +1,27 @@
 {
-  "name": "earthquake-dashboard",
+  "name": "namazue",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "build:slab2": "npx tsx tools/build-slab2-contours.ts",
-    "build:catalog": "npx tsx tools/build-historical-catalog.ts",
-    "build:data": "npm run build:slab2 && npm run build:catalog"
+    "dev": "npm run dev -w @namazue/globe",
+    "build": "npm run build -w @namazue/globe",
+    "dev:worker": "npm run dev -w @namazue/worker",
+    "build:data": "npx tsx tools/build-slab2-contours.ts && npx tsx tools/build-historical-catalog.ts"
   },
   "devDependencies": {
-    "@types/d3-contour": "^3.0.6",
-    "@types/d3-scale": "^4.0.9",
-    "@types/geojson": "^7946.0.16",
+    "dotenv": "^17.3.1",
     "tsx": "^4.19.0",
-    "typescript": "~5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "typescript": "~5.9.3"
   },
   "dependencies": {
-    "cesium": "^1.139.0",
-    "d3-contour": "^4.0.2",
-    "d3-scale": "^4.0.2",
-    "vite-plugin-cesium": "^1.2.23"
+    "@google/genai": "^1.43.0"
   }
 }

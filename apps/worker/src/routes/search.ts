@@ -108,6 +108,25 @@ searchRoute.post('/', async (c) => {
     conditions.push(arrayContains(analyses.search_tags, tags));
   }
 
+  // Category-based filters (search_index.categories JSON)
+  const plate = getString(body.plate);
+  const boundary = getString(body.boundary);
+  const catDepthClass = getString(body.cat_depth_class);
+  const catRegion = getString(body.cat_region);
+
+  if (plate) {
+    conditions.push(sql`${analyses.analysis}->'search_index'->'categories'->>'plate' = ${plate}`);
+  }
+  if (boundary) {
+    conditions.push(sql`${analyses.analysis}->'search_index'->'categories'->>'boundary' = ${boundary}`);
+  }
+  if (catDepthClass) {
+    conditions.push(sql`${analyses.analysis}->'search_index'->'categories'->>'depth_class' = ${catDepthClass}`);
+  }
+  if (catRegion) {
+    conditions.push(sql`${analyses.analysis}->'search_index'->'categories'->>'region' = ${catRegion}`);
+  }
+
   const rows = await db.select({
     id: earthquakes.id,
     lat: earthquakes.lat,

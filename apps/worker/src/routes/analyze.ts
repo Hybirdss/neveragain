@@ -58,6 +58,13 @@ function isJapan(lat: number, lng: number): boolean {
   return lat >= 20 && lat <= 50 && lng >= 120 && lng <= 155;
 }
 
+function derivePlatePair(plate: string): string {
+  if (plate === 'pacific') return 'Pacific ↔ North American';
+  if (plate === 'philippine') return 'Philippine Sea ↔ Eurasian';
+  if (plate === 'north_american') return 'North American ↔ Eurasian';
+  return 'Unknown';
+}
+
 export async function generateAndStoreAnalysis(
   env: Env,
   eventId: string,
@@ -168,23 +175,86 @@ export async function generateAndStoreAnalysis(
   };
 
   const context = buildContext(builderInput);
-  const { analysis, usage } = await callGrok(env, context as any, tier);
+
+  // Build v2 facts block from context (code-computed, LLM never touches)
+  const facts = {
+    event: context.basic,
+    tectonic: {
+      plate: context.tectonic.plate,
+      plate_pair: derivePlatePair(context.tectonic.plate),
+      boundary_type: context.tectonic.boundary_type,
+      nearest_trench: context.tectonic.nearest_trench,
+      nearest_fault: context.tectonic.nearest_active_fault,
+      depth_class: context.basic.depth_km < 30 ? 'shallow' : context.basic.depth_km < 70 ? 'mid' : context.basic.depth_km < 300 ? 'intermediate' : 'deep',
+      is_japan: isJapan(event.lat, event.lng),
+    },
+    mechanism: context.mechanism
+      ? { status: 'available' as const, strike: context.mechanism.strike, dip: context.mechanism.dip, rake: context.mechanism.rake, source: 'gcmt' }
+      : { status: 'missing' as const, source: null },
+    tsunami: context.impact?.tsunami ?? { risk: 'none', source: 'rule_engine', factors: [], confidence: 'high' },
+    aftershocks: context.aftershock_stats,
+    spatial: context.spatial.nearby_30yr_stats,
+    ground_motion: { gmpe_model: 'Si_Midorikawa_1999', vs30: context.tectonic.vs30, site_class: context.tectonic.soil_class },
+    sources: { event_source: 'usgs', review_status: 'reviewed', moment_tensor_source: context.mechanism ? 'gcmt' : null },
+    uncertainty: { mag_sigma: null, depth_sigma: null, location_uncert_km: null },
+  };
+
+  const { analysis: narrative, usage } = await callGrok(env, facts as any, tier);
+
+  // Merge facts + Grok narrative into v2 analysis
+  const grok = narrative as any;
+  const mergedAnalysis = {
+    event_id: event.id,
+    tier,
+    version: 1,
+    generated_at: new Date().toISOString(),
+    model: 'grok-4-fast',
+    facts: {
+      max_intensity: { value: null, class: null, scale: 'JMA', source: 'gmpe', confidence: 'low' },
+      tsunami: facts.tsunami,
+      aftershocks: facts.aftershocks,
+      mechanism: facts.mechanism,
+      tectonic: facts.tectonic,
+      spatial: facts.spatial,
+      ground_motion: facts.ground_motion,
+      sources: facts.sources,
+      uncertainty: facts.uncertainty,
+    },
+    dashboard: grok.dashboard ?? {},
+    public: grok.public ?? {},
+    expert: grok.expert ?? {},
+    search_index: {
+      tags: grok.search_index?.tags ?? [],
+      region: grok.search_index?.region ?? null,
+      categories: {
+        plate: facts.tectonic.plate,
+        boundary: facts.tectonic.boundary_type,
+        region: grok.search_index?.region ?? null,
+        depth_class: facts.tectonic.depth_class,
+        damage_level: grok.search_index?.damage_level ?? 'none',
+        tsunami_generated: facts.tsunami.risk !== 'none',
+        has_foreshocks: grok.search_index?.has_foreshocks ?? false,
+        is_in_seismic_gap: grok.expert?.seismic_gap?.is_gap ?? false,
+      },
+      region_keywords: grok.search_index?.region_keywords ?? { ja: [], ko: [], en: [] },
+    },
+  };
 
   await db.insert(analyses).values({
     event_id: event.id,
     version: 1,
     tier,
     model: 'grok-4-fast',
-    prompt_version: 'v1.0.0',
-    context: context as any,
-    analysis: analysis as any,
-    search_tags: (analysis as any).search_index?.tags ?? [],
-    search_region: (analysis as any).search_index?.region ?? null,
+    prompt_version: 'v2.0.0',
+    context: facts as any,
+    analysis: mergedAnalysis as any,
+    search_tags: mergedAnalysis.search_index.tags,
+    search_region: mergedAnalysis.search_index.region,
     is_latest: true,
   });
 
   console.log(`[analyze] generated event=${event.id} tier=${tier} tokens=${usage.input_tokens}+${usage.output_tokens}`);
-  return { status: 'generated', analysis: analysis as unknown };
+  return { status: 'generated', analysis: mergedAnalysis as unknown };
 }
 
 // Client route: cached fetch only

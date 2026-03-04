@@ -3,9 +3,8 @@
  *
  * Provides:
  * 1. flyToEarthquake() — magnitude-based camera fly-to
- * 2. Idle auto-rotation (disabled for focus-first UX)
- * 3. User override detection — drag/zoom interrupts choreography
- * 4. Scenario camera path execution (scripted keyframe sequences)
+ * 2. User override detection — drag/zoom interrupts choreography
+ * 3. Scenario camera path execution (scripted keyframe sequences)
  */
 
 import * as Cesium from 'cesium';
@@ -22,8 +21,6 @@ export const CAMERA = {
   INITIAL_LNG: 138,
   INITIAL_ALTITUDE: 2.5,
 
-  IDLE_AUTOROTATE_ENABLED: false,
-  IDLE_RPM: 0.3,
   IDLE_RESUME_DELAY_MS: 5000,
 
   ZOOM_M5: 1.4,
@@ -58,44 +55,14 @@ function getFlyParams(magnitude: number): FlyParams {
 
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let userHasOverridden = false;
-let choreographyActive = false;
-let rotationTickHandler: Cesium.Event.RemoveCallback | null = null;
 let eventHandler: Cesium.ScreenSpaceEventHandler | null = null;
 
-// ---------------------------------------------------------------------------
-// Idle auto-rotate
-// ---------------------------------------------------------------------------
-
-function setAutoRotate(viewer: GlobeInstance, enabled: boolean): void {
-  // Remove existing rotation handler
-  if (rotationTickHandler) {
-    rotationTickHandler();
-    rotationTickHandler = null;
-  }
-
-  if (enabled && CAMERA.IDLE_AUTOROTATE_ENABLED) {
-    const radiansPerSecond = (CAMERA.IDLE_RPM * 2 * Math.PI) / 60;
-    let lastTime = Date.now();
-
-    rotationTickHandler = viewer.clock.onTick.addEventListener(() => {
-      const now = Date.now();
-      const dt = (now - lastTime) / 1000;
-      lastTime = now;
-      viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, -radiansPerSecond * dt);
-    });
-  }
-}
-
-function onUserInteraction(viewer: GlobeInstance): void {
+function onUserInteraction(): void {
   userHasOverridden = true;
-  setAutoRotate(viewer, false);
 
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     userHasOverridden = false;
-    if (!choreographyActive) {
-      setAutoRotate(viewer, true);
-    }
   }, CAMERA.IDLE_RESUME_DELAY_MS);
 }
 
@@ -129,20 +96,11 @@ function flyTo(
 // ---------------------------------------------------------------------------
 
 /**
- * Initialise camera — enable idle auto-rotate and listen for user interaction.
+ * Initialise camera and listen for user interaction.
  */
 export function initCamera(viewer: GlobeInstance): void {
-  // Idle rotation intentionally disabled in the current visual mode.
-  if (CAMERA.IDLE_AUTOROTATE_ENABLED) {
-    setTimeout(() => {
-      if (!userHasOverridden && !choreographyActive) {
-        setAutoRotate(viewer, true);
-      }
-    }, 5000);
-  }
-
   eventHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-  const interactionHandler = () => onUserInteraction(viewer);
+  const interactionHandler = () => onUserInteraction();
 
   eventHandler.setInputAction(interactionHandler, Cesium.ScreenSpaceEventType.LEFT_DOWN);
   eventHandler.setInputAction(interactionHandler, Cesium.ScreenSpaceEventType.RIGHT_DOWN);
@@ -161,27 +119,15 @@ export function flyToEarthquake(viewer: GlobeInstance, event: EarthquakeEvent): 
   userHasOverridden = false;
 
   const { altitude, durationMs } = getFlyParams(event.magnitude);
-  choreographyActive = true;
-  setAutoRotate(viewer, false);
 
   flyTo(viewer, event.lat, event.lng, altitude, durationMs, () => {
     if (event.magnitude >= 7.0) {
       // M7+: hold, then pullback
       setTimeout(() => {
         if (!userHasOverridden) {
-          flyTo(viewer, event.lat, event.lng, CAMERA.PULLBACK_ALTITUDE, CAMERA.PULLBACK_DURATION_MS, () => {
-            choreographyActive = false;
-            if (!userHasOverridden) setAutoRotate(viewer, true);
-          }, -76);
-        } else {
-          choreographyActive = false;
+          flyTo(viewer, event.lat, event.lng, CAMERA.PULLBACK_ALTITUDE, CAMERA.PULLBACK_DURATION_MS, undefined, -76);
         }
       }, CAMERA.HOLD_DURATION_M7_MS);
-    } else {
-      setTimeout(() => {
-        choreographyActive = false;
-        if (!userHasOverridden) setAutoRotate(viewer, true);
-      }, 2000);
     }
   }, -68);
 }
@@ -208,8 +154,7 @@ export async function executeCameraPath(
   viewer: GlobeInstance,
   path: ScenarioCameraPath,
 ): Promise<void> {
-  choreographyActive = true;
-  setAutoRotate(viewer, false);
+  userHasOverridden = false;
 
   for (const keyframe of path) {
     if (userHasOverridden) break;
@@ -222,8 +167,6 @@ export async function executeCameraPath(
     if (userHasOverridden) break;
   }
 
-  choreographyActive = false;
-  if (!userHasOverridden) setAutoRotate(viewer, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -264,14 +207,9 @@ export function disposeCamera(): void {
     clearTimeout(idleTimer);
     idleTimer = null;
   }
-  if (rotationTickHandler) {
-    rotationTickHandler();
-    rotationTickHandler = null;
-  }
   if (eventHandler) {
     eventHandler.destroy();
     eventHandler = null;
   }
-  choreographyActive = false;
   userHasOverridden = false;
 }

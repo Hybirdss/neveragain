@@ -236,8 +236,8 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
 
   // ── Globe inertia — keep spin inertial motion off for stability ──
   viewer.scene.screenSpaceCameraController.inertiaSpin = 0.0;
-  viewer.scene.screenSpaceCameraController.inertiaTranslate = 0.9;
-  viewer.scene.screenSpaceCameraController.inertiaZoom = 0.8;
+  viewer.scene.screenSpaceCameraController.inertiaTranslate = 0.0;
+  viewer.scene.screenSpaceCameraController.inertiaZoom = 0.0;
 
   // ── Initial camera: Japan overview → cinematic zoom-in ──────
   // Start at Japan overview altitude (~2,500km) so Japan tiles load immediately.

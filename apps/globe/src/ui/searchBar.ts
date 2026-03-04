@@ -7,6 +7,7 @@
 
 import { store } from '../store/appState';
 import { buildSearchFilter } from '../ai/search/combiner';
+import { getPlaceText } from '../utils/earthquakeUtils';
 
 let overlay: HTMLElement | null = null;
 let input: HTMLInputElement | null = null;
@@ -78,6 +79,11 @@ export function openSearch(): void {
 export function closeSearch(): void {
   if (!overlay) return;
   overlay.style.display = 'none';
+  // Clear search highlights on globe
+  const ai = store.get('ai');
+  if (ai.searchResults) {
+    store.set('ai', { ...ai, searchResults: null, searchQuery: '' });
+  }
 }
 
 export function toggleSearch(): void {
@@ -152,6 +158,16 @@ function renderResults(results: any[]): void {
 
   resultsList.textContent = '';
 
+  // Stats summary
+  const rows = results.map(toSearchRow);
+  const avgMag = rows.reduce((s, r) => s + r.magnitude, 0) / rows.length;
+  const offshore = rows.filter(r => r.place.match(/沖|offshore|off\s|海/i)).length;
+  const inland = rows.length - offshore;
+  const statsEl = document.createElement('div');
+  statsEl.className = 'search-stats';
+  statsEl.textContent = `${rows.length}건 · 평균 M${avgMag.toFixed(1)} · ${offshore}건 해역 · ${inland}건 내륙`;
+  resultsList.appendChild(statsEl);
+
   const fragment = document.createDocumentFragment();
   const sliced = results.slice(0, 20);
 
@@ -167,7 +183,7 @@ function renderResults(results: any[]): void {
 
     const place = document.createElement('span');
     place.className = 'search-result-place';
-    place.textContent = row.place;
+    place.textContent = getPlaceText(row.place);
 
     const date = document.createElement('span');
     date.className = 'search-result-date';
@@ -186,7 +202,7 @@ function renderResults(results: any[]): void {
         time: row.time ? new Date(row.time).getTime() : Date.now(),
         faultType: row.fault_type ?? 'crustal',
         tsunami: false,
-        place: row.place,
+        place: { text: getPlaceText(row.place) },
       });
       closeSearch();
     });
