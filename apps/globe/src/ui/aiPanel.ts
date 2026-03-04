@@ -280,15 +280,6 @@ function i18n(field: { ko?: string; ja?: string; en?: string } | string | null |
   return (field as any)[locale] ?? field.en ?? field.ko ?? '';
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function appendMultilineText(container: HTMLElement, text: string): void {
   const lines = text.split(/\r?\n/);
   lines.forEach((line, idx) => {
