@@ -50,6 +50,19 @@ function isTimelineVisible(): boolean {
   return document.body.classList.contains('mobile-timeline-visible');
 }
 
+function normalizeViewPresetForNavigation(): void {
+  const preset = store.get('viewPreset');
+  if (preset === 'crossSection' || preset === 'cinematic') {
+    store.set('viewPreset', 'default');
+  }
+}
+
+function ensureRealtimeModeWhenTimelineHidden(): void {
+  if (!isTimelineVisible() && store.get('mode') === 'timeline') {
+    store.set('mode', 'realtime');
+  }
+}
+
 function exitTimelineModeIfNeeded(): void {
   if (store.get('mode') === 'timeline') {
     store.set('mode', 'realtime');

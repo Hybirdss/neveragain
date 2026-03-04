@@ -66,6 +66,29 @@ function derivePlatePair(plate: string): string {
   return 'Unknown';
 }
 
+function buildMomentTensor(event: typeof earthquakes.$inferSelect): BuilderInput['moment_tensor'] {
+  if (
+    event.mt_strike === null || event.mt_dip === null || event.mt_rake === null
+  ) {
+    return undefined;
+  }
+
+  const secondaryStrike = event.mt_strike2 ?? event.mt_strike;
+  const secondaryDip = event.mt_dip2 ?? event.mt_dip;
+  const secondaryRake = event.mt_rake2 ?? event.mt_rake;
+
+  return {
+    type: 'reverse',
+    strike: event.mt_strike,
+    dip: event.mt_dip,
+    rake: event.mt_rake,
+    nodal_planes: [
+      { strike: event.mt_strike, dip: event.mt_dip, rake: event.mt_rake },
+      { strike: secondaryStrike, dip: secondaryDip, rake: secondaryRake },
+    ],
+  };
+}
+
 function classifyRegion(lat: number, lng: number): string {
   if (!isJapan(lat, lng)) {
     if (lng > 100 && lng < 180 && lat > -60 && lat < 60) return 'global_pacific';

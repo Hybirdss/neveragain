@@ -12,7 +12,6 @@ const API_URL = import.meta.env.VITE_API_URL
   ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
 const ANALYSIS_FETCH_ATTEMPTS = 3;
 const ANALYSIS_RETRY_DELAY_MS = 1500;
-const ANALYSIS_REQUEST_TIMEOUT_MS = 10_000;
 
 /** Tracks the event ID of the latest fetch request to prevent stale results. */
 let activeEventId: string | null = null;

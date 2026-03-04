@@ -430,6 +430,17 @@ async function upsertEvent(
     });
 }
 
+async function upsertEvents(
+  db: ReturnType<typeof createDb>,
+  events: EarthquakeInsert[],
+): Promise<void> {
+  if (events.length === 0) return;
+  for (let i = 0; i < events.length; i += BULK_UPSERT_CONCURRENCY) {
+    const chunk = events.slice(i, i + BULK_UPSERT_CONCURRENCY);
+    await Promise.all(chunk.map((event) => upsertEvent(db, event)));
+  }
+}
+
 function parseBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (value === 1 || value === '1') return true;
