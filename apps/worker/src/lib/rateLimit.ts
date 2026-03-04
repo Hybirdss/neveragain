@@ -17,6 +17,7 @@ const LIMITS: Record<string, { max: number; window: number }> = {
   events:     { max: 1000, window: 3600 },
   reports:    { max: 1000, window: 3600 },
   ask:        { max: 20,  window: 3600 },
+  chat:       { max: 30,  window: 3600 },
 };
 
 export async function checkRateLimit(
