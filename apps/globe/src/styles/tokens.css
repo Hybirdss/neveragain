@@ -115,9 +115,12 @@
   --spacing-panel-y: 10px;
 
   /* ── Layout ── */
-  --sidebar-width: 350px;
-  --sidebar-min-width: 320px;
-  --sidebar-max-width: 400px;
+  --panel-width: 350px;
+  --panel-min-width: 320px;
+  --panel-max-width: 400px;
+  --sidebar-width: var(--panel-width);
+  --sidebar-min-width: var(--panel-min-width);
+  --sidebar-max-width: var(--panel-max-width);
   --timeline-height: 44px;
   --hud-bottom-offset: 60px;
   --alert-bar-height: 0px;

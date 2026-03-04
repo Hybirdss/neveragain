@@ -23,9 +23,9 @@ let unsubscribe: (() => void) | null = null;
  */
 function applyStyle(btn: HTMLButtonElement, isActive: boolean): void {
   Object.assign(btn.style, {
-    padding: '4px 10px',
+    padding: '3px 7px',
     fontFamily: 'var(--font-mono)',
-    fontSize: '11px',
+    fontSize: '10px',
     fontWeight: isActive ? '600' : '400',
     border: '1px solid',
     borderColor: isActive ? 'var(--color-cyan)' : 'var(--color-border)',
@@ -58,17 +58,18 @@ export function initLocaleSwitcher(container: HTMLElement): void {
 
   Object.assign(panelEl.style, {
     position: 'absolute',
-    bottom: '16px',
-    right: '16px',
+    top: '8px',
+    right: '12px',
     zIndex: 'var(--z-hud)',
     display: 'flex',
     flexDirection: 'row',
     gap: '0',
-    background: 'rgba(10, 10, 10, 0.85)',
+    background: 'rgba(10, 10, 10, 0.75)',
     border: '1px solid var(--border-subtle)',
     borderRadius: '3px',
     overflow: 'hidden',
     backdropFilter: 'blur(8px)',
+    pointerEvents: 'auto',
   });
 
   const current = getLocale();

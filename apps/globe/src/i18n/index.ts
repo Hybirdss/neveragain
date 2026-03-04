@@ -30,11 +30,19 @@ let currentLocale: Locale = detectLocale();
 function detectLocale(): Locale {
   if (typeof navigator === 'undefined') return 'en';
 
+  // 1. Check browser language preference
   const lang = navigator.language ?? '';
   const prefix = lang.slice(0, 2).toLowerCase();
-
   if (prefix === 'ja') return 'ja';
   if (prefix === 'ko') return 'ko';
+
+  // 2. Fallback: detect by timezone (physical location)
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz.startsWith('Asia/Tokyo') || tz === 'Japan') return 'ja';
+    if (tz.startsWith('Asia/Seoul') || tz === 'ROK') return 'ko';
+  } catch { /* ignore */ }
+
   return 'en';
 }
 

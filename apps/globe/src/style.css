@@ -14,6 +14,9 @@
 @import './ui/hudOverlay.css';
 @import './ui/alertBar.css';
 @import './ui/sidebar.css';
+@import './ui/leftPanel.css';
+@import './ui/liveFeed.css';
+@import './ui/searchPanel.css';
 @import './ui/detailPanel.css';
 @import './ui/timeline.css';
 @import './ui/tooltip.css';

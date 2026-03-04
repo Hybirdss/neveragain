@@ -1,15 +1,21 @@
 /* --- Dashboard Grid --- */
 .dashboard {
   display: grid;
-  grid-template-columns: 1fr var(--sidebar-width);
+  grid-template-columns: var(--panel-width) 1fr;
   grid-template-rows: 1fr var(--timeline-height);
   grid-template-areas:
-    "globe sidebar"
+    "panel globe"
     "timeline timeline";
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   background: var(--bg-primary);
+}
+
+/* --- Panel Area --- */
+#panel-container {
+  grid-area: panel;
+  overflow: hidden;
 }
 
 /* --- Globe Area --- */

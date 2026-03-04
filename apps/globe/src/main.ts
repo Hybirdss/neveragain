@@ -79,6 +79,9 @@ import { playCinematicSequence, buildSnsSequence, skipCinematic } from './globe/
 
 // UI
 import { initSidebar, updateSidebar, disposeSidebar } from './ui/sidebar';
+import { initLeftPanel } from './ui/leftPanel';
+import { initLiveFeed, updateLiveFeed } from './ui/liveFeed';
+import { initRouter } from './store/router';
 import { initTimeline, updateTimeline, disposeTimeline } from './ui/timeline';
 import { initIntensityLegend, disposeIntensityLegend } from './ui/intensityLegend';
 import { initScenarioPicker, showPicker, disposeScenarioPicker } from './ui/scenarioPicker';
@@ -99,7 +102,8 @@ import { t, onLocaleChange } from './i18n/index';
 import { initAiPanel, disposeAiPanel, openAiPanel } from './ui/aiPanel';
 import { fetchAnalysis } from './ai/client';
 import { shouldFetchOnClick } from './ai/tierRouter';
-import { initSearchBar, toggleSearch, disposeSearchBar } from './ui/searchBar';
+import { initSearchBar, disposeSearchBar } from './ui/searchBar';
+import { initSearchPanel } from './ui/searchPanel';
 
 // Feature 1-5: Data integration engine
 import type {
@@ -126,6 +130,7 @@ import { initImpactPanel, disposeImpactPanel } from './ui/impactPanel';
 interface LayoutContainers {
   globeContainer: HTMLElement;
   globeArea: HTMLElement;
+  panelContainer: HTMLElement;
   sidebarContainer: HTMLElement;
   timelineContainer: HTMLElement;
   legendContainer: HTMLElement;
@@ -137,6 +142,11 @@ function createLayout(): LayoutContainers {
   app.className = 'dashboard';
   app.innerHTML = '';
 
+  // Left panel container (tabs: Live / Search / Chat)
+  const panelContainer = document.createElement('div');
+  panelContainer.id = 'panel-container';
+  app.appendChild(panelContainer);
+
   // Globe area (wraps globe-container for relative positioning of HUD/legend)
   const globeArea = document.createElement('div');
   globeArea.className = 'globe-area';
@@ -145,9 +155,10 @@ function createLayout(): LayoutContainers {
   globeArea.appendChild(globeContainer);
   app.appendChild(globeArea);
 
-  // Sidebar
+  // Sidebar (legacy — kept for impact panel, will be removed in Phase 2)
   const sidebarContainer = document.createElement('div');
   sidebarContainer.id = 'sidebar-container';
+  sidebarContainer.style.display = 'none';
   app.appendChild(sidebarContainer);
 
   // Timeline
@@ -227,6 +238,7 @@ function createLayout(): LayoutContainers {
   return {
     globeContainer,
     globeArea,
+    panelContainer,
     sidebarContainer,
     timelineContainer,
     legendContainer,
@@ -519,9 +531,10 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
       stopWaveAnimation();
     }
 
-    // Update sidebar detail panel
+    // Update sidebar + live feed detail panel
     const timeline = store.get('timeline');
     updateSidebar(timeline.events, event, store.get('intensitySource'));
+    updateLiveFeed(timeline.events, event, store.get('intensitySource'));
 
     // Sync timeline currentIndex with selected event for prev/next navigation
     const selectedIdx = timeline.events.findIndex(e => e.id === event.id);
@@ -541,6 +554,7 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
     if (event.id !== 'nankai-scenario') {
       store.set('intensitySource', 'gmpe');
       updateSidebar(store.get('timeline').events, event, 'gmpe');
+      updateLiveFeed(store.get('timeline').events, event, 'gmpe');
       requestGridComputation(worker, event);
     }
 
@@ -557,6 +571,7 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
       updateShakeMapOverlay(globe, shakeMap);
       store.set('intensitySource', 'shakemap');
       updateSidebar(store.get('timeline').events, event, 'shakemap');
+      updateLiveFeed(store.get('timeline').events, event, 'shakemap');
       console.log(`[main] ShakeMap loaded for ${event.id}`);
     }
   }));
@@ -735,8 +750,10 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
     if (selected && !selectedStillVisible) {
       store.set('selectedEvent', null);
       updateSidebar(visibleEvents, null, store.get('intensitySource'));
+      updateLiveFeed(visibleEvents, null, store.get('intensitySource'));
     } else {
       updateSidebar(visibleEvents, selected, store.get('intensitySource'));
+      updateLiveFeed(visibleEvents, selected, store.get('intensitySource'));
     }
     updateSeismicPoints(globe, visibleEvents);
   }));
@@ -789,15 +806,7 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
     timeRange: [cutoff, now],
   });
 
-  // Auto-select the strongest new event if nothing is selected
-  if (!store.get('selectedEvent') && newEvents.length > 0) {
-    const strongest = newEvents.reduce((a, b) =>
-      a.magnitude > b.magnitude ? a : b,
-    );
-    if (strongest.magnitude >= 4.0) {
-      store.set('selectedEvent', strongest);
-    }
-  }
+  // Auto-select removed — user picks events from the Live Feed tab
 }
 
 function onScenarioSelect(preset: HistoricalPreset): void {
@@ -950,7 +959,7 @@ function setupGlobeClickHandler(globe: GlobeInstance): void {
 
 async function bootstrap(): Promise<void> {
   // 1. Create DOM layout
-  const { globeContainer, globeArea, sidebarContainer, timelineContainer, legendContainer, disposeLayout } =
+  const { globeContainer, globeArea, panelContainer, sidebarContainer, timelineContainer, legendContainer, disposeLayout } =
     createLayout();
 
   // 2. Initialise globe + layers (CesiumJS — async)
@@ -1017,6 +1026,10 @@ async function bootstrap(): Promise<void> {
   });
 
   // 3. Initialise UI
+  initLeftPanel(panelContainer);
+  initLiveFeed();
+  initSearchPanel();
+  initRouter();
   initSidebar(sidebarContainer);
   initImpactPanel(sidebarContainer);
   initTimeline(timelineContainer, createTimelineCallbacks());
@@ -1110,10 +1123,11 @@ async function bootstrap(): Promise<void> {
 
   // 10. Keyboard shortcuts
   function handleKeyboard(e: KeyboardEvent): void {
-    // CMD+K / Ctrl+K → search
+    // CMD+K / Ctrl+K → switch to search tab
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      toggleSearch();
+      store.set('activePanel', 'search');
+      store.set('route', { ...store.get('route'), tab: 'search' });
       return;
     }
 

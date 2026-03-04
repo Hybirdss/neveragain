@@ -113,6 +113,8 @@ const now = Date.now();
 
 const initialState: AppState = {
   mode: 'realtime',
+  activePanel: 'live',
+  route: { tab: 'live', eventId: null, searchQuery: null },
   selectedEvent: null,
   intensityGrid: null,
   intensitySource: 'none',
@@ -161,6 +163,11 @@ const initialState: AppState = {
     searchQuery: '',
     searchResults: null,
     searchLoading: false,
+  },
+  chat: {
+    messages: [],
+    isStreaming: false,
+    error: null,
   },
 };
 

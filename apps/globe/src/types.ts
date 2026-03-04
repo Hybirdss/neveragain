@@ -216,6 +216,16 @@ export interface PlateauCityConfig {
   center: { lat: number; lng: number };
 }
 
+// ── Navigation State ──────────────────────────────────────
+
+export type PanelTab = 'live' | 'search' | 'chat';
+
+export interface RouteState {
+  tab: PanelTab;
+  eventId: string | null;
+  searchQuery: string | null;
+}
+
 // ── AI Analysis State ──────────────────────────────────────
 
 export type AiTab = 'easy' | 'expert' | 'data';
@@ -230,8 +240,37 @@ export interface AiState {
   searchLoading: boolean;
 }
 
+// ── Chat State ──────────────────────────────────────────────
+
+export type ChatRole = 'user' | 'assistant' | 'tool';
+
+export interface ToolCallRequest {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string;
+  toolCalls?: ToolCallRequest[];
+  toolResults?: { name: string; result: unknown }[];
+  timestamp: number;
+}
+
+export interface ChatState {
+  messages: ChatMessage[];
+  isStreaming: boolean;
+  error: string | null;
+}
+
+// ── App State ──────────────────────────────────────────────
+
 export interface AppState {
   mode: AppMode;
+  activePanel: PanelTab;
+  route: RouteState;
   selectedEvent: EarthquakeEvent | null;
   intensityGrid: IntensityGrid | null;
   intensitySource: IntensitySource;
@@ -247,6 +286,7 @@ export interface AppState {
   landslideGrid: LandslideGrid | null;
   networkError: string | null;
   ai: AiState;
+  chat: ChatState;
 }
 
 export interface LayerVisibility {
