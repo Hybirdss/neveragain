@@ -19,6 +19,7 @@ const SERVER_EVENTS_URL =
   `${API_URL}/api/events?mag_min=2.5&lat_min=24&lat_max=46&lng_min=122&lng_max=150&limit=200`;
 
 const REQUEST_TIMEOUT_MS = 10_000;
+const SEEN_CACHE_LIMIT = 5_000;
 
 const JAPAN_BBOX = {
   minLat: 24,
@@ -61,6 +62,7 @@ interface ServerEvent {
   time: string | number;
   place: string | null;
   fault_type: string | null;
+  tsunami: boolean | null;
 }
 
 interface ServerEventsResponse {
@@ -100,25 +102,61 @@ function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent {
   };
 }
 
-async function fetchFromServer(signal: AbortSignal): Promise<EarthquakeEvent[]> {
-  const response = await fetch(SERVER_EVENTS_URL, { signal });
-  if (!response.ok) {
-    throw new Error(`Server events API responded with status ${response.status}`);
+async function fetchJsonWithTimeout<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status} for ${url}`);
+    }
+    return await response.json() as T;
+  } finally {
+    clearTimeout(timer);
   }
-  const data = await response.json() as ServerEventsResponse;
+}
+
+async function fetchFromServer(): Promise<EarthquakeEvent[]> {
+  const data = await fetchJsonWithTimeout<ServerEventsResponse>(SERVER_EVENTS_URL);
   if (!Array.isArray(data.events)) return [];
   return data.events.map(toEarthquakeEventFromServer);
 }
 
-async function fetchFromUSGS(signal: AbortSignal): Promise<EarthquakeEvent[]> {
-  const response = await fetch(USGS_FEED_URL, { signal });
-  if (!response.ok) {
-    throw new Error(`USGS realtime feed responded with status ${response.status}`);
-  }
-  const data: USGSResponse = await response.json();
+async function fetchFromUSGS(): Promise<EarthquakeEvent[]> {
+  const data = await fetchJsonWithTimeout<USGSResponse>(USGS_FEED_URL);
+  if (!Array.isArray(data.features)) return [];
   return data.features
     .filter(isInJapanRegion)
     .map(toEarthquakeEvent);
+}
+
+function registerSeen(seen: Set<string>, queue: string[], id: string): void {
+  if (seen.has(id)) return;
+  seen.add(id);
+  queue.push(id);
+  if (queue.length > SEEN_CACHE_LIMIT) {
+    const oldest = queue.shift();
+    if (oldest) seen.delete(oldest);
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (isAbortError(error)) return true;
+  if (!(error instanceof Error)) return false;
+  return /aborted|timeout|timed out/i.test(error.message);
+}
+
+async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
+  try {
+    return await fetchFromServer();
+  } catch (serverErr) {
+    console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
+    return await fetchFromUSGS();
+  }
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -147,25 +185,22 @@ export function startRealtimePolling(
   intervalMs: number = 60_000,
 ): RealtimePollerHandle {
   const seen = new Set<string>();
+  const seenQueue: string[] = [];
+  let pollInFlight = false;
+  let stopped = false;
 
   async function poll(): Promise<void> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    if (stopped || pollInFlight) return;
+    pollInFlight = true;
 
     try {
       // Primary: backend API fed by server-side ingestion.
-      let events: EarthquakeEvent[];
-      try {
-        events = await fetchFromServer(controller.signal);
-      } catch (serverErr) {
-        console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
-        events = await fetchFromUSGS(controller.signal);
-      }
+      const events = await fetchPrimaryWithFallback();
 
       const newEvents: EarthquakeEvent[] = [];
       for (const event of events) {
         if (seen.has(event.id)) continue;
-        seen.add(event.id);
+        registerSeen(seen, seenQueue, event.id);
         newEvents.push(event);
       }
 
@@ -176,7 +211,7 @@ export function startRealtimePolling(
         callback(newEvents);
       }
     } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
+      if (isTimeoutError(error)) {
         console.error(
           '[usgsRealtime] Request timed out after',
           REQUEST_TIMEOUT_MS,
@@ -188,7 +223,7 @@ export function startRealtimePolling(
         store.set('networkError', 'Failed to fetch realtime earthquake data');
       }
     } finally {
-      clearTimeout(timer);
+      pollInFlight = false;
     }
   }
 
@@ -199,10 +234,12 @@ export function startRealtimePolling(
 
   return {
     stop: () => {
+      stopped = true;
       clearInterval(intervalId);
     },
     resetSeen: () => {
       seen.clear();
+      seenQueue.length = 0;
     },
   };
 }

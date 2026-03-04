@@ -179,11 +179,19 @@ const ja: Record<string, string> = {
   'ai.data.population': '人口',
   'ai.data.tags': '検索タグ',
   'ai.button': 'AIブリーフ',
+  'ai.badge.loading': 'AI分析を生成中...',
+  'ai.badge.ready': 'AI分析の準備完了',
   'ai.loading': '分析中...',
 
   // Search
   'search.placeholder': 'M6 宮城 / 深発 M7+ / 最近30日...',
+  'search.hint': 'Enterで検索 · ESCで閉じる',
+  'search.loading': '検索中...',
   'search.noResults': '結果なし',
+  'search.stats.countSuffix': '件',
+  'search.stats.avgPrefix': '平均',
+  'search.stats.offshoreSuffix': '件 海域',
+  'search.stats.inlandSuffix': '件 内陸',
 
   // Mobile shell
   'mobile.tab.map': '地図',

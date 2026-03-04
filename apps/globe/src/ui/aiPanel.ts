@@ -7,7 +7,7 @@
  */
 
 import { store } from '../store/appState';
-import { t, getLocale } from '../i18n/index';
+import { t, getLocale, onLocaleChange } from '../i18n/index';
 import type { AiTab } from '../types';
 
 // ── DOM refs ──
@@ -18,6 +18,9 @@ let subtitleEl: HTMLElement;
 let contentEl: HTMLElement;
 let tabButtons: HTMLButtonElement[] = [];
 let tabPanes: HTMLElement[] = [];
+let unsubAiState: (() => void) | null = null;
+let unsubLocale: (() => void) | null = null;
+let badgeState: 'idle' | 'loading' | 'ready' = 'idle';
 
 // ── Helpers ──
 
@@ -39,18 +42,49 @@ const CHEVRON_SVG = `<svg class="ai-accordion__chevron" viewBox="0 0 16 16" fill
 let badgeEl: HTMLElement;
 const aiPanelOpenListeners = new Set<(open: boolean) => void>();
 
+function setBadgeState(state: 'idle' | 'loading' | 'ready'): void {
+  badgeState = state;
+  if (!badgeEl) return;
+  const textEl = badgeEl.querySelector('.ai-badge-text');
+  if (!textEl) return;
+  if (state === 'loading') {
+    textEl.textContent = t('ai.badge.loading');
+  } else if (state === 'ready') {
+    textEl.textContent = t('ai.badge.ready');
+  } else {
+    textEl.textContent = t('ai.button');
+  }
+}
+
+function updateStaticLabels(): void {
+  for (const btn of tabButtons) {
+    const tab = btn.dataset.tab;
+    if (tab === 'easy') btn.textContent = t('ai.tab.easy');
+    else if (tab === 'expert') btn.textContent = t('ai.tab.expert');
+    else if (tab === 'data') btn.textContent = t('ai.tab.data');
+  }
+  setBadgeState(badgeState);
+}
+
 export function initAiPanel(): void {
+  // Guard against duplicate mounts during HMR re-init.
+  document.getElementById('ai-panel')?.remove();
+  document.querySelector('.ai-badge-btn')?.remove();
+  tabButtons = [];
+  tabPanes = [];
+
   panelEl = el('aside', 'ai-panel');
   panelEl.id = 'ai-panel';
 
   // Badge button
   badgeEl = el('button', 'ai-badge-btn');
-  badgeEl.innerHTML = `<span class="ai-badge-icon">✨</span><span class="ai-badge-text">AI 분석</span>`;
+  badgeEl.innerHTML = `<span class="ai-badge-icon">✨</span><span class="ai-badge-text"></span>`;
   badgeEl.onclick = () => {
     openAiPanel();
     badgeEl.classList.remove('visible');
   };
   document.body.append(badgeEl);
+  setBadgeState('idle');
 
   // Header
   const header = el('div', 'ai-panel__header');
@@ -97,27 +131,40 @@ export function initAiPanel(): void {
   notifyAiPanelOpenChange();
 
   // Subscribe to AI state changes
-  store.subscribe('ai', (aiState) => {
+  unsubAiState?.();
+  unsubAiState = store.subscribe('ai', (aiState) => {
     if (aiState.analysisLoading) {
+      setBadgeState('loading');
       badgeEl.classList.add('visible');
       badgeEl.classList.add('loading');
-      badgeEl.querySelector('.ai-badge-text')!.textContent = 'AI 분석 생성중...';
       renderSkeleton();
     } else if (aiState.analysisError) {
+      setBadgeState('idle');
       badgeEl.classList.remove('visible');
       badgeEl.classList.remove('loading');
       renderError(aiState.analysisError);
     } else if (aiState.currentAnalysis) {
+      setBadgeState('ready');
       badgeEl.classList.remove('loading');
       if (!panelEl.classList.contains('open')) {
         badgeEl.classList.add('visible');
-        badgeEl.querySelector('.ai-badge-text')!.textContent = 'AI 분석 준비됨';
       }
       renderAnalysis(aiState.currentAnalysis as any);
     } else {
+      setBadgeState('idle');
       badgeEl.classList.remove('visible');
     }
   });
+
+  unsubLocale?.();
+  unsubLocale = onLocaleChange(() => {
+    updateStaticLabels();
+    const aiState = store.get('ai');
+    if (aiState.currentAnalysis) {
+      renderAnalysis(aiState.currentAnalysis as any);
+    }
+  });
+  updateStaticLabels();
 }
 
 // ── Panel control ──
@@ -164,6 +211,18 @@ export function onAiPanelOpenChange(fn: (open: boolean) => void): () => void {
   return () => {
     aiPanelOpenListeners.delete(fn);
   };
+}
+
+export function disposeAiPanel(): void {
+  unsubAiState?.();
+  unsubAiState = null;
+  unsubLocale?.();
+  unsubLocale = null;
+  aiPanelOpenListeners.clear();
+  tabButtons = [];
+  tabPanes = [];
+  panelEl?.remove();
+  badgeEl?.remove();
 }
 
 // ── Tab switching ──

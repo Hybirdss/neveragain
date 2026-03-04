@@ -82,6 +82,8 @@ eventsRoute.get('/', async (c) => {
     place: earthquakes.place,
     fault_type: earthquakes.fault_type,
     source: earthquakes.source,
+    tsunami: earthquakes.tsunami,
+    mag_type: earthquakes.mag_type,
   })
     .from(earthquakes)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -341,6 +343,8 @@ function parseString(value: unknown): string | null {
 }
 
 function parseFiniteNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -348,18 +352,27 @@ function parseFiniteNumber(value: unknown): number | null {
 function parseBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (value === 1 || value === '1') return true;
+  if (typeof value === 'string' && value.trim().toLowerCase() === 'true') return true;
   return false;
 }
 
 function parseTimestamp(value: unknown): Date | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    const date = new Date(value);
+    const ts = value < 1_000_000_000_000 ? value * 1000 : value;
+    const date = new Date(ts);
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return null;
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      const num = Number(trimmed);
+      if (!Number.isFinite(num)) return null;
+      const ts = num < 1_000_000_000_000 ? num * 1000 : num;
+      const fromNum = new Date(ts);
+      return Number.isNaN(fromNum.getTime()) ? null : fromNum;
+    }
     const date = new Date(trimmed);
     return Number.isNaN(date.getTime()) ? null : date;
   }

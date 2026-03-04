@@ -179,11 +179,19 @@ const en: Record<string, string> = {
   'ai.data.population': 'Population',
   'ai.data.tags': 'Search tags',
   'ai.button': 'AI Brief',
+  'ai.badge.loading': 'AI analyzing...',
+  'ai.badge.ready': 'AI brief ready',
   'ai.loading': 'Analyzing...',
 
   // Search
   'search.placeholder': 'M6 Tokyo / deep M7+ / last 30 days...',
+  'search.hint': 'Enter to search · ESC to close',
+  'search.loading': 'Searching...',
   'search.noResults': 'No results found',
+  'search.stats.countSuffix': ' events',
+  'search.stats.avgPrefix': 'Avg',
+  'search.stats.offshoreSuffix': ' offshore',
+  'search.stats.inlandSuffix': ' inland',
 
   // Mobile shell
   'mobile.tab.map': 'Map',

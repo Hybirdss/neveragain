@@ -95,7 +95,7 @@ import { loadTimelineData } from './data/timelineLoader';
 import { t, onLocaleChange } from './i18n/index';
 
 // AI
-import { initAiPanel } from './ui/aiPanel';
+import { initAiPanel, disposeAiPanel } from './ui/aiPanel';
 import { fetchAnalysis } from './ai/client';
 import { shouldFetchOnClick } from './ai/tierRouter';
 import { initSearchBar, toggleSearch, disposeSearchBar } from './ui/searchBar';
@@ -686,8 +686,16 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     const visibleEvents = timeline.events.filter(
       (e) => e.time <= timeline.currentTime,
     );
-
-    updateSidebar(visibleEvents, store.get('selectedEvent'), store.get('intensitySource'));
+    const selected = store.get('selectedEvent');
+    const selectedStillVisible = selected
+      ? visibleEvents.some((event) => event.id === selected.id)
+      : false;
+    if (selected && !selectedStillVisible) {
+      store.set('selectedEvent', null);
+      updateSidebar(visibleEvents, null, store.get('intensitySource'));
+    } else {
+      updateSidebar(visibleEvents, selected, store.get('intensitySource'));
+    }
     updateSeismicPoints(globe, visibleEvents);
   });
 }
@@ -713,10 +721,19 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
   // Sort by time ascending
   deduped.sort((a, b) => a.time - b.time);
 
+  const selectedId = store.get('selectedEvent')?.id ?? null;
+  const selectedIndex = selectedId
+    ? deduped.findIndex((event) => event.id === selectedId)
+    : -1;
+  const currentIndex = selectedIndex >= 0
+    ? selectedIndex
+    : Math.max(0, deduped.length - 1);
+
   const now = Date.now();
   store.set('timeline', {
     ...timeline,
     events: deduped,
+    currentIndex,
     currentTime: now,
     timeRange: [now - 86_400_000, now],
   });
@@ -1101,6 +1118,7 @@ async function bootstrap(): Promise<void> {
       disposeDepthRings();
       disposeActiveFaults(globe);
       disposeImpactPanel();
+      disposeAiPanel();
       disposeSearchBar();
       disposeMobileShell();
       clearLandslideOverlay(globe);

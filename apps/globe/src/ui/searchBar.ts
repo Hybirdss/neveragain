@@ -8,10 +8,14 @@
 import { store } from '../store/appState';
 import { buildSearchFilter } from '../ai/search/combiner';
 import { getPlaceText } from '../utils/earthquakeUtils';
+import { t, onLocaleChange } from '../i18n/index';
 
 let overlay: HTMLElement | null = null;
 let input: HTMLInputElement | null = null;
 let resultsList: HTMLElement | null = null;
+let hintEl: HTMLElement | null = null;
+let unsubAi: (() => void) | null = null;
+let unsubLocale: (() => void) | null = null;
 
 const API_URL = import.meta.env.VITE_API_URL
   ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
@@ -29,12 +33,12 @@ export function initSearchBar(): void {
           <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
           <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <input class="search-input" type="text" placeholder="M6 宮城 / 규모 5 이상 도쿄 / deep M7+" spellcheck="false" />
+        <input class="search-input" type="text" spellcheck="false" />
         <kbd class="search-kbd">ESC</kbd>
       </div>
       <div class="search-results"></div>
       <div class="search-footer">
-        <span class="search-hint">Enter to search · ESC to close</span>
+        <span class="search-hint"></span>
       </div>
     </div>
   `;
@@ -43,7 +47,13 @@ export function initSearchBar(): void {
 
   input = overlay.querySelector('.search-input');
   resultsList = overlay.querySelector('.search-results');
+  hintEl = overlay.querySelector('.search-hint');
   const backdrop = overlay.querySelector('.search-backdrop');
+  const applyLocaleText = () => {
+    if (input) input.placeholder = t('search.placeholder');
+    if (hintEl) hintEl.textContent = t('search.hint');
+  };
+  applyLocaleText();
 
   // Close on backdrop click
   backdrop?.addEventListener('click', closeSearch);
@@ -58,11 +68,27 @@ export function initSearchBar(): void {
   });
 
   // Subscribe to search state
-  store.subscribe('ai', (ai) => {
+  unsubAi?.();
+  unsubAi = store.subscribe('ai', (ai) => {
     if (!resultsList) return;
     if (ai.searchLoading) {
-      resultsList.innerHTML = '<div class="search-loading">Searching...</div>';
+      resultsList.innerHTML = `<div class="search-loading">${t('search.loading')}</div>`;
     } else if (ai.searchResults) {
+      renderResults(ai.searchResults);
+    }
+  });
+
+  unsubLocale?.();
+  unsubLocale = onLocaleChange(() => {
+    applyLocaleText();
+    const ai = store.get('ai');
+    if (ai.searchLoading) {
+      if (resultsList) {
+        resultsList.innerHTML = `<div class="search-loading">${t('search.loading')}</div>`;
+      }
+      return;
+    }
+    if (ai.searchResults) {
       renderResults(ai.searchResults);
     }
   });
@@ -152,7 +178,7 @@ function renderResults(results: any[]): void {
   if (!resultsList) return;
 
   if (results.length === 0) {
-    resultsList.innerHTML = '<div class="search-empty">No results found</div>';
+    resultsList.innerHTML = `<div class="search-empty">${t('search.noResults')}</div>`;
     return;
   }
 
@@ -165,7 +191,11 @@ function renderResults(results: any[]): void {
   const inland = rows.length - offshore;
   const statsEl = document.createElement('div');
   statsEl.className = 'search-stats';
-  statsEl.textContent = `${rows.length}건 · 평균 M${avgMag.toFixed(1)} · ${offshore}건 해역 · ${inland}건 내륙`;
+  statsEl.textContent =
+    `${rows.length}${t('search.stats.countSuffix')} · ` +
+    `${t('search.stats.avgPrefix')} M${avgMag.toFixed(1)} · ` +
+    `${offshore}${t('search.stats.offshoreSuffix')} · ` +
+    `${inland}${t('search.stats.inlandSuffix')}`;
   resultsList.appendChild(statsEl);
 
   const fragment = document.createDocumentFragment();
@@ -193,15 +223,21 @@ function renderResults(results: any[]): void {
     button.addEventListener('click', () => {
       if (!row.id) return;
 
+      const parsedTime = row.time instanceof Date
+        ? row.time.getTime()
+        : typeof row.time === 'number'
+          ? row.time
+          : row.time ? new Date(row.time).getTime() : NaN;
+
       store.set('selectedEvent', {
         id: row.id,
         lat: row.lat,
         lng: row.lng,
         depth_km: row.depth_km,
         magnitude: row.magnitude,
-        time: row.time ? new Date(row.time).getTime() : Date.now(),
+        time: Number.isFinite(parsedTime) ? parsedTime : Date.now(),
         faultType: row.fault_type ?? 'crustal',
-        tsunami: false,
+        tsunami: row.tsunami === true,
         place: { text: getPlaceText(row.place) },
       });
       closeSearch();
@@ -220,6 +256,7 @@ interface SearchRow {
   magnitude: number;
   time: string | number | Date | null;
   fault_type: 'crustal' | 'interface' | 'intraslab' | null;
+  tsunami: boolean;
   place: string;
 }
 
@@ -242,6 +279,7 @@ function toSearchRow(value: unknown): SearchRow {
     magnitude: toNumber(r.magnitude),
     time: isSupportedTime(r.time) ? r.time : null,
     fault_type: normalizedFaultType,
+    tsunami: r.tsunami === true,
     place: typeof r.place === 'string' ? r.place : '',
   };
 }
@@ -256,8 +294,13 @@ function isSupportedTime(value: unknown): value is string | number | Date {
 }
 
 export function disposeSearchBar(): void {
+  unsubAi?.();
+  unsubAi = null;
+  unsubLocale?.();
+  unsubLocale = null;
   overlay?.remove();
   overlay = null;
   input = null;
   resultsList = null;
+  hintEl = null;
 }

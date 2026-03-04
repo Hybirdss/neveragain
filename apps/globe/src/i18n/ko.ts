@@ -179,11 +179,19 @@ const ko: Record<string, string> = {
   'ai.data.population': '인구',
   'ai.data.tags': '검색 태그',
   'ai.button': 'AI 브리핑',
+  'ai.badge.loading': 'AI 분석 생성중...',
+  'ai.badge.ready': 'AI 분석 준비됨',
   'ai.loading': '분석 중...',
 
   // Search
   'search.placeholder': 'M6 미야기 / 규모 5 이상 도쿄 / 깊은 지진...',
+  'search.hint': 'Enter 검색 · ESC 닫기',
+  'search.loading': '검색 중...',
   'search.noResults': '결과 없음',
+  'search.stats.countSuffix': '건',
+  'search.stats.avgPrefix': '평균',
+  'search.stats.offshoreSuffix': '건 해역',
+  'search.stats.inlandSuffix': '건 내륙',
 
   // Mobile shell
   'mobile.tab.map': '지도',

@@ -50,6 +50,7 @@
   position: relative;
   height: 28px;
   cursor: pointer;
+  touch-action: none;
 }
 
 .scrub-bar__track {
@@ -143,4 +144,3 @@
   min-width: 140px;
   text-align: center;
 }
-

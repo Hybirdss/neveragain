@@ -79,6 +79,8 @@ function applyViewportState(): void {
   const mobile = isMobileViewport();
   rootEl.style.display = mobile ? 'grid' : 'none';
   if (!mobile) {
+    closeAiPanel();
+    closeSidebar();
     setTimelineVisible(false);
     setActiveTab('map');
   } else {
@@ -220,4 +222,3 @@ export function disposeMobileShell(): void {
   rootEl = null;
   document.body.classList.remove('mobile-timeline-visible');
 }
-

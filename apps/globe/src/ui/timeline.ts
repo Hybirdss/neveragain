@@ -29,8 +29,9 @@ let lastFrameTime: number | null = null;
 let currentState: TimelineState | null = null;
 
 // Stored window-level handlers for cleanup
-let windowMoveHandler: ((e: MouseEvent) => void) | null = null;
-let windowUpHandler: (() => void) | null = null;
+let pointerDownHandler: ((e: PointerEvent) => void) | null = null;
+let pointerMoveHandler: ((e: PointerEvent) => void) | null = null;
+let pointerUpHandler: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 
 // Callbacks
@@ -118,29 +119,36 @@ function buildScrubBar(): HTMLElement {
   markerContainer.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
   scrubContainer.appendChild(markerContainer);
 
-  // Click-to-seek
-  scrubContainer.addEventListener('click', (e: MouseEvent) => {
+  const seekFromClientX = (clientX: number): void => {
     if (!currentState) return;
     const rect = scrubContainer.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const [start, end] = currentState.timeRange;
     const time = start + pct * (end - start);
     onSeek?.(time);
+  };
+
+  // Click-to-seek
+  scrubContainer.addEventListener('click', (e: MouseEvent) => {
+    seekFromClientX(e.clientX);
   });
 
-  // Drag support
+  // Pointer drag support (mouse + touch + pen)
   let dragging = false;
-  scrubContainer.addEventListener('mousedown', () => { dragging = true; });
-  windowMoveHandler = (e: MouseEvent) => {
-    if (!dragging || !currentState) return;
-    const rect = scrubContainer.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const [start, end] = currentState.timeRange;
-    onSeek?.(start + pct * (end - start));
+  pointerDownHandler = (e: PointerEvent) => {
+    dragging = true;
+    seekFromClientX(e.clientX);
   };
-  windowUpHandler = () => { dragging = false; };
-  window.addEventListener('mousemove', windowMoveHandler);
-  window.addEventListener('mouseup', windowUpHandler);
+  pointerMoveHandler = (e: PointerEvent) => {
+    if (!dragging || !currentState) return;
+    seekFromClientX(e.clientX);
+  };
+  pointerUpHandler = () => { dragging = false; };
+  scrubContainer.addEventListener('pointerdown', pointerDownHandler);
+  scrubContainer.addEventListener('pointermove', pointerMoveHandler);
+  scrubContainer.addEventListener('pointerup', pointerUpHandler);
+  scrubContainer.addEventListener('pointercancel', pointerUpHandler);
+  scrubContainer.addEventListener('pointerleave', pointerUpHandler);
 
   return scrubContainer;
 }
@@ -314,14 +322,18 @@ export function updateTimeline(state: TimelineState): void {
 
 export function disposeTimeline(): void {
   stopPlayback();
-  if (windowMoveHandler) {
-    window.removeEventListener('mousemove', windowMoveHandler);
-    windowMoveHandler = null;
+  if (scrubContainer) {
+    if (pointerDownHandler) scrubContainer.removeEventListener('pointerdown', pointerDownHandler);
+    if (pointerMoveHandler) scrubContainer.removeEventListener('pointermove', pointerMoveHandler);
+    if (pointerUpHandler) {
+      scrubContainer.removeEventListener('pointerup', pointerUpHandler);
+      scrubContainer.removeEventListener('pointercancel', pointerUpHandler);
+      scrubContainer.removeEventListener('pointerleave', pointerUpHandler);
+    }
   }
-  if (windowUpHandler) {
-    window.removeEventListener('mouseup', windowUpHandler);
-    windowUpHandler = null;
-  }
+  pointerDownHandler = null;
+  pointerMoveHandler = null;
+  pointerUpHandler = null;
   if (unsubLocale) {
     unsubLocale();
     unsubLocale = null;
