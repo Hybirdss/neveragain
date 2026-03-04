@@ -97,7 +97,7 @@ function toEarthquakeEventFromServer(ev: ServerEvent): EarthquakeEvent {
     magnitude: ev.magnitude,
     time: Number.isFinite(parsedTime) ? parsedTime : Date.now(),
     faultType,
-    tsunami: false,
+    tsunami: ev.tsunami === true,
     place: { text: ev.place ?? 'Unknown location' },
   };
 }
