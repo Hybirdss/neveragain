@@ -35,6 +35,10 @@ let crossSectionBtn: HTMLElement;
 let cinematicBtn: HTMLElement;
 
 let unsubLocale: (() => void) | null = null;
+let sidebarToggleBtn: HTMLButtonElement | null = null;
+let mobileViewportQuery: MediaQueryList | null = null;
+let onViewportChange: ((event: MediaQueryListEvent) => void) | null = null;
+let syncSidebarToggleState: (() => void) | null = null;
 
 // Track current events for click handlers
 let currentEvents: EarthquakeEvent[] = [];
@@ -263,20 +267,44 @@ export function initSidebar(container: HTMLElement): void {
 
   container.appendChild(sidebarEl);
 
-  // Mobile hamburger toggle
-  const toggleBtn = el('button', 'sidebar-toggle');
-  toggleBtn.textContent = '\u2630';
-  toggleBtn.setAttribute('aria-label', 'Toggle sidebar');
-  toggleBtn.addEventListener('click', () => {
+  // Mobile bottom-sheet toggle
+  sidebarToggleBtn = el('button', 'sidebar-toggle') as HTMLButtonElement;
+  sidebarToggleBtn.type = 'button';
+  sidebarToggleBtn.setAttribute('aria-label', t('sidebar.title'));
+
+  syncSidebarToggleState = () => {
+    if (!sidebarToggleBtn) return;
+    const isOpen = sidebarEl.classList.contains('sidebar--open');
+    sidebarToggleBtn.classList.toggle('sidebar-toggle--active', isOpen);
+    sidebarToggleBtn.textContent = isOpen ? '\u2715' : '\u2630';
+    sidebarToggleBtn.setAttribute('aria-expanded', String(isOpen));
+  };
+
+  sidebarToggleBtn.addEventListener('click', () => {
     sidebarEl.classList.toggle('sidebar--open');
+    syncSidebarToggleState?.();
   });
-  container.appendChild(toggleBtn);
+  container.appendChild(sidebarToggleBtn);
+
+  mobileViewportQuery = window.matchMedia('(max-width: 768px)');
+  onViewportChange = (event: MediaQueryListEvent) => {
+    if (!event.matches) {
+      sidebarEl.classList.remove('sidebar--open');
+    }
+    syncSidebarToggleState?.();
+  };
+  mobileViewportQuery.addEventListener('change', onViewportChange);
+  syncSidebarToggleState();
 
   // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
     headerTitleEl.textContent = t('sidebar.title');
     crossSectionBtn.textContent = t('detail.crossSection');
     cinematicBtn.textContent = `▶ ${t('sidebar.cinematic')}`;
+    if (sidebarToggleBtn) {
+      sidebarToggleBtn.setAttribute('aria-label', t('sidebar.title'));
+    }
+    syncSidebarToggleState?.();
     // Re-render event list with new locale
     if (currentEvents.length > 0) {
       const selected = store.get('selectedEvent');
@@ -288,6 +316,13 @@ export function initSidebar(container: HTMLElement): void {
 export function disposeSidebar(): void {
   unsubLocale?.();
   unsubLocale = null;
+  if (mobileViewportQuery && onViewportChange) {
+    mobileViewportQuery.removeEventListener('change', onViewportChange);
+  }
+  sidebarToggleBtn = null;
+  mobileViewportQuery = null;
+  onViewportChange = null;
+  syncSidebarToggleState = null;
 }
 
 function renderEvents(events: EarthquakeEvent[], selectedEvent?: EarthquakeEvent | null): void {

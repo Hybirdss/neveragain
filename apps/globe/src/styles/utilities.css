@@ -77,14 +77,29 @@
   z-index: calc(var(--z-sidebar) + 1);
   width: 36px;
   height: 36px;
-  background: var(--surface-panel);
+  background: rgba(14, 14, 14, 0.9);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--panel-radius);
+  border-radius: 12px;
   color: var(--text-primary);
   font-size: 18px;
   cursor: pointer;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  transition: background var(--duration-hover) var(--ease-panel),
+    border-color var(--duration-hover) var(--ease-panel),
+    color var(--duration-hover) var(--ease-panel);
+}
+
+.sidebar-toggle:hover {
+  border-color: var(--border-emphasis);
+}
+
+.sidebar-toggle--active {
+  background: var(--surface-danger-subtle);
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
 }
 
 /* --- Global Scrollbar --- */
