@@ -6,7 +6,8 @@
   }
 
   .mode-switcher-wrapper {
-    left: 110px;
+    bottom: 12px;
+    right: 12px;
   }
 
   .intensity-legend {

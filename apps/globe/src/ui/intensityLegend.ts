@@ -5,8 +5,9 @@
  * Imports JMA_COLORS from types.ts — does not redefine color values.
  */
 
-import type { JmaClass } from '../types';
+import type { JmaClass, LayerVisibility } from '../types';
 import { JMA_COLORS } from '../types';
+import { store } from '../store/appState';
 import { t, onLocaleChange } from '../i18n/index';
 
 const JMA_SCALE_ENTRIES: Array<{ key: JmaClass; i18nKey: string }> = [
@@ -26,9 +27,17 @@ function buildLegendLabel(jmaKey: JmaClass, i18nKey: string): string {
   return `${jmaKey} \u2014 ${t(i18nKey)}`;
 }
 
+let legendEl: HTMLElement | null = null;
 let legendTitleEl: HTMLElement;
 let legendLabelEls: Array<{ el: HTMLElement; jmaKey: JmaClass; i18nKey: string }> = [];
 let unsubLocale: (() => void) | null = null;
+let unsubLayers: (() => void) | null = null;
+
+function updateVisibility(layers: LayerVisibility): void {
+  if (!legendEl) return;
+  const show = layers.isoseismalContours || layers.shakeMapContours;
+  legendEl.style.display = show ? '' : 'none';
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -42,10 +51,11 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 export function initIntensityLegend(container: HTMLElement): void {
-  const legend = el('div', 'intensity-legend');
+  legendEl = el('div', 'intensity-legend');
+  legendEl.style.display = 'none'; // hidden until contour/shakemap layer is on
 
   legendTitleEl = el('div', 'intensity-legend__title', t('legend.title'));
-  legend.appendChild(legendTitleEl);
+  legendEl.appendChild(legendTitleEl);
 
   legendLabelEls = [];
   for (const entry of JMA_SCALE_ENTRIES) {
@@ -59,10 +69,14 @@ export function initIntensityLegend(container: HTMLElement): void {
     legendLabelEls.push({ el: labelEl, jmaKey: entry.key, i18nKey: entry.i18nKey });
     item.appendChild(labelEl);
 
-    legend.appendChild(item);
+    legendEl.appendChild(item);
   }
 
-  container.appendChild(legend);
+  container.appendChild(legendEl);
+
+  // Show/hide based on relevant layers
+  updateVisibility(store.get('layers'));
+  unsubLayers = store.subscribe('layers', updateVisibility);
 
   // Subscribe to locale changes
   unsubLocale = onLocaleChange(() => {
@@ -76,5 +90,9 @@ export function initIntensityLegend(container: HTMLElement): void {
 export function disposeIntensityLegend(): void {
   unsubLocale?.();
   unsubLocale = null;
+  unsubLayers?.();
+  unsubLayers = null;
+  legendEl?.remove();
+  legendEl = null;
   legendLabelEls = [];
 }

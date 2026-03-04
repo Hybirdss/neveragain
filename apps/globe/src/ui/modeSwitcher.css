@@ -1,13 +1,13 @@
 /* --- Mode Switcher --- */
 .mode-switcher-wrapper {
   position: absolute;
-  top: 44px;
-  left: 120px;
+  bottom: 16px;
+  right: 16px;
   z-index: var(--z-hud);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  align-items: flex-start;
+  align-items: flex-end;
 }
 
 .mode-switcher {

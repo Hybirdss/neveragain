@@ -140,13 +140,25 @@ async function bootstrap(): Promise<void> {
   initSearchBar();
   initCrossSection(layout.globeArea);
   initMobileShell(layout.globeArea);
-  initModeSwitcher(layout.timelineContainer, {
+  initModeSwitcher(layout.globeArea, {
     onLoadTimeline: (start, end) => {
       loadTimelineData(start, end).catch((err) =>
         console.error('[main] Timeline load failed:', err),
       );
     },
   });
+
+  // Timeline container: hidden in realtime mode, visible in timeline/scenario mode
+  const timelineEl = layout.timelineContainer;
+  function syncTimelineVisibility(mode: string): void {
+    const show = mode !== 'realtime';
+    timelineEl.style.display = show ? '' : 'none';
+    // Adjust grid to collapse timeline row when hidden
+    const app = document.getElementById('app')!;
+    app.style.gridTemplateRows = show ? '1fr var(--timeline-height)' : '1fr';
+  }
+  syncTimelineVisibility(store.get('mode'));
+  const unsubTimelineMode = store.subscribe('mode', syncTimelineVisibility);
 
   // 5. Data grids (async, non-blocking) + active faults
   updateLoading('Loading seismic data…', 70);
@@ -251,6 +263,7 @@ async function bootstrap(): Promise<void> {
       disposeGeocoder();
       disposeModeSwitcher();
       disposeIntensityLegend();
+      unsubTimelineMode();
       layout.disposeLayout();
     });
   }

@@ -26,12 +26,21 @@ const LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: strin
 
 // ── State ───────────────────────────────────────────────────────
 
+let wrapperEl: HTMLElement | null = null;
 let panelEl: HTMLElement | null = null;
+let triggerBtn: HTMLButtonElement | null = null;
+let expanded = false;
 let toggleEls: Map<keyof LayerVisibility, { row: HTMLElement; dot: HTMLElement; label: HTMLElement }> = new Map();
 let unsubscribe: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 let titleEl: HTMLElement | null = null;
 let viewerRef: GlobeInstance | null = null;
+
+function setExpanded(open: boolean): void {
+  expanded = open;
+  if (panelEl) panelEl.style.display = open ? '' : 'none';
+  if (triggerBtn) triggerBtn.classList.toggle('layer-trigger--open', open);
+}
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -65,8 +74,24 @@ function createToggleRow(
 
 export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance): void {
   viewerRef = viewer ?? null;
+
+  // Wrapper holds trigger button + expandable panel
+  wrapperEl = document.createElement('div');
+  wrapperEl.className = 'layer-toggles-wrapper';
+
+  // Trigger button (always visible)
+  triggerBtn = document.createElement('button');
+  triggerBtn.type = 'button';
+  triggerBtn.className = 'layer-trigger';
+  triggerBtn.title = t('layer.title');
+  triggerBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  triggerBtn.addEventListener('click', () => setExpanded(!expanded));
+  wrapperEl.appendChild(triggerBtn);
+
+  // Expandable panel (hidden by default)
   panelEl = document.createElement('div');
   panelEl.className = 'layer-toggles';
+  panelEl.style.display = 'none';
 
   const currentLayers = store.get('layers');
 
@@ -99,7 +124,8 @@ export function initLayerToggles(container: HTMLElement, viewer?: GlobeInstance)
   });
   panelEl.appendChild(japanBtn);
 
-  container.appendChild(panelEl);
+  wrapperEl.appendChild(panelEl);
+  container.appendChild(wrapperEl);
 
   // ── Subscriptions ──
   unsubscribe = store.subscribe('layers', (layers: LayerVisibility) => {
@@ -125,8 +151,11 @@ export function disposeLayerToggles(): void {
   unsubscribe = null;
   unsubLocale?.();
   unsubLocale = null;
-  panelEl?.remove();
+  wrapperEl?.remove();
+  wrapperEl = null;
   panelEl = null;
+  triggerBtn = null;
   titleEl = null;
+  expanded = false;
   toggleEls.clear();
 }

@@ -1,13 +1,43 @@
-/* --- Layer Toggles (dot-style) --- */
-.layer-toggles {
+/* --- Layer Toggles (dot-style, collapsed by default) --- */
+
+.layer-toggles-wrapper {
   position: absolute;
   bottom: 16px;
   left: 16px;
   z-index: var(--z-hud);
+}
+
+/* Trigger button — always visible */
+.layer-trigger {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 10, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color var(--duration-hover) ease, border-color var(--duration-hover) ease;
+}
+
+.layer-trigger:hover,
+.layer-trigger--open {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Expandable panel */
+.layer-toggles {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
   background: rgba(10, 10, 10, 0.72);
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   padding: var(--spacing-panel-y) var(--spacing-panel-x);
+  min-width: 160px;
 }
 
 .layer-toggles__title {
@@ -80,23 +110,4 @@
 
 .layer-toggles__action-btn:hover {
   color: var(--text-primary);
-}
-
-.layer-toggles__select {
-  display: block;
-  width: 100%;
-  padding: 4px 6px;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--panel-radius);
-  color: var(--text-secondary);
-  cursor: pointer;
-  outline: none;
-  transition: border-color var(--duration-hover) ease;
-}
-
-.layer-toggles__select:focus {
-  border-color: var(--accent-danger);
 }
