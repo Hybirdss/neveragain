@@ -22,28 +22,14 @@ export type GlobeInstance = Cesium.Viewer;
 const JAPAN_RECT = Cesium.Rectangle.fromDegrees(122, 24, 154, 46);
 
 /**
- * Convert globe.gl-style altitude (fraction of Earth radius) to Cesium meters.
- */
-export function altitudeToMeters(alt: number): number {
-  return alt * 6_371_000;
-}
-
-/**
- * Convert Cesium meters altitude to globe.gl-style fraction.
- */
-export function metersToAltitude(meters: number): number {
-  return meters / 6_371_000;
-}
-
-/**
- * Get current camera point-of-view in a format compatible with the rest of the app.
+ * Get current camera point-of-view (altitude in meters).
  */
 export function getPointOfView(viewer: GlobeInstance): { lat: number; lng: number; altitude: number } {
   const carto = viewer.camera.positionCartographic;
   return {
     lat: Cesium.Math.toDegrees(carto.latitude),
     lng: Cesium.Math.toDegrees(carto.longitude),
-    altitude: carto.height / 6_371_000,
+    altitude: carto.height,
   };
 }
 

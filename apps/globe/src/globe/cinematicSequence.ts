@@ -15,7 +15,6 @@
 
 import * as Cesium from 'cesium';
 import type { GlobeInstance } from './globeInstance';
-import { altitudeToMeters } from './globeInstance';
 import type { EarthquakeEvent } from '../types';
 import { showCinematicOverlay, onSkip, type CinematicOverlayHandle } from '../ui/cinematicOverlay';
 import { prepareCinematicReveal, setDepthFilter, clearCinematicReveal } from './layers/seismicPoints';
@@ -26,7 +25,7 @@ import { playRumble, playImpact, playDrone, stopAll as stopAudio } from '../audi
 export interface CinematicStep {
   lat: number;
   lng: number;
-  altitude: number;       // globe.gl-style fraction (× 6,371,000 = meters)
+  altitude: number;       // meters above WGS84 ellipsoid
   heading?: number;       // degrees (default 0)
   pitch?: number;         // degrees (default -90 = nadir)
   durationMs: number;
@@ -138,7 +137,7 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
   return [
     // a. Globe overview — fast context setting
     {
-      lat: 20, lng: 140, altitude: 4.0,
+      lat: 20, lng: 140, altitude: 4_000_000,
       heading: 0, pitch: -90,
       durationMs: 1500,
       easing: Cesium.EasingFunction.EXPONENTIAL_OUT,
@@ -147,7 +146,7 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
     },
     // b. Approach Japan from Pacific arc
     {
-      lat: event.lat + 2, lng: event.lng + 5, altitude: 1.8,
+      lat: event.lat + 2, lng: event.lng + 5, altitude: 2_000_000,
       heading: -20, pitch: -70,
       durationMs: 2000,
       easing: Cesium.EasingFunction.SINUSOIDAL_IN_OUT,
@@ -155,7 +154,7 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
     },
     // c. Zoom in (building level)
     {
-      lat: event.lat, lng: event.lng, altitude: 0.3,
+      lat: event.lat, lng: event.lng, altitude: 200_000,
       heading: -10, pitch: -60,
       durationMs: 1500,
       easing: Cesium.EasingFunction.CUBIC_IN_OUT,
@@ -163,32 +162,31 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
     },
     // d. Beat (静) — micro drift keeps it alive
     {
-      lat: event.lat, lng: event.lng, altitude: 0.3,
+      lat: event.lat, lng: event.lng, altitude: 200_000,
       heading: -10, pitch: -60,
       durationMs: 0,
       holdMs: 500,
-      holdDrift: 0.1,  // 0.1°/s heading change
+      holdDrift: 0.1,
       label: 'Beat',
     },
     // e. Translucency reveal — fly and onEnter in parallel
     {
-      lat: event.lat - 0.5, lng: event.lng + 1, altitude: 0.5,
+      lat: event.lat - 0.5, lng: event.lng + 1, altitude: 400_000,
       heading: -12, pitch: -55,
       durationMs: 2000,
       easing: Cesium.EasingFunction.SINUSOIDAL_OUT,
       onEnter: (viewer) => {
         playImpact();
-        // Parallel: translucency + depth reveal
         animateTranslucency(viewer, 0.45, 1800);
         prepareCinematicReveal();
         revealEarthquakesByDepth(2000);
       },
-      onEnterDelayMs: 300,  // start 300ms after fly begins
+      onEnterDelayMs: 300,
       label: 'Translucency + depth reveal',
     },
     // f. Tilt along trench — slowest, money shot
     {
-      lat: event.lat + 1, lng: event.lng + 2.5, altitude: 0.8,
+      lat: event.lat + 1, lng: event.lng + 2.5, altitude: 800_000,
       heading: -15, pitch: -45,
       durationMs: 4000,
       easing: Cesium.EasingFunction.SINUSOIDAL_IN_OUT,
@@ -197,7 +195,7 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
     },
     // g. ShakeMap overlay — quick wrap
     {
-      lat: event.lat + 0.5, lng: event.lng + 2, altitude: 0.9,
+      lat: event.lat + 0.5, lng: event.lng + 2, altitude: 900_000,
       heading: -15, pitch: -45,
       durationMs: 1500,
       easing: Cesium.EasingFunction.CUBIC_OUT,
@@ -205,7 +203,7 @@ export function buildSnsSequence(event: EarthquakeEvent): CinematicStep[] {
     },
     // h. Final hold — capture frame
     {
-      lat: event.lat + 0.5, lng: event.lng + 2, altitude: 0.9,
+      lat: event.lat + 0.5, lng: event.lng + 2, altitude: 900_000,
       heading: -15, pitch: -45,
       durationMs: 0,
       holdMs: 1000,
@@ -231,7 +229,7 @@ async function preloadKeyframes(
 
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(
-        step.lng, step.lat, altitudeToMeters(step.altitude),
+        step.lng, step.lat, step.altitude,
       ),
       orientation: {
         heading: Cesium.Math.toRadians(step.heading ?? 0),
@@ -278,7 +276,7 @@ function flyToStep(viewer: GlobeInstance, step: CinematicStep): Promise<void> {
   return new Promise((resolve) => {
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(
-        step.lng, step.lat, altitudeToMeters(step.altitude),
+        step.lng, step.lat, step.altitude,
       ),
       orientation: {
         heading: Cesium.Math.toRadians(step.heading ?? 0),
@@ -295,7 +293,7 @@ function flyToStep(viewer: GlobeInstance, step: CinematicStep): Promise<void> {
 function instantStep(viewer: GlobeInstance, step: CinematicStep): Promise<void> {
   viewer.camera.setView({
     destination: Cesium.Cartesian3.fromDegrees(
-      step.lng, step.lat, altitudeToMeters(step.altitude),
+      step.lng, step.lat, step.altitude,
     ),
     orientation: {
       heading: Cesium.Math.toRadians(step.heading ?? 0),

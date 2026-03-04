@@ -9,30 +9,30 @@
 
 import * as Cesium from 'cesium';
 import type { GlobeInstance } from './globeInstance';
-import { altitudeToMeters } from './globeInstance';
 import type { EarthquakeEvent } from '../types';
 
 // ---------------------------------------------------------------------------
-// Constants (from CAMERA_CHOREOGRAPHY.md)
+// Constants — altitudes in meters (CesiumJS native)
 // ---------------------------------------------------------------------------
 
 export const CAMERA = {
   INITIAL_LAT: 36,
   INITIAL_LNG: 138,
-  INITIAL_ALTITUDE: 2.5,
 
   IDLE_RESUME_DELAY_MS: 5000,
 
-  ZOOM_M5: 1.4,
-  ZOOM_M6: 1.0,
-  ZOOM_M7_PLUS: 0.7,
+  // Altitude in meters — closer = more dramatic
+  ZOOM_M7_PLUS: 150_000,    // 150 km — dramatic close-up
+  ZOOM_M6:      350_000,    // 350 km — regional
+  ZOOM_M5:      600_000,    // 600 km — wide regional
+  ZOOM_DEFAULT: 1_200_000,  // 1200 km — area view
 
-  PAN_DURATION_GENTLE_MS: 900,
-  PAN_DURATION_FAST_MS: 700,
-  PAN_DURATION_DRAMATIC_MS: 1200,
+  PAN_DURATION_GENTLE_MS: 1200,
+  PAN_DURATION_FAST_MS: 900,
+  PAN_DURATION_DRAMATIC_MS: 1500,
   HOLD_DURATION_M7_MS: 2500,
   PULLBACK_DURATION_MS: 1800,
-  PULLBACK_ALTITUDE: 2.5,
+  PULLBACK_ALTITUDE: 2_000_000, // 2000 km pullback
 
   OVERRIDE_BUTTON_TIMEOUT_MS: 15000,
 } as const;
@@ -50,7 +50,7 @@ function getFlyParams(magnitude: number): FlyParams {
   if (magnitude >= 7.0) return { altitude: CAMERA.ZOOM_M7_PLUS, durationMs: CAMERA.PAN_DURATION_DRAMATIC_MS };
   if (magnitude >= 6.0) return { altitude: CAMERA.ZOOM_M6, durationMs: CAMERA.PAN_DURATION_FAST_MS };
   if (magnitude >= 5.0) return { altitude: CAMERA.ZOOM_M5, durationMs: CAMERA.PAN_DURATION_GENTLE_MS };
-  return { altitude: CAMERA.INITIAL_ALTITUDE, durationMs: 1000 };
+  return { altitude: CAMERA.ZOOM_DEFAULT, durationMs: CAMERA.PAN_DURATION_GENTLE_MS };
 }
 
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -80,7 +80,7 @@ function flyTo(
   pitchDeg: number = -90,
 ): void {
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat, altitudeToMeters(altitude)),
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, altitude),
     orientation: {
       heading: 0,
       pitch: Cesium.Math.toRadians(pitchDeg),
@@ -174,20 +174,20 @@ export async function executeCameraPath(
 // ---------------------------------------------------------------------------
 
 export const NANKAI_CAMERA_PATH: ScenarioCameraPath = [
-  { lat: 33.0, lng: 137.0, altitude: 2.5, durationMs: 0, label: 'Initial: Japan overview' },
-  { lat: 33.0, lng: 137.0, altitude: 1.5, durationMs: 2000, holdMs: 1000, label: 'Zoom: Nankai Trough' },
-  { lat: 33.5, lng: 135.5, altitude: 1.0, durationMs: 1500, holdMs: 3000, label: 'Rupture start' },
-  { lat: 34.0, lng: 137.0, altitude: 1.2, durationMs: 5000, label: 'Track rupture propagation' },
-  { lat: 35.0, lng: 137.0, altitude: 2.0, durationMs: 3000, holdMs: 5000, label: 'Wide-area damage view' },
-  { lat: 36.0, lng: 138.0, altitude: 2.5, durationMs: 3000, label: 'Pullback' },
+  { lat: 33.0, lng: 137.0, altitude: 2_500_000, durationMs: 0, label: 'Initial: Japan overview' },
+  { lat: 33.0, lng: 137.0, altitude: 800_000, durationMs: 2000, holdMs: 1000, label: 'Zoom: Nankai Trough' },
+  { lat: 33.5, lng: 135.5, altitude: 300_000, durationMs: 1500, holdMs: 3000, label: 'Rupture start' },
+  { lat: 34.0, lng: 137.0, altitude: 500_000, durationMs: 5000, label: 'Track rupture propagation' },
+  { lat: 35.0, lng: 137.0, altitude: 1_500_000, durationMs: 3000, holdMs: 5000, label: 'Wide-area damage view' },
+  { lat: 36.0, lng: 138.0, altitude: 2_500_000, durationMs: 3000, label: 'Pullback' },
 ];
 
 export const TOHOKU_CAMERA_PATH: ScenarioCameraPath = [
-  { lat: 38.3, lng: 142.4, altitude: 2.5, durationMs: 0, label: 'Initial: Tohoku offshore' },
-  { lat: 38.3, lng: 142.4, altitude: 1.0, durationMs: 2000, holdMs: 2000, label: 'Epicentre zoom' },
-  { lat: 38.0, lng: 141.0, altitude: 1.5, durationMs: 3000, holdMs: 3000, label: 'Track to Sendai' },
-  { lat: 36.0, lng: 140.0, altitude: 2.0, durationMs: 4000, holdMs: 3000, label: 'Reach Tokyo' },
-  { lat: 37.0, lng: 140.0, altitude: 2.5, durationMs: 3000, label: 'Pullback' },
+  { lat: 38.3, lng: 142.4, altitude: 2_500_000, durationMs: 0, label: 'Initial: Tohoku offshore' },
+  { lat: 38.3, lng: 142.4, altitude: 300_000, durationMs: 2000, holdMs: 2000, label: 'Epicentre zoom' },
+  { lat: 38.0, lng: 141.0, altitude: 800_000, durationMs: 3000, holdMs: 3000, label: 'Track to Sendai' },
+  { lat: 36.0, lng: 140.0, altitude: 1_500_000, durationMs: 4000, holdMs: 3000, label: 'Reach Tokyo' },
+  { lat: 37.0, lng: 140.0, altitude: 2_500_000, durationMs: 3000, label: 'Pullback' },
 ];
 
 // ---------------------------------------------------------------------------
