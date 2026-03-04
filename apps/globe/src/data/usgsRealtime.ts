@@ -110,7 +110,16 @@ async function fetchJsonWithTimeout<T>(url: string): Promise<T> {
     if (!response.ok) {
       throw new Error(`Request failed with status ${response.status} for ${url}`);
     }
-    return await response.json() as T;
+    const text = await response.text();
+    if (!text) {
+      throw new Error(`Empty response body from ${url}`);
+    }
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      const preview = text.slice(0, 80).replace(/\s+/g, ' ');
+      throw new Error(`Invalid JSON response from ${url}: ${preview}`);
+    }
   } finally {
     clearTimeout(timer);
   }

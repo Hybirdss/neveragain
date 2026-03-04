@@ -15,10 +15,14 @@ const ANALYSIS_RETRY_DELAY_MS = 1500;
 
 /** Tracks the event ID of the latest fetch request to prevent stale results. */
 let activeEventId: string | null = null;
+let activeController: AbortController | null = null;
 
 export async function fetchAnalysis(eventId: string): Promise<void> {
   // Always accept new requests — cancel stale ones by tracking the event ID.
   activeEventId = eventId;
+  activeController?.abort();
+  const controller = new AbortController();
+  activeController = controller;
 
   store.set('ai', {
     ...store.get('ai'),
@@ -36,28 +40,28 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_id: eventId }),
+        signal: controller.signal,
       });
 
       // Bail if superseded by a newer selection
-      if (activeEventId !== eventId) return;
+      if (activeEventId !== eventId || controller.signal.aborted) return;
 
       if (resp.status === 202) {
         if (attempt < ANALYSIS_FETCH_ATTEMPTS - 1) {
-          await delay(ANALYSIS_RETRY_DELAY_MS);
+          await delay(ANALYSIS_RETRY_DELAY_MS, controller.signal);
           continue;
         }
         throw new Error('AI 분석이 서버에서 준비 중입니다. 잠시 후 다시 확인해주세요.');
       }
 
       if (!resp.ok) {
-        const error = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-        throw new Error(error.error ?? `Analysis failed (${resp.status})`);
+        throw new Error(await parseErrorMessage(resp));
       }
 
       const analysis = await resp.json();
 
       // Final staleness check before updating store
-      if (activeEventId !== eventId) return;
+      if (activeEventId !== eventId || controller.signal.aborted) return;
 
       store.set('ai', {
         ...store.get('ai'),
@@ -69,16 +73,51 @@ export async function fetchAnalysis(eventId: string): Promise<void> {
     }
   } catch (err) {
     // Only update error state if this is still the active request
-    if (activeEventId !== eventId) return;
+    if (activeEventId !== eventId || controller.signal.aborted) return;
 
     store.set('ai', {
       ...store.get('ai'),
       analysisLoading: false,
       analysisError: (err as Error).message,
     });
+  } finally {
+    if (activeController === controller) {
+      activeController = null;
+    }
   }
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function parseErrorMessage(resp: Response): Promise<string> {
+  const text = await resp.text().catch(() => '');
+  if (text) {
+    try {
+      const parsed = JSON.parse(text) as { error?: unknown };
+      if (typeof parsed?.error === 'string' && parsed.error.trim()) {
+        return parsed.error;
+      }
+    } catch {
+      // non-JSON error body
+    }
+  }
+  return text.trim() || `Analysis failed (${resp.status})`;
+}
+
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+  });
 }

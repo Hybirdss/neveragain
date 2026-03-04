@@ -18,7 +18,7 @@ import { callGrok } from '../lib/grok.ts';
 import { buildContext } from '../context/builder.ts';
 import { analyses, earthquakes } from '@namazue/db';
 import type { AnalysisTier, BuilderInput } from '@namazue/db';
-import { eq, and, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
 
 export const analyzeRoute = new Hono<{ Bindings: Env }>();
 
@@ -38,6 +38,7 @@ async function getLatestAnalysis(
       eq(analyses.event_id, eventId),
       eq(analyses.is_latest, true),
     ))
+    .orderBy(desc(analyses.created_at), desc(analyses.id))
     .limit(1);
 
   return rows[0] ?? null;
@@ -240,6 +241,13 @@ export async function generateAndStoreAnalysis(
       region_keywords: grok.search_index?.region_keywords ?? { ja: [], ko: [], en: [] },
     },
   };
+
+  await db.update(analyses)
+    .set({ is_latest: false })
+    .where(and(
+      eq(analyses.event_id, event.id),
+      eq(analyses.is_latest, true),
+    ));
 
   await db.insert(analyses).values({
     event_id: event.id,

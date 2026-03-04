@@ -14,6 +14,7 @@
  */
 
 import './style.css';
+import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 // Store
 import { store } from './store/appState';
@@ -128,6 +129,7 @@ interface LayoutContainers {
   sidebarContainer: HTMLElement;
   timelineContainer: HTMLElement;
   legendContainer: HTMLElement;
+  disposeLayout: () => void;
 }
 
 function createLayout(): LayoutContainers {
@@ -193,12 +195,12 @@ function createLayout(): LayoutContainers {
     clockEl.textContent = `${timeFormatter.format(now)} JST`;
   }
   updateClock();
-  setInterval(updateClock, 1000);
+  const clockIntervalId = window.setInterval(updateClock, 1000);
 
   // Network error indicator
   const liveDot = topBar.querySelector('.top-bar__live-dot') as HTMLElement;
   const liveLabel = topBar.querySelector('.top-bar__right .mono') as HTMLElement;
-  store.subscribe('networkError', (err) => {
+  const unsubNetworkError = store.subscribe('networkError', (err) => {
     if (err) {
       liveDot.style.background = 'var(--accent-danger)';
       liveLabel.textContent = 'OFFLINE';
@@ -218,11 +220,22 @@ function createLayout(): LayoutContainers {
   globeArea.appendChild(scenarioBtn);
 
   // Update scenario button text on locale change
-  onLocaleChange(() => {
+  const unsubScenarioLocale = onLocaleChange(() => {
     scenarioBtn.textContent = `${t('sidebar.training')} (${HISTORICAL_PRESETS.length})`;
   });
 
-  return { globeContainer, globeArea, sidebarContainer, timelineContainer, legendContainer };
+  return {
+    globeContainer,
+    globeArea,
+    sidebarContainer,
+    timelineContainer,
+    legendContainer,
+    disposeLayout: () => {
+      window.clearInterval(clockIntervalId);
+      unsubNetworkError();
+      unsubScenarioLocale();
+    },
+  };
 }
 
 // ============================================================
@@ -361,6 +374,9 @@ async function loadAllDataGrids(): Promise<void> {
 let waveAnimationId: number | null = null;
 let globeRef: GlobeInstance | null = null;
 
+/** When true, the next selectedEvent change skips camera flyTo (used by scenario camera paths). */
+let skipNextFlyTo = false;
+
 function startWaveAnimation(
   event: EarthquakeEvent,
   _globe: GlobeInstance,
@@ -404,14 +420,15 @@ function stopWaveAnimation(): void {
 /** Reference to the poller handle — set during bootstrap. */
 let pollerHandle: RealtimePollerHandle | null = null;
 
-function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
-  // --- mode changes → clean up state for realtime return ---
-  store.subscribe('mode', (mode) => {
-    if (mode === 'realtime') {
-      // Reset seen IDs so next poll re-delivers events from the feed
-      pollerHandle?.resetSeen();
+function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
+  const unsubs: Array<() => void> = [];
+  // --- mode changes → clean up stale state on every transition ---
+  unsubs.push(store.subscribe('mode', (mode) => {
+    // Clear selection + all visuals on any mode change (cascade via selectedEvent subscriber)
+    store.set('selectedEvent', null);
 
-      // Clear stale timeline data (scenario/historical events) to prevent contamination
+    if (mode === 'realtime') {
+      pollerHandle?.resetSeen();
       const now = Date.now();
       store.set('timeline', {
         events: [],
@@ -421,16 +438,11 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
         speed: 1,
         timeRange: [now - 86_400_000, now],
       });
-
-      // Clear visuals from previous mode
-      store.set('selectedEvent', null);
-      store.set('intensityGrid', null);
-      store.set('waveState', null);
     }
-  });
+  }));
   // --- Search results → globe highlight ---
   let prevSearchResultIds: Set<string> | null = null;
-  store.subscribe('ai', (aiState) => {
+  unsubs.push(store.subscribe('ai', (aiState) => {
     const results = aiState.searchResults as Array<{ id?: string }> | null;
     if (!results || results.length === 0) {
       if (prevSearchResultIds !== null) {
@@ -442,11 +454,11 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     const ids = new Set(results.map(r => r.id).filter((id): id is string => !!id));
     prevSearchResultIds = ids;
     highlightSearchResults(ids);
-  });
+  }));
 
   // --- selectedEvent → immediate GMPE + ShakeMap override + camera + waves ---
   let selectedEventVersion = 0;
-  store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
+  unsubs.push(store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
     const myVersion = ++selectedEventVersion;
     if (!event) {
       // Clear visuals when deselected
@@ -459,6 +471,13 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       store.set('intensityGrid', null);
       store.set('intensitySource', 'none');
       store.set('waveState', null);
+      // Clear stale AI analysis
+      store.set('ai', {
+        ...store.get('ai'),
+        currentAnalysis: null,
+        analysisLoading: false,
+        analysisError: null,
+      });
       return;
     }
 
@@ -482,18 +501,32 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       });
     }
 
-    // Fly camera to epicentre
-    flyToEarthquake(globe, event);
+    // Fly camera to epicentre (unless suppressed by scenario camera path)
+    if (skipNextFlyTo) {
+      skipNextFlyTo = false;
+    } else {
+      flyToEarthquake(globe, event);
+    }
 
-    // Spawn visual wave rings on globe
-    spawnWaveRings(globe, event);
-
-    // Start physics-based wave animation (updates store.waveState)
-    startWaveAnimation(event, globe);
+    // Only spawn wave rings + animation for recent events (< 30 min old)
+    const eventAge = Date.now() - event.time;
+    if (eventAge < 30 * 60_000) {
+      spawnWaveRings(globe, event);
+      startWaveAnimation(event, globe);
+    } else {
+      clearWaveRings(globe);
+      stopWaveAnimation();
+    }
 
     // Update sidebar detail panel
     const timeline = store.get('timeline');
     updateSidebar(timeline.events, event, store.get('intensitySource'));
+
+    // Sync timeline currentIndex with selected event for prev/next navigation
+    const selectedIdx = timeline.events.findIndex(e => e.id === event.id);
+    if (selectedIdx !== -1 && selectedIdx !== timeline.currentIndex) {
+      store.set('timeline', { ...timeline, currentIndex: selectedIdx });
+    }
 
     // M7+ alert bar
     if (event.magnitude >= 7.0) {
@@ -525,10 +558,10 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       updateSidebar(store.get('timeline').events, event, 'shakemap');
       console.log(`[main] ShakeMap loaded for ${event.id}`);
     }
-  });
+  }));
 
   // --- intensityGrid → contours → isoseismal + impact + landslide + hazard ---
-  store.subscribe('intensityGrid', (grid: IntensityGrid | null) => {
+  unsubs.push(store.subscribe('intensityGrid', (grid: IntensityGrid | null) => {
     if (!grid) {
       clearIsoseismal(globe);
       store.set('impactResults', null);
@@ -569,10 +602,10 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     } else {
       clearComparisonOverlay(globe);
     }
-  });
+  }));
 
   // --- layer visibility → toggle features (diff-based) ---
-  store.subscribe('layers', (layers: LayerVisibility, prev: LayerVisibility) => {
+  unsubs.push(store.subscribe('layers', (layers: LayerVisibility, prev: LayerVisibility) => {
     // 1. Calculate changed keys
     const changed = new Set<keyof LayerVisibility>();
     if (!prev) {
@@ -624,19 +657,19 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
         clearComparisonOverlay(globe);
       }
     }
-  });
+  }));
 
   // --- colorblind → refresh visuals ---
-  store.subscribe('colorblind', (isColorblind) => {
+  unsubs.push(store.subscribe('colorblind', (isColorblind) => {
     const grid = store.get('intensityGrid');
     if (grid) {
       const features = generateContourFeatures(grid, isColorblind);
       updateIsoseismal(globe, features);
     }
-  });
+  }));
 
   // --- viewPreset → apply visual configuration ---
-  store.subscribe('viewPreset', (preset: ViewPreset) => {
+  unsubs.push(store.subscribe('viewPreset', (preset: ViewPreset) => {
     applyViewPreset(globe, preset);
     // Toggle catalog mode for underground view
     setCatalogActive(preset === 'underground');
@@ -674,13 +707,21 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       }
       hideCrossSection();
     }
-  });
+  }));
 
   // --- timeline → sidebar + seismic points ---
   // Events are filtered to show only those up to currentTime (cumulative view).
-  store.subscribe('timeline', (timeline: TimelineState) => {
-    // Update timeline UI (always shows full range)
+  let prevTimelineRef: TimelineState | null = null;
+  unsubs.push(store.subscribe('timeline', (timeline: TimelineState) => {
+    // Update timeline UI (always — handles play/pause, speed, progress bar)
     updateTimeline(timeline);
+
+    // Skip expensive sidebar + points rebuild if only currentIndex changed
+    const prev = prevTimelineRef;
+    prevTimelineRef = timeline;
+    if (prev && timeline.events === prev.events && timeline.currentTime === prev.currentTime) {
+      return;
+    }
 
     // Filter events: show all events with time <= currentTime
     const visibleEvents = timeline.events.filter(
@@ -697,7 +738,11 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       updateSidebar(visibleEvents, selected, store.get('intensitySource'));
     }
     updateSeismicPoints(globe, visibleEvents);
-  });
+  }));
+
+  return () => {
+    for (const unsub of unsubs) unsub();
+  };
 }
 
 // ============================================================
@@ -721,21 +766,26 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
   // Sort by time ascending
   deduped.sort((a, b) => a.time - b.time);
 
+  const now = Date.now();
+  const cutoff = now - 86_400_000;
+
+  // Prune events older than 24 hours to prevent unbounded accumulation
+  const pruned = deduped.filter(e => e.time >= cutoff);
+
   const selectedId = store.get('selectedEvent')?.id ?? null;
   const selectedIndex = selectedId
-    ? deduped.findIndex((event) => event.id === selectedId)
+    ? pruned.findIndex((event) => event.id === selectedId)
     : -1;
   const currentIndex = selectedIndex >= 0
     ? selectedIndex
-    : Math.max(0, deduped.length - 1);
+    : Math.max(0, pruned.length - 1);
 
-  const now = Date.now();
   store.set('timeline', {
     ...timeline,
-    events: deduped,
+    events: pruned,
     currentIndex,
     currentTime: now,
-    timeRange: [now - 86_400_000, now],
+    timeRange: [cutoff, now],
   });
 
   // Auto-select the strongest new event if nothing is selected
@@ -787,11 +837,13 @@ function onScenarioSelect(preset: HistoricalPreset): void {
     });
   }
 
-  // Execute scenario-specific camera path
+  // Execute scenario-specific camera path (suppress flyToEarthquake from selectedEvent subscriber)
   if (globeRef) {
     if (preset.id === 'nankai-scenario') {
+      skipNextFlyTo = true;
       executeCameraPath(globeRef, NANKAI_CAMERA_PATH);
     } else if (preset.id === 'tohoku-2011') {
+      skipNextFlyTo = true;
       executeCameraPath(globeRef, TOHOKU_CAMERA_PATH);
     }
   }
@@ -897,7 +949,7 @@ function setupGlobeClickHandler(globe: GlobeInstance): void {
 
 async function bootstrap(): Promise<void> {
   // 1. Create DOM layout
-  const { globeContainer, globeArea, sidebarContainer, timelineContainer, legendContainer } =
+  const { globeContainer, globeArea, sidebarContainer, timelineContainer, legendContainer, disposeLayout } =
     createLayout();
 
   // 2. Initialise globe + layers (CesiumJS — async)
@@ -1017,7 +1069,7 @@ async function bootstrap(): Promise<void> {
   };
 
   // 5. Wire store subscriptions
-  wireSubscriptions(globe, worker);
+  const disposeSubscriptions = wireSubscriptions(globe, worker);
 
   // 6. Set up globe click handlers
   setupGlobeClickHandler(globe);
@@ -1129,6 +1181,8 @@ async function bootstrap(): Promise<void> {
       disposeIntensityLegend();
       disposeCamera();
       disposeGlobe(globe);
+      disposeSubscriptions();
+      disposeLayout();
       worker.terminate();
     });
   }
@@ -1141,7 +1195,7 @@ async function bootstrap(): Promise<void> {
 // Unregister any stale Service Workers on startup.
 // Register tile-cache Service Worker for browser-level caching (Layer 2).
 // Now safe: tiles go through Vite dev proxy (same-origin) or CF Workers proxy.
-if ('serviceWorker' in navigator) {
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('/tile-cache-sw.js').catch((err) => {
     console.warn('[sw] Registration failed:', err);
   });

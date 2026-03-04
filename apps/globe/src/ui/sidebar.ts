@@ -88,6 +88,19 @@ function buildHeader(): HTMLElement {
 
 function buildEventList(): HTMLElement {
   eventListEl = el('div', 'sidebar__event-list');
+
+  // Delegated click handler — always uses latest event data, no stale closures
+  eventListEl.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    const item = target.closest('.sidebar-item') as HTMLElement | null;
+    if (!item) return;
+    const eventId = item.dataset.eventId;
+    if (!eventId) return;
+    const event = currentEvents.find(ev => ev.id === eventId);
+    if (event) store.set('selectedEvent', event);
+  });
+
   return eventListEl;
 }
 
@@ -141,11 +154,6 @@ function renderEventItem(event: EarthquakeEvent, index: number, isActive: boolea
   }
 
   item.appendChild(meta);
-
-  // Click handler
-  item.addEventListener('click', () => {
-    store.set('selectedEvent', event);
-  });
 
   return item;
 }
@@ -320,10 +328,11 @@ export function initSidebar(container: HTMLElement): void {
       sidebarToggleBtn.setAttribute('aria-label', t('sidebar.title'));
     }
     syncSidebarToggleState?.();
-    // Re-render event list with new locale
+    // Re-render event list with new locale (newest first)
     if (currentEvents.length > 0) {
       const selected = store.get('selectedEvent');
-      renderEvents(currentEvents, selected);
+      const displayEvents = [...currentEvents].sort((a, b) => b.time - a.time);
+      renderEvents(displayEvents, selected);
     }
   });
 }
@@ -366,6 +375,9 @@ export function onSidebarOpenChange(fn: (open: boolean) => void): () => void {
 
 function renderEvents(events: EarthquakeEvent[], selectedEvent?: EarthquakeEvent | null): void {
   const selectedId = selectedEvent?.id ?? null;
+  if (events.length > 0) {
+    eventListEl.querySelector('.empty-state')?.remove();
+  }
 
   // Build a map of existing items by event ID
   const existing = new Map<string, HTMLElement>();
@@ -424,6 +436,23 @@ function updateEventItem(item: HTMLElement, event: EarthquakeEvent, isActive: bo
   if (depthEl) depthEl.textContent = `${event.depth_km}km`;
   const dotEl = item.querySelector('.sidebar-item__depth-dot') as HTMLElement | null;
   if (dotEl) dotEl.style.background = depthToColor(event.depth_km);
+  const existingTag = item.querySelector('.source-tag') as HTMLElement | null;
+  const sourceType = event.magnitude >= 5.0
+    ? 'shakemap'
+    : event.magnitude >= 4.0
+      ? 'gmpe'
+      : null;
+  if (!sourceType) {
+    existingTag?.remove();
+  } else {
+    const tag = existingTag ?? el('span', 'source-tag');
+    tag.className = `source-tag source-tag--${sourceType}`;
+    tag.textContent = sourceType === 'shakemap' ? 'ShakeMap' : 'GMPE';
+    if (!existingTag) {
+      const meta = item.querySelector('.sidebar-item__meta');
+      meta?.appendChild(tag);
+    }
+  }
 }
 
 export function updateSidebar(
@@ -438,8 +467,9 @@ export function updateSidebar(
   const hasM5 = events.some(e => e.magnitude >= 5.0);
   alertBadgeEl.style.display = hasM5 ? 'block' : 'none';
 
-  // Render event list
-  renderEvents(events, selectedEvent);
+  // Render event list (newest first for better UX)
+  const displayEvents = [...events].sort((a, b) => b.time - a.time);
+  renderEvents(displayEvents, selectedEvent);
 
   // Detail panel
   if (selectedEvent) {
@@ -449,9 +479,13 @@ export function updateSidebar(
     detailPlaceEl.textContent = getPlaceText(selectedEvent.place);
 
     // Meta row
-    detailMetaEl.innerHTML = '';
+    detailMetaEl.textContent = '';
     const depthSpan = el('span');
-    depthSpan.innerHTML = `${t('detail.depth')} <span style="color:var(--text-secondary)">${selectedEvent.depth_km}km</span>`;
+    depthSpan.append(document.createTextNode(`${t('detail.depth')} `));
+    const depthValue = el('span');
+    depthValue.style.color = 'var(--text-secondary)';
+    depthValue.textContent = `${selectedEvent.depth_km}km`;
+    depthSpan.append(depthValue);
     detailMetaEl.appendChild(depthSpan);
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lat).toFixed(3)}°${selectedEvent.lat >= 0 ? 'N' : 'S'}`));

@@ -16,10 +16,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .ai-panel.open {
   transform: translateX(0);
+  pointer-events: auto;
 }
 
 /* ── Header ── */

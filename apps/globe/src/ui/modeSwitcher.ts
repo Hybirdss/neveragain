@@ -29,6 +29,7 @@ const MODES: { key: AppMode; i18nKey: string }[] = [
 let startLabelEl: HTMLElement | null = null;
 let endLabelEl: HTMLElement | null = null;
 let unsubLocale: (() => void) | null = null;
+let unsubMode: (() => void) | null = null;
 
 // ── Callbacks ───────────────────────────────────────────────────
 type LoadCallback = (start: string, end: string) => void;
@@ -157,7 +158,8 @@ export function initModeSwitcher(
   highlightMode(store.get('mode'));
 
   // React to external mode changes (e.g. scenario picker sets mode)
-  store.subscribe('mode', (mode: AppMode) => {
+  unsubMode?.();
+  unsubMode = store.subscribe('mode', (mode: AppMode) => {
     highlightMode(mode);
   });
 
@@ -181,4 +183,6 @@ export function initModeSwitcher(
 export function disposeModeSwitcher(): void {
   unsubLocale?.();
   unsubLocale = null;
+  unsubMode?.();
+  unsubMode = null;
 }
