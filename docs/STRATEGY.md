@@ -140,15 +140,80 @@ URL 접속
                        └─ ESC ──→ [Idle]
 ```
 
+## Safety-First Principles
+- **데이터 정확성**: JMA(primary) + USGS(global fallback) 이중 소스. 불일치 시 JMA 우선
+- **쓰나미 경보 최우선**: 모든 UI 위에 표시. 숨기기 불가. 색상+사운드
+- **AI 면책**: "この情報は参考用です。公式情報は気象庁をご確認ください" 고정 표시
+- **부하 내성**: CDN(CF Pages) + 분석 1회 생성 후 캐시
+- **타임스탬프 투명성**: 모든 데이터에 "최종 업데이트: ○분 전" 필수 표시
+
 ## Technical Decisions
 - Renderer: CesiumJS (keep current)
 - Framework: vanilla TypeScript + DOM (no React/Vue)
-- UI: full redesign (current code is interim snapshot)
-- AI: xAI Grok (realtime) + Gemini (batch pipeline)
+- Data: JMA (primary, Japan) + USGS (global fallback)
+- AI: xAI Grok (realtime analysis) + Gemini (batch pipeline)
 - Mobile: 일반인 대상, 직관적
 - Desktop: 분석 툴에 가깝게
 
-## Phases
+## Component Architecture
+
+### 🟢 Keep (engine — don't touch)
+- `engine/gmpe.ts` — GMPE core
+- `engine/gmpe.worker.ts` — Web Worker
+- `engine/wavePropagation.ts` — P/S wave
+- `engine/presets.ts` — historical presets
+
+### 🟡 Refactor
+- `data/usgsApi.ts` → `sources/usgs.ts`
+- `data/usgsRealtime.ts` → `realtime.ts` (unified manager)
+- `globe/globeInstance.ts` → `viewer.ts` (split markers/overlays)
+- `store/router.ts` → `stateMachine.ts`
+- `ai/client.ts` — add streaming
+
+### 🔴 New
+- `data/sources/jma.ts` — JMA data source
+- `data/earthquakeStore.ts` — normalized data store
+- `ui/*` — entire UI rebuilt from scratch
+- `ai/renderer.ts` — AI text formatting
+- `ai/stream.ts` — SSE handler
+- `ui/tsunamiAlert.ts` — safety-critical tsunami overlay
+
+## Implementation Plan
+
+### Phase 1a: Foundation
+1. `store/stateMachine.ts` — state machine
+2. `data/earthquakeStore.ts` — normalized data
+3. `globe/viewer.ts` — refactor globeInstance
+4. Build verification
+
+### Phase 1b: UI Rebuild
+5. `ui/shell.ts` — responsive shell
+6. `ui/header.ts` — minimal top bar
+7. `ui/quakeCard.ts` — earthquake card
+8. `ui/quakeList.ts` — floating list + bottom sheet
+9. `ui/bottomSheet.ts` — mobile gestures
+10. `ui/timeline.ts` — timeline bar
+11. `ui/detailPanel.ts` — AI narrative (Layer 2)
+12. Design tokens + glassmorphism dark theme
+
+### Phase 1c: AI Integration
+13. `ai/stream.ts` — SSE streaming
+14. `ai/renderer.ts` — AI text formatting
+15. Worker API integration
+16. `ui/tsunamiAlert.ts` — tsunami alert (safety-critical)
+17. `ui/aiDisclaimer.ts` — AI disclaimer
+
+### Phase 1d: Realtime + Advanced
+18. `data/sources/jma.ts` — JMA data source
+19. Worker: WebSocket/SSE push
+20. New earthquake notification + auto camera (M5.5+)
+21. AI progressive updates
+22. `ui/searchModal.ts` — search
+23. `ui/regionReport.ts` — AI region report
+24. `ui/presentation.ts` — presentation mode
+25. `ui/analysisPanel.ts` — Layer 3
+
+## Phases (Macro)
 - Phase 1: Core + AI (realtime globe + GMPE + AI analysis) ← NOW
 - Phase 2: Realtime chat (tool-calling AI Q&A)
 - Phase 3: Nankai scenario simulation

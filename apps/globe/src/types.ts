@@ -269,6 +269,7 @@ export interface ChatState {
 
 export interface AppState {
   mode: AppMode;
+  viewState: ViewState;
   activePanel: PanelTab;
   route: RouteState;
   selectedEvent: EarthquakeEvent | null;
@@ -382,6 +383,33 @@ export interface NankaiSubfault {
   dip: number;     // degrees
   rake: number;    // degrees
 }
+
+// ============================================================
+// View State Machine (UI state transitions)
+// ============================================================
+
+export type ViewState =
+  | { type: 'idle' }
+  | { type: 'detail'; earthquakeId: string }
+  | { type: 'analysis'; earthquakeId: string }
+  | { type: 'search'; query: string }
+  | { type: 'regionReport'; regionId: string; query: string }
+  | { type: 'newQuake'; earthquakeId: string; magnitude: number }
+  | { type: 'presentation'; earthquakeId: string | null };
+
+export type ViewAction =
+  | { type: 'SELECT_EARTHQUAKE'; id: string }
+  | { type: 'DESELECT' }
+  | { type: 'EXPAND_ANALYSIS' }
+  | { type: 'COLLAPSE_ANALYSIS' }
+  | { type: 'OPEN_SEARCH' }
+  | { type: 'SEARCH'; query: string }
+  | { type: 'SELECT_REGION'; regionId: string }
+  | { type: 'CLOSE_OVERLAY' }
+  | { type: 'NEW_EARTHQUAKE'; id: string; magnitude: number }
+  | { type: 'ENTER_PRESENTATION' }
+  | { type: 'EXIT_PRESENTATION' }
+  | { type: 'BACK' };
 
 // ============================================================
 // Historical Presets

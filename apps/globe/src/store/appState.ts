@@ -113,6 +113,7 @@ const now = Date.now();
 
 const initialState: AppState = {
   mode: 'realtime',
+  viewState: { type: 'idle' },
   activePanel: 'live',
   route: { tab: 'live', eventId: null, searchQuery: null },
   selectedEvent: null,
