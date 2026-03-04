@@ -241,8 +241,10 @@ let prefectureData: Prefecture[] = [];
 let hazardGridData: HazardGrid | null = null;
 let slopeGridData: SlopeGrid | null = null;
 let activeFaultData: ActiveFault[] = [];
+let gmpeRequestSequence = 0;
+let activeGmpeRequestId: string | null = null;
 
-function requestGridComputation(worker: Worker, event: EarthquakeEvent): void {
+function requestGridComputation(worker: Worker, event: EarthquakeEvent): string {
   // Sync Vs30 grid to Worker cache first (separate message type).
   if (vs30GridData) {
     const bufferCopy = vs30GridData.data.buffer.slice(0) as ArrayBuffer;
@@ -262,8 +264,12 @@ function requestGridComputation(worker: Worker, event: EarthquakeEvent): void {
     worker.postMessage(syncRequest, [vs30Transfer.data]);
   }
 
+  const requestId = `${event.id}:${event.time}:${++gmpeRequestSequence}`;
+  activeGmpeRequestId = requestId;
+
   const request: GmpeWorkerRequest = {
     type: 'COMPUTE_GRID',
+    requestId,
     epicenter: { lat: event.lat, lng: event.lng },
     Mw: event.magnitude,
     depth_km: event.depth_km,
@@ -272,6 +278,7 @@ function requestGridComputation(worker: Worker, event: EarthquakeEvent): void {
     radiusDeg: 5,
   };
   worker.postMessage(request);
+  return requestId;
 }
 
 // ============================================================
@@ -436,13 +443,14 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     highlightSearchResults(ids);
   });
 
-  // --- selectedEvent → ShakeMap (preferred) or GMPE (fallback) + camera + waves ---
+  // --- selectedEvent → immediate GMPE + ShakeMap override + camera + waves ---
   let selectedEventVersion = 0;
   store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
     const myVersion = ++selectedEventVersion;
     if (!event) {
       // Clear visuals when deselected
       abortShakeMapFetch();
+      activeGmpeRequestId = null;
       clearIsoseismal(globe);
       clearShakeMapOverlay();
       clearWaveRings(globe);
@@ -454,6 +462,10 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
     }
 
     abortShakeMapFetch();
+    activeGmpeRequestId = null;
+    clearIsoseismal(globe);
+    clearShakeMapOverlay();
+    store.set('intensityGrid', null);
     store.set('intensitySource', 'none');
 
     // AI analysis: open panel and trigger fetch for qualifying events
@@ -489,32 +501,28 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): void {
       hideAlert();
     }
 
-    // Intensity visualization: ShakeMap (real events) vs GMPE (scenarios)
+    // Intensity visualization: render GMPE immediately, then upgrade to ShakeMap when ready.
     const isScenario = event.id === 'nankai-scenario' || event.id.startsWith('preset-');
+    if (event.id !== 'nankai-scenario') {
+      store.set('intensitySource', 'gmpe');
+      updateSidebar(store.get('timeline').events, event, 'gmpe');
+      requestGridComputation(worker, event);
+    }
+
     if (!isScenario && event.magnitude >= 5.0) {
       // Resolve USGS event ID: presets use a friendly id, real events use USGS id directly
       const preset = HISTORICAL_PRESETS.find(p => p.id === event.id);
       const usgsEventId = preset?.usgsId ?? event.id;
-      // Try USGS ShakeMap first — much more accurate for real events
+      // Fetch ShakeMap in parallel and replace GMPE when available.
       const shakeMap = await fetchShakeMap(usgsEventId);
-      // Guard: user may have selected a different event during fetch
       if (myVersion !== selectedEventVersion) return;
-      if (shakeMap?.mmiContours) {
-        clearIsoseismal(globe);
-        updateShakeMapOverlay(globe, shakeMap);
-        store.set('intensitySource', 'shakemap');
-        updateSidebar(store.get('timeline').events, event, 'shakemap');
-        console.log(`[main] ShakeMap loaded for ${event.id}`);
-        return;
-      }
-    }
+      if (!shakeMap?.mmiContours) return;
 
-    // Fallback: compute GMPE grid locally
-    clearShakeMapOverlay();
-    store.set('intensitySource', 'gmpe');
-    updateSidebar(store.get('timeline').events, event, 'gmpe');
-    if (event.id !== 'nankai-scenario') {
-      requestGridComputation(worker, event);
+      clearIsoseismal(globe);
+      updateShakeMapOverlay(globe, shakeMap);
+      store.set('intensitySource', 'shakemap');
+      updateSidebar(store.get('timeline').events, event, 'shakemap');
+      console.log(`[main] ShakeMap loaded for ${event.id}`);
     }
   });
 
@@ -972,6 +980,12 @@ async function bootstrap(): Promise<void> {
   const worker = createGmpeWorker();
   worker.onmessage = (e: MessageEvent<GmpeWorkerResponse | { type: 'GRID_ERROR'; error: string }>) => {
     if (e.data.type === 'GRID_COMPLETE') {
+      if (activeGmpeRequestId && e.data.requestId !== activeGmpeRequestId) {
+        return;
+      }
+      if (store.get('intensitySource') !== 'gmpe') {
+        return;
+      }
       store.set('intensityGrid', e.data.grid);
     } else if (e.data.type === 'GRID_ERROR') {
       console.error('[main] GMPE computation failed:', e.data.error);

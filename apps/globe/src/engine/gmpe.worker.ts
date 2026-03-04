@@ -48,6 +48,7 @@ workerSelf.onmessage = (event: MessageEvent<GmpeWorkerRequest>) => {
 
     const response: GmpeWorkerResponse = {
       type: 'GRID_COMPLETE',
+      requestId: req.requestId,
       grid,
     };
 

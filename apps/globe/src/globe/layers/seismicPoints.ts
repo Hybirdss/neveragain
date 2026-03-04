@@ -1,9 +1,9 @@
 /**
  * seismicPoints.ts — Layer 3: Earthquake event points (CesiumJS)
  *
- * Renders EarthquakeEvent[] as 3D billboard sprites on the globe using
- * Cesium BillboardCollection. Depth is encoded as negative height
- * (below surface), glow sprite colour encodes depth band, scale encodes magnitude.
+ * Renders EarthquakeEvent[] as billboard sprites on the globe using
+ * Cesium BillboardCollection. Epicenter position stays on the surface for
+ * reliable picking; depth is encoded by colour band while scale encodes magnitude.
  */
 
 import * as Cesium from 'cesium';
@@ -89,7 +89,8 @@ function addBillboard(eq: EarthquakeEvent, show = true): Cesium.Billboard {
   const band = getDepthBand(eq.depth_km);
   const scale = band.baseScale * magnitudeScale(eq.magnitude);
   const bb = billboardCollection!.add({
-    position: Cesium.Cartesian3.fromDegrees(eq.lng, eq.lat, -(eq.depth_km * 1000)),
+    // Keep click/selection aligned with the epicenter on the map surface.
+    position: Cesium.Cartesian3.fromDegrees(eq.lng, eq.lat, 0),
     image: band.image,
     scale,
     scaleByDistance: new Cesium.NearFarScalar(1e3, 1.5, 1e7, 0.3),

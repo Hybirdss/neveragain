@@ -284,6 +284,7 @@ export type GmpeWorkerRequest =
   }
   | {
     type: 'COMPUTE_GRID';
+    requestId: string;
     epicenter: { lat: number; lng: number };
     Mw: number;
     depth_km: number;
@@ -304,6 +305,7 @@ export interface Vs30GridTransfer {
 
 export interface GmpeWorkerResponse {
   type: 'GRID_COMPLETE';
+  requestId: string;
   grid: IntensityGrid;
 }
 
