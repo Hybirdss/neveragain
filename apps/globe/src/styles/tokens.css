@@ -1,26 +1,28 @@
 /* ============================================================
- * Namazue — Control Center Theme
+ * Namazue — Cool Slate Theme
  * "UI는 냉정하고, 데이터가 감동을 주는 구조."
  *
  * Token Architecture:
  *   --surface-*   → background layers (base < panel < card < hover)
  *   --border-*    → border hierarchy (subtle < default < strong < emphasis)
  *   --text-*      → text hierarchy (primary > secondary > tertiary > disabled)
- *   --accent-*    → semantic data colors (danger, warning, positive)
+ *   --accent-*    → semantic data colors (danger, warning, positive) + blue accent
  *   --color-*     → compat aliases for JS inline styles (→ canonical token)
  * ============================================================ */
 
-@import url('https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap');
 
 /* --- Design Tokens --- */
 :root {
   /* ── Surface (perceptually distinct 4-step hierarchy) ── */
-  --surface-base: #080808;
-  --surface-panel: #0e0e0e;
-  --surface-card: #151515;
-  --surface-hover: #1c1c1c;
-  --surface-danger-subtle: #1a0808;
-  --surface-overlay: rgba(0, 0, 0, 0.8);
+  --surface-base: #0c1017;
+  --surface-panel: #121620;
+  --surface-card: #1a1f2e;
+  --surface-hover: #232a3a;
+  --surface-danger-subtle: #1a0c10;
+  --surface-overlay: rgba(12, 16, 23, 0.85);
+  --surface-glass: rgba(18, 22, 32, 0.82);
+  --surface-glass-heavy: rgba(12, 16, 23, 0.92);
 
   /* Legacy aliases (consumed by grid layout, globe-area, etc.) */
   --bg-primary: var(--surface-base);
@@ -28,39 +30,60 @@
   --bg-card: var(--surface-card);
   --bg-panel: var(--surface-panel);
   --bg-panel-hover: var(--surface-hover);
-  --bg-analysis: #0d0d0d;
+  --bg-analysis: #0e1220;
 
   /* ── Border (4-step hierarchy) ── */
-  --border-subtle: #141414;
-  --border-default: #1a1a1a;
-  --border-strong: #222222;
-  --border-emphasis: #333333;
-  --border-danger-subtle: #331111;
+  --border-subtle: #1a1f2e;
+  --border-default: #222838;
+  --border-strong: #2e3548;
+  --border-emphasis: #3a4258;
+  --border-danger-subtle: #331118;
+  --border-focus: rgba(96, 165, 250, 0.4);
 
   --panel-border: 1px solid var(--border-subtle);
   --panel-radius: 2px;
   --glass-border: 1px solid var(--border-subtle);
 
-  /* ── Text (WCAG AA compliant on --surface-base) ── */
-  /* #e0e0e0 on #080808 → 16.5:1  ✓ */
-  /* #888888 on #080808 → 6.6:1   ✓ */
-  /* #606060 on #080808 → 4.7:1   ✓ (AA minimum for normal text) */
-  /* #444444 on #080808 → 3.2:1   ✗ — demoted to decorative-only */
-  --text-primary: #e0e0e0;
-  --text-secondary: #888888;
-  --text-tertiary: #606060;
-  --text-disabled: #444444;
+  /* ── Text (WCAG AA compliant on --surface-base #0c1017) ── */
+  /* #e2e8f0 on #0c1017 → 15.8:1  ✓ */
+  /* #94a3b8 on #0c1017 → 7.2:1   ✓ */
+  /* #64748b on #0c1017 → 4.5:1   ✓ (AA minimum for normal text) */
+  /* #475569 on #0c1017 → 3.0:1   ✗ — decorative-only */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-disabled: #475569;
+
+  /* ── Accent (primary interactive blue) ── */
+  --accent: #60a5fa;
+  --accent-hover: #7cb8ff;
+  --accent-subtle: rgba(96, 165, 250, 0.12);
+  --accent-text: #93c5fd;
 
   /* ── Semantic Accent (data-only) ── */
-  --accent-danger: #ff4444;
-  --accent-warning: #FAC611;
-  --accent-positive: #22cc44;
+  --accent-danger: #ef4444;
+  --accent-warning: #fbbf24;
+  --accent-positive: #4ade80;
+
+  /* ── Safety (fixed — never change) ── */
+  --safe: #4ade80;
+  --safe-bg: rgba(74, 222, 128, 0.1);
+  --warn: #fbbf24;
+  --warn-bg: rgba(251, 191, 36, 0.1);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
+  --critical: #dc2626;
+  --critical-bg: rgba(220, 38, 38, 0.2);
+
+  /* ── Magnitude Colors ── */
+  --mag-low: #4ade80;
+  --mag-mid: #fbbf24;
+  --mag-high: #ef4444;
 
   /* ── Compat Aliases (consumed by JS inline styles — do NOT remove) ── */
-  /* --color-cyan was "active/highlight" → maps to --text-primary */
-  --color-cyan: var(--text-primary);
-  --color-cyan-dim: rgba(224, 224, 224, 0.06);
-  --accent-cyan: var(--text-primary);
+  --color-cyan: var(--accent);
+  --color-cyan-dim: var(--accent-subtle);
+  --accent-cyan: var(--accent);
   --color-green: var(--accent-positive);
   --color-red: var(--accent-danger);
   --color-text: var(--text-primary);
@@ -92,8 +115,9 @@
   --ai-skeleton-to: var(--surface-hover);
 
   /* ── Typography ── */
-  --font-sans: 'Wanted Sans Variable', 'Wanted Sans', system-ui, sans-serif;
-  --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-sans: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
+  --font-heading: 'Inter', 'Noto Sans JP', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Menlo, monospace;
   --text-2xs: 0.5625rem;  /* 9px */
   --text-xs:  0.625rem;   /* 10px */
   --text-sm:  0.6875rem;  /* 11px */
@@ -134,7 +158,9 @@
   --z-timeline: 30;
   --z-vignette: 90;
   --z-modal: 100;
+  --z-toast: 150;
   --z-alert: 200;
+  --z-tsunami: 9999;
 
   /* ── Animation ── */
   --ease-panel: cubic-bezier(0.16, 1, 0.3, 1);
@@ -152,16 +178,35 @@
   --duration-data: 150ms;
 
   /* ── JMA Seismic Intensity Colors ── */
-  --jma-0: #8ab4f8;
-  --jma-1: #669df6;
-  --jma-2: #4285f4;
-  --jma-3: #34a853;
-  --jma-4: #fbbc04;
-  --jma-5l: #f09300;
-  --jma-5u: #ea4335;
-  --jma-6l: #d93025;
-  --jma-6u: #b31412;
-  --jma-7: #801c80;
+  --jma-0: #9bbfd4;
+  --jma-1: #6699cc;
+  --jma-2: #3399cc;
+  --jma-3: #33cc66;
+  --jma-4: #ffff00;
+  --jma-5l: #ff9900;
+  --jma-5u: #ff6600;
+  --jma-6l: #ff3300;
+  --jma-6u: #cc0000;
+  --jma-7: #990099;
   --jma-contour-fill-opacity: 0.45;
   --jma-contour-stroke-opacity: 0.85;
+
+  /* ── Glass ── */
+  --glass-blur: 16px;
+  --glass-bg: var(--surface-glass);
+  --glass-border: 1px solid var(--border-subtle);
+  --glass-shadow: var(--shadow-md);
+
+  /* ── Radius shortcuts ── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
 }
