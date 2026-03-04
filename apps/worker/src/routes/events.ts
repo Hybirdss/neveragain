@@ -4,6 +4,16 @@ import { createDb } from '../lib/db.ts';
 import { earthquakes } from '@namazue/db';
 import { gte, lte, and, desc } from 'drizzle-orm';
 import { generateAndStoreAnalysis } from './analyze.ts';
+import {
+  EARTHQUAKE_LIMITS,
+  parseFiniteNumber,
+  parseString,
+  parseTimestamp,
+  validateEventTime,
+  validateMomentTensor,
+  validateRange,
+  validateRangePair,
+} from '../lib/earthquakeValidation.ts';
 
 export const eventsRoute = new Hono<{ Bindings: Env }>();
 
@@ -52,23 +62,44 @@ interface BulkIngestBody {
  * Returns earthquakes matching filters.
  */
 eventsRoute.get('/', async (c) => {
-  const mag_min = parseFiniteNumber(c.req.query('mag_min')) ?? 0;
-  const limit = Math.min(parseFiniteNumber(c.req.query('limit')) ?? 100, 1000);
+  const mag_min = parseFiniteNumber(c.req.query('mag_min'));
+  if (mag_min !== null) {
+    const magErr = validateRange('mag_min', mag_min, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
+    if (magErr) return c.json({ error: magErr }, 400);
+  }
+
+  const rawLimit = parseFiniteNumber(c.req.query('limit'));
+  const limit = rawLimit === null ? 100 : Math.floor(rawLimit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1000) {
+    return c.json({ error: 'limit must be an integer between 1 and 1000' }, 400);
+  }
 
   const db = createDb(c.env.DATABASE_URL);
 
   const conditions = [];
-  if (mag_min > 0) {
+  if (mag_min !== null && mag_min > 0) {
     conditions.push(gte(earthquakes.magnitude, mag_min));
   }
 
   const lat_min = parseFiniteNumber(c.req.query('lat_min'));
   const lat_max = parseFiniteNumber(c.req.query('lat_max'));
+  const latMinErr = lat_min === null ? null : validateRange('lat_min', lat_min, EARTHQUAKE_LIMITS.lat.min, EARTHQUAKE_LIMITS.lat.max);
+  const latMaxErr = lat_max === null ? null : validateRange('lat_max', lat_max, EARTHQUAKE_LIMITS.lat.min, EARTHQUAKE_LIMITS.lat.max);
+  const latPairErr = validateRangePair('lat_min', lat_min, 'lat_max', lat_max);
+  if (latMinErr || latMaxErr || latPairErr) {
+    return c.json({ error: latMinErr ?? latMaxErr ?? latPairErr }, 400);
+  }
   if (lat_min !== null) conditions.push(gte(earthquakes.lat, lat_min));
   if (lat_max !== null) conditions.push(lte(earthquakes.lat, lat_max));
 
   const lng_min = parseFiniteNumber(c.req.query('lng_min'));
   const lng_max = parseFiniteNumber(c.req.query('lng_max'));
+  const lngMinErr = lng_min === null ? null : validateRange('lng_min', lng_min, EARTHQUAKE_LIMITS.lng.min, EARTHQUAKE_LIMITS.lng.max);
+  const lngMaxErr = lng_max === null ? null : validateRange('lng_max', lng_max, EARTHQUAKE_LIMITS.lng.min, EARTHQUAKE_LIMITS.lng.max);
+  const lngPairErr = validateRangePair('lng_min', lng_min, 'lng_max', lng_max);
+  if (lngMinErr || lngMaxErr || lngPairErr) {
+    return c.json({ error: lngMinErr ?? lngMaxErr ?? lngPairErr }, 400);
+  }
   if (lng_min !== null) conditions.push(gte(earthquakes.lng, lng_min));
   if (lng_max !== null) conditions.push(lte(earthquakes.lng, lng_max));
 
@@ -273,21 +304,32 @@ function authorizeInternal(expectedToken: string | undefined, requestToken: stri
 function parseIngestEvent(input: IngestEventInput): { value: EarthquakeInsert } | { error: string } {
   const id = parseString(input.id);
   if (!id) return { error: 'event.id is required' };
+  if (id.length > 128) return { error: 'event.id must be 128 chars or fewer' };
 
   const lat = parseFiniteNumber(input.lat);
   if (lat === null) return { error: `event.lat must be a finite number (id=${id})` };
+  const latErr = validateRange('event.lat', lat, EARTHQUAKE_LIMITS.lat.min, EARTHQUAKE_LIMITS.lat.max);
+  if (latErr) return { error: `${latErr} (id=${id})` };
 
   const lng = parseFiniteNumber(input.lng);
   if (lng === null) return { error: `event.lng must be a finite number (id=${id})` };
+  const lngErr = validateRange('event.lng', lng, EARTHQUAKE_LIMITS.lng.min, EARTHQUAKE_LIMITS.lng.max);
+  if (lngErr) return { error: `${lngErr} (id=${id})` };
 
   const depth_km = parseFiniteNumber(input.depth_km);
   if (depth_km === null) return { error: `event.depth_km must be a finite number (id=${id})` };
+  const depthErr = validateRange('event.depth_km', depth_km, EARTHQUAKE_LIMITS.depthKm.min, EARTHQUAKE_LIMITS.depthKm.max);
+  if (depthErr) return { error: `${depthErr} (id=${id})` };
 
   const magnitude = parseFiniteNumber(input.magnitude);
   if (magnitude === null) return { error: `event.magnitude must be a finite number (id=${id})` };
+  const magErr = validateRange('event.magnitude', magnitude, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
+  if (magErr) return { error: `${magErr} (id=${id})` };
 
   const time = parseTimestamp(input.time);
   if (!time) return { error: `event.time must be a valid timestamp (id=${id})` };
+  const timeErr = validateEventTime(time);
+  if (timeErr) return { error: `${timeErr} (id=${id})` };
 
   const source = (parseString(input.source)?.toLowerCase()) ?? 'usgs';
   if (!VALID_SOURCES.has(source)) {
@@ -295,9 +337,38 @@ function parseIngestEvent(input: IngestEventInput): { value: EarthquakeInsert } 
   }
 
   const faultTypeRaw = parseString(input.fault_type)?.toLowerCase();
-  const fault_type = faultTypeRaw && VALID_FAULT_TYPES.has(faultTypeRaw)
-    ? (faultTypeRaw as FaultType)
-    : null;
+  if (faultTypeRaw && !VALID_FAULT_TYPES.has(faultTypeRaw)) {
+    return { error: `event.fault_type must be one of: crustal|interface|intraslab (id=${id})` };
+  }
+  const fault_type = faultTypeRaw ? (faultTypeRaw as FaultType) : null;
+
+  const mtStrike = parseFiniteNumber(input.mt_strike);
+  const mtDip = parseFiniteNumber(input.mt_dip);
+  const mtRake = parseFiniteNumber(input.mt_rake);
+  const mtStrike2 = parseFiniteNumber(input.mt_strike2);
+  const mtDip2 = parseFiniteNumber(input.mt_dip2);
+  const mtRake2 = parseFiniteNumber(input.mt_rake2);
+
+  const mtPrimaryErr = validateMomentTensor(mtStrike, mtDip, mtRake, 'event.mt_nodal_plane_1');
+  if (mtPrimaryErr) return { error: `${mtPrimaryErr} (id=${id})` };
+
+  const mtSecondaryErr = validateMomentTensor(mtStrike2, mtDip2, mtRake2, 'event.mt_nodal_plane_2');
+  if (mtSecondaryErr) return { error: `${mtSecondaryErr} (id=${id})` };
+
+  const mag_type = parseString(input.mag_type);
+  if (mag_type && mag_type.length > 16) {
+    return { error: `event.mag_type must be 16 chars or fewer (id=${id})` };
+  }
+
+  const place = parseString(input.place);
+  if (place && place.length > 255) {
+    return { error: `event.place must be 255 chars or fewer (id=${id})` };
+  }
+
+  const place_ja = parseString(input.place_ja);
+  if (place_ja && place_ja.length > 255) {
+    return { error: `event.place_ja must be 255 chars or fewer (id=${id})` };
+  }
 
   return {
     value: {
@@ -308,17 +379,17 @@ function parseIngestEvent(input: IngestEventInput): { value: EarthquakeInsert } 
       magnitude,
       time,
       source,
-      mag_type: parseString(input.mag_type),
-      place: parseString(input.place),
-      place_ja: parseString(input.place_ja),
+      mag_type,
+      place,
+      place_ja,
       fault_type,
       tsunami: parseBoolean(input.tsunami),
-      mt_strike: parseFiniteNumber(input.mt_strike),
-      mt_dip: parseFiniteNumber(input.mt_dip),
-      mt_rake: parseFiniteNumber(input.mt_rake),
-      mt_strike2: parseFiniteNumber(input.mt_strike2),
-      mt_dip2: parseFiniteNumber(input.mt_dip2),
-      mt_rake2: parseFiniteNumber(input.mt_rake2),
+      mt_strike: mtStrike,
+      mt_dip: mtDip,
+      mt_rake: mtRake,
+      mt_strike2: mtStrike2,
+      mt_dip2: mtDip2,
+      mt_rake2: mtRake2,
     },
   };
 }
@@ -336,46 +407,9 @@ async function upsertEvent(
     });
 }
 
-function parseString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function parseFiniteNumber(value: unknown): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string' && value.trim() === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
 function parseBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (value === 1 || value === '1') return true;
   if (typeof value === 'string' && value.trim().toLowerCase() === 'true') return true;
   return false;
-}
-
-function parseTimestamp(value: unknown): Date | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const ts = value < 1_000_000_000_000 ? value * 1000 : value;
-    const date = new Date(ts);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if (/^\d+(\.\d+)?$/.test(trimmed)) {
-      const num = Number(trimmed);
-      if (!Number.isFinite(num)) return null;
-      const ts = num < 1_000_000_000_000 ? num * 1000 : num;
-      const fromNum = new Date(ts);
-      return Number.isNaN(fromNum.getTime()) ? null : fromNum;
-    }
-    const date = new Date(trimmed);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  return null;
 }

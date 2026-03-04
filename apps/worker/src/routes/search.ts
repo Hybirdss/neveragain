@@ -7,6 +7,12 @@ import {
   gte, lte, and, desc, eq, arrayContains, ilike, or, sql,
   type SQL,
 } from 'drizzle-orm';
+import {
+  EARTHQUAKE_LIMITS,
+  parseFiniteNumber,
+  validateRange,
+  validateRangePair,
+} from '../lib/earthquakeValidation.ts';
 
 export const searchRoute = new Hono<{ Bindings: Env }>();
 
@@ -34,6 +40,9 @@ searchRoute.post('/', async (c) => {
 
   const db = createDb(c.env.DATABASE_URL);
   const limit = clampLimit(body.limit, isAiFallback ? 20 : 50);
+  if (isAiFallback && rawQuery.length > 120) {
+    return c.json({ error: 'raw_query must be 120 characters or fewer' }, 400);
+  }
 
   if (isAiFallback) {
     // Graceful fallback: keyword search over place fields.
@@ -75,6 +84,43 @@ searchRoute.post('/', async (c) => {
   const relative = getRelativeWindow(body.relative);
   const tags = getTags(body.tags);
 
+  const magMinErr = magMin === null ? null : validateRange('mag_min', magMin, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
+  const magMaxErr = magMax === null ? null : validateRange('mag_max', magMax, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
+  const magPairErr = validateRangePair('mag_min', magMin, 'mag_max', magMax);
+  if (magMinErr || magMaxErr || magPairErr) {
+    return c.json({ error: magMinErr ?? magMaxErr ?? magPairErr }, 400);
+  }
+
+  const depthMinErr = depthMin === null ? null : validateRange('depth_min', depthMin, EARTHQUAKE_LIMITS.depthKm.min, EARTHQUAKE_LIMITS.depthKm.max);
+  const depthMaxErr = depthMax === null ? null : validateRange('depth_max', depthMax, EARTHQUAKE_LIMITS.depthKm.min, EARTHQUAKE_LIMITS.depthKm.max);
+  const depthPairErr = validateRangePair('depth_min', depthMin, 'depth_max', depthMax);
+  if (depthMinErr || depthMaxErr || depthPairErr) {
+    return c.json({ error: depthMinErr ?? depthMaxErr ?? depthPairErr }, 400);
+  }
+
+  const hasLat = lat !== null;
+  const hasLng = lng !== null;
+  if (hasLat !== hasLng) {
+    return c.json({ error: 'lat and lng must be provided together' }, 400);
+  }
+  if (lat !== null && lng !== null) {
+    const latErr = validateRange('lat', lat, EARTHQUAKE_LIMITS.lat.min, EARTHQUAKE_LIMITS.lat.max);
+    const lngErr = validateRange('lng', lng, EARTHQUAKE_LIMITS.lng.min, EARTHQUAKE_LIMITS.lng.max);
+    if (latErr || lngErr) {
+      return c.json({ error: latErr ?? lngErr }, 400);
+    }
+  }
+
+  if (radiusKm !== null) {
+    if (!(hasLat && hasLng)) {
+      return c.json({ error: 'radius_km requires lat and lng' }, 400);
+    }
+    const radiusErr = validateRange('radius_km', radiusKm, EARTHQUAKE_LIMITS.radiusKm.min, EARTHQUAKE_LIMITS.radiusKm.max);
+    if (radiusErr) {
+      return c.json({ error: radiusErr }, 400);
+    }
+  }
+
   if (magMin !== null) conditions.push(gte(earthquakes.magnitude, magMin));
   if (magMax !== null) conditions.push(lte(earthquakes.magnitude, magMax));
   if (depthMin !== null) conditions.push(gte(earthquakes.depth_km, depthMin));
@@ -93,8 +139,11 @@ searchRoute.post('/', async (c) => {
   }
 
   if (lat !== null && lng !== null) {
-    const searchRadius = radiusKm !== null && radiusKm > 0 ? radiusKm : 200;
-    conditions.push(sql`sqrt(power(lat - ${lat}, 2) + power(lng - ${lng}, 2)) * 111 <= ${searchRadius}`);
+    const searchRadius = radiusKm ?? 200;
+    const lngScale = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+    conditions.push(
+      sql`sqrt(power(${earthquakes.lat} - ${lat}, 2) + power((${earthquakes.lng} - ${lng}) * ${lngScale}, 2)) * 111 <= ${searchRadius}`,
+    );
   }
 
   if (region.length > 0) {
@@ -155,8 +204,7 @@ searchRoute.post('/', async (c) => {
 });
 
 function getNumber(value: unknown): number | null {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  return parseFiniteNumber(value);
 }
 
 function getString(value: unknown): string {
@@ -192,11 +240,15 @@ function getRelativeWindow(value: unknown): Date | null {
 
 function getTags(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value
+  const uniq = new Set(
+    value
     .filter((tag): tag is string => typeof tag === 'string')
     .map((tag) => tag.trim())
+    .map((tag) => tag.toLowerCase())
     .filter((tag) => tag.length > 0)
-    .slice(0, 10);
+    .filter((tag) => tag.length <= 32),
+  );
+  return Array.from(uniq).slice(0, 10);
 }
 
 /**
