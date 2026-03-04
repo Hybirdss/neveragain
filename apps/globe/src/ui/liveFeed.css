@@ -157,6 +157,42 @@
   color: var(--border-emphasis);
 }
 
+/* --- Aftershock --- */
+.feed-item--aftershock {
+  padding-left: calc(var(--spacing-panel-x) + 14px);
+  border-left: 2px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.feed-item--aftershock .feed-item__mag {
+  font-size: 14px;
+}
+
+.feed-item--aftershock .feed-item__location {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.feed-item__aftershock-toggle {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: all var(--duration-hover) ease;
+}
+
+.feed-item__aftershock-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-emphasis);
+  color: var(--text-primary);
+}
+
 /* --- Tsunami Badge --- */
 .feed-item__tsunami {
   font-family: var(--font-mono);

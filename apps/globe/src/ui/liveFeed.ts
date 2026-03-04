@@ -10,7 +10,8 @@ import { computeGmpe } from '../engine/gmpe';
 import { store } from '../store/appState';
 import { t, onLocaleChange } from '../i18n/index';
 import { depthToColor } from '../utils/colorScale';
-import { getPlaceText } from '../utils/earthquakeUtils';
+import { getJapanPlaceName } from '../utils/japanGeo';
+import { clusterEvents, getDisplayEvents, type ClusteredEvent } from '../utils/aftershockCluster';
 import { MMI_COLORS } from '../utils/colorScale';
 import { getTabPane } from './leftPanel';
 import { getLastUpdatedAt } from '../data/usgsRealtime';
@@ -48,7 +49,14 @@ let unsubNetworkError: (() => void) | null = null;
 let unsubAi: (() => void) | null = null;
 let statusTimerId: ReturnType<typeof setInterval> | null = null;
 let currentEvents: EarthquakeEvent[] = [];
+let currentClusters: Map<string, ClusteredEvent> = new Map();
+let expandedClusters: Set<string> = new Set();
 let hasReceivedData = false;
+
+/** Get Japanese place name for an event. */
+function eventPlaceName(event: EarthquakeEvent): string {
+  return getJapanPlaceName(event.lat, event.lng).ja;
+}
 
 // ── Helpers ──
 
@@ -149,6 +157,25 @@ function buildEventList(): HTMLElement {
   eventListEl.addEventListener('click', (e) => {
     const target = e.target;
     if (!(target instanceof Element)) return;
+
+    // Aftershock toggle button click
+    const toggleBtn = target.closest('.feed-item__aftershock-toggle') as HTMLElement | null;
+    if (toggleBtn) {
+      const mainshockId = toggleBtn.dataset.mainshockId;
+      if (mainshockId) {
+        if (expandedClusters.has(mainshockId)) {
+          expandedClusters.delete(mainshockId);
+        } else {
+          expandedClusters.add(mainshockId);
+        }
+        // Re-render to show/hide aftershocks
+        const selected = store.get('selectedEvent');
+        const displayEvents = getDisplayEvents(currentEvents, currentClusters);
+        renderEvents(displayEvents, selected?.id ?? null);
+      }
+      return;
+    }
+
     const item = target.closest('.feed-item') as HTMLElement | null;
     if (!item) return;
     const eventId = item.dataset.eventId;
@@ -160,8 +187,10 @@ function buildEventList(): HTMLElement {
   return eventListEl;
 }
 
-function renderEventItem(event: EarthquakeEvent, isActive: boolean): HTMLElement {
-  const item = el('div', `feed-item${isActive ? ' feed-item--active' : ''}`);
+function renderEventItem(event: EarthquakeEvent, isActive: boolean, cluster?: ClusteredEvent): HTMLElement {
+  const isAfterShock = cluster?.role === 'aftershock';
+  const className = `feed-item${isActive ? ' feed-item--active' : ''}${isAfterShock ? ' feed-item--aftershock' : ''}`;
+  const item = el('div', className);
   item.dataset.eventId = event.id;
   if (isActive) item.style.borderLeftColor = depthToColor(event.depth_km);
 
@@ -170,7 +199,7 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean): HTMLElement
   const mag = el('span', `feed-item__mag ${magColorClass(event.magnitude)}`);
   mag.textContent = event.magnitude.toFixed(1);
   left.appendChild(mag);
-  left.appendChild(el('span', 'feed-item__location', getPlaceText(event.place)));
+  left.appendChild(el('span', 'feed-item__location', eventPlaceName(event)));
   top.appendChild(left);
   const timeWrap = el('div', 'feed-item__time-wrap');
   timeWrap.appendChild(el('span', 'feed-item__relative', formatRelativeTime(event.time)));
@@ -196,62 +225,47 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean): HTMLElement
   if (event.tsunami) {
     meta.appendChild(el('span', 'feed-item__tsunami', '津波'));
   }
+
+  // Aftershock badge for mainshock events
+  if (cluster && cluster.role === 'mainshock' && cluster.aftershockCount > 0) {
+    const expanded = expandedClusters.has(event.id);
+    const badge = el('button', 'feed-item__aftershock-toggle');
+    badge.dataset.mainshockId = event.id;
+    badge.textContent = `${expanded ? '▾' : '▸'} ${cluster.aftershockCount}`;
+    badge.title = `${cluster.aftershockCount} aftershocks`;
+    meta.appendChild(badge);
+  }
   item.appendChild(meta);
 
   return item;
 }
 
-function updateEventItem(item: HTMLElement, event: EarthquakeEvent, isActive: boolean): void {
-  item.className = `feed-item${isActive ? ' feed-item--active' : ''}`;
-  item.style.borderLeftColor = isActive ? depthToColor(event.depth_km) : '';
-  const magEl = item.querySelector('.feed-item__mag');
-  if (magEl) {
-    magEl.className = `feed-item__mag ${magColorClass(event.magnitude)}`;
-    magEl.textContent = event.magnitude.toFixed(1);
-  }
-  const locEl = item.querySelector('.feed-item__location');
-  if (locEl) locEl.textContent = getPlaceText(event.place);
-  const relEl = item.querySelector('.feed-item__relative');
-  if (relEl) relEl.textContent = formatRelativeTime(event.time);
-  const timeEl = item.querySelector('.feed-item__time');
-  if (timeEl) timeEl.textContent = formatTimeShort(event.time);
-  const depthEl = item.querySelector('.feed-item__depth');
-  if (depthEl) depthEl.textContent = `${event.depth_km}km`;
-  const dotEl = item.querySelector('.feed-item__depth-dot') as HTMLElement | null;
-  if (dotEl) dotEl.style.background = depthToColor(event.depth_km);
-}
 
 function renderEvents(events: EarthquakeEvent[], selectedId: string | null): void {
-  if (events.length > 0) eventListEl.querySelector('.empty-state')?.remove();
+  // Full re-render for simplicity with clustering
+  eventListEl.innerHTML = '';
 
-  const existing = new Map<string, HTMLElement>();
-  for (const child of Array.from(eventListEl.children)) {
-    const id = (child as HTMLElement).dataset.eventId;
-    if (id) existing.set(id, child as HTMLElement);
-  }
-
-  for (let i = 0; i < events.length; i++) {
-    const ev = events[i];
-    const isActive = ev.id === selectedId;
-    let item = existing.get(ev.id);
-
-    if (item) {
-      existing.delete(ev.id);
-      updateEventItem(item, ev, isActive);
-    } else {
-      item = renderEventItem(ev, isActive);
-    }
-
-    if (eventListEl.children[i] !== item) {
-      eventListEl.insertBefore(item, eventListEl.children[i] || null);
-    }
-  }
-
-  for (const stale of existing.values()) stale.remove();
-
-  if (events.length === 0 && !eventListEl.querySelector('.empty-state')) {
+  if (events.length === 0) {
     const msg = hasReceivedData ? t('sidebar.empty') : t('sidebar.loading');
     eventListEl.appendChild(el('div', 'empty-state', msg));
+    return;
+  }
+
+  for (const ev of events) {
+    const cluster = currentClusters.get(ev.id);
+    const isActive = ev.id === selectedId;
+    const item = renderEventItem(ev, isActive, cluster);
+    eventListEl.appendChild(item);
+
+    // If this is a mainshock and expanded, show aftershocks
+    if (cluster && cluster.role === 'mainshock' && expandedClusters.has(ev.id)) {
+      for (const as of cluster.aftershocks) {
+        const asCluster = currentClusters.get(as.id);
+        const asActive = as.id === selectedId;
+        const asItem = renderEventItem(as, asActive, asCluster);
+        eventListEl.appendChild(asItem);
+      }
+    }
   }
 }
 
@@ -399,7 +413,7 @@ export function initLiveFeed(): void {
     const intensitySource = store.get('intensitySource');
     refreshDetailPanel(selected, intensitySource);
     // Re-render list to update active state
-    const displayEvents = [...currentEvents].sort((a, b) => b.time - a.time);
+    const displayEvents = getDisplayEvents(currentEvents, currentClusters);
     renderEvents(displayEvents, selected?.id ?? null);
   });
 
@@ -413,7 +427,7 @@ export function initLiveFeed(): void {
     if (currentEvents.length > 0) {
       headerCountEl.textContent = formatEventCount(currentEvents.length);
       const selected = store.get('selectedEvent');
-      const displayEvents = [...currentEvents].sort((a, b) => b.time - a.time);
+      const displayEvents = getDisplayEvents(currentEvents, currentClusters);
       renderEvents(displayEvents, selected?.id ?? null);
     }
   });
@@ -455,6 +469,7 @@ export function updateLiveFeed(
 ): void {
   currentEvents = events;
   hasReceivedData = true;
+  currentClusters = clusterEvents(events);
 
   headerCountEl.textContent = formatEventCount(events.length);
   const hasM5 = events.some(e => e.magnitude >= 5.0);
@@ -462,7 +477,7 @@ export function updateLiveFeed(
 
   refreshStatusBar();
 
-  const displayEvents = [...events].sort((a, b) => b.time - a.time);
+  const displayEvents = getDisplayEvents(events, currentClusters);
   renderEvents(displayEvents, selectedEvent?.id ?? null);
 
   refreshDetailPanel(selectedEvent ?? null, intensitySource);
@@ -476,7 +491,7 @@ function refreshDetailPanel(
     detailPanel.classList.remove('detail-panel--hidden');
 
     detailMagEl.textContent = `M${selectedEvent.magnitude.toFixed(1)}`;
-    detailPlaceEl.textContent = getPlaceText(selectedEvent.place);
+    detailPlaceEl.textContent = eventPlaceName(selectedEvent);
 
     detailMetaEl.textContent = '';
     detailMetaEl.appendChild(el('span', undefined, formatRelativeTime(selectedEvent.time)));
