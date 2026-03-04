@@ -177,6 +177,27 @@ searchRoute.post('/', async (c) => {
     conditions.push(sql`${analyses.analysis}->'search_index'->'categories'->>'region' = ${catRegion}`);
   }
 
+  // Tier filter (S, A, B)
+  const tierFilter = getString(body.tier);
+  if (tierFilter) {
+    const tiers = tierFilter.split(',').map(t => t.trim()).filter(t => ['S', 'A', 'B'].includes(t));
+    if (tiers.length > 0) {
+      conditions.push(sql`${analyses.tier} IN (${sql.join(tiers.map(t => sql`${t}`), sql`, `)})`);
+    }
+  }
+
+  // has_analysis filter
+  const hasAnalysis = body.has_analysis === true;
+  if (hasAnalysis) {
+    conditions.push(sql`${analyses.id} IS NOT NULL`);
+  }
+
+  // Sort field
+  const sortField = getString(body.sort);
+  const orderByClause = sortField === 'magnitude'
+    ? desc(earthquakes.magnitude)
+    : desc(earthquakes.time);
+
   const rows = await db.select({
     id: earthquakes.id,
     lat: earthquakes.lat,
@@ -190,6 +211,7 @@ searchRoute.post('/', async (c) => {
     analysis: analyses.analysis,
     search_tags: analyses.search_tags,
     search_region: analyses.search_region,
+    has_analysis: sql<boolean>`${analyses.id} IS NOT NULL`,
   })
     .from(earthquakes)
     .leftJoin(analyses, and(
@@ -197,7 +219,7 @@ searchRoute.post('/', async (c) => {
       eq(analyses.is_latest, true),
     ))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(earthquakes.time))
+    .orderBy(orderByClause)
     .limit(limit);
 
   return c.json({ results: rows, count: rows.length });

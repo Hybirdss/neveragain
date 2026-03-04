@@ -16,6 +16,7 @@ const LIMITS: Record<string, { max: number; window: number }> = {
   search_sql: { max: 100, window: 3600 },
   events:     { max: 1000, window: 3600 },
   reports:    { max: 1000, window: 3600 },
+  ask:        { max: 20,  window: 3600 },
 };
 
 export async function checkRateLimit(

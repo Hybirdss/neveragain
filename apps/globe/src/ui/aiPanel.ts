@@ -153,7 +153,78 @@ export function initAiPanel(): void {
     contentEl.append(pane);
   });
 
-  panelEl.append(header, tabBar, contentEl);
+  // Question input area
+  const questionArea = el('div', 'ai-panel__question');
+  questionArea.innerHTML = `
+    <div class="ai-question__history"></div>
+    <div class="ai-question__examples"></div>
+    <div class="ai-question__input-row">
+      <input class="ai-question__input" type="text" maxlength="200" />
+      <button class="ai-question__submit" type="button"></button>
+    </div>
+  `;
+  const questionHistory = questionArea.querySelector('.ai-question__history') as HTMLElement;
+  const questionExamples = questionArea.querySelector('.ai-question__examples') as HTMLElement;
+  const questionInput = questionArea.querySelector('.ai-question__input') as HTMLInputElement;
+  const questionSubmit = questionArea.querySelector('.ai-question__submit') as HTMLButtonElement;
+  questionInput.placeholder = t('ai.ask.placeholder');
+  questionSubmit.textContent = t('ai.ask.submit');
+
+  // Example chips
+  const exKeys = ['ai.ask.ex1', 'ai.ask.ex2', 'ai.ask.ex3'];
+  for (const key of exKeys) {
+    const chip = el('button', 'ai-question__chip', t(key));
+    chip.type = 'button';
+    chip.addEventListener('click', () => {
+      questionInput.value = t(key);
+      questionSubmit.click();
+    });
+    questionExamples.append(chip);
+  }
+
+  // Submit handler
+  async function submitQuestion(): Promise<void> {
+    const question = questionInput.value.trim();
+    if (!question) return;
+    const aiState = store.get('ai');
+    const eventId = (aiState.currentAnalysis as any)?.event_id;
+    if (!eventId) return;
+
+    // Show user question
+    const userBubble = el('div', 'ai-question__bubble ai-question__bubble--user', question);
+    questionHistory.append(userBubble);
+    questionInput.value = '';
+    questionExamples.style.display = 'none';
+
+    // Show thinking indicator
+    const thinkingBubble = el('div', 'ai-question__bubble ai-question__bubble--ai', t('ai.ask.thinking'));
+    questionHistory.append(thinkingBubble);
+    questionHistory.scrollTop = questionHistory.scrollHeight;
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL
+        ?? (import.meta.env.PROD ? 'https://api.namazue.dev' : '');
+      const resp = await fetch(`${API_URL}/api/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, question }),
+      });
+      if (!resp.ok) throw new Error(`${resp.status}`);
+      const data = await resp.json() as { answer?: { ko?: string; ja?: string; en?: string } };
+      thinkingBubble.textContent = i18n(data.answer) || t('ai.ask.error');
+    } catch {
+      thinkingBubble.textContent = t('ai.ask.error');
+      thinkingBubble.classList.add('ai-question__bubble--error');
+    }
+    questionHistory.scrollTop = questionHistory.scrollHeight;
+  }
+
+  questionSubmit.addEventListener('click', () => void submitQuestion());
+  questionInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); void submitQuestion(); }
+  });
+
+  panelEl.append(header, tabBar, contentEl, questionArea);
   document.body.append(panelEl);
 
   // Set initial tab
@@ -410,6 +481,27 @@ function renderEasyTab(analysis: any): void {
     pane.append(cards);
   }
 
+  // Key interpretations (v4: high-confidence only, max 3)
+  if (analysis.interpretations?.length) {
+    const highConf = (analysis.interpretations as any[])
+      .filter((interp: any) => interp.confidence === 'high')
+      .slice(0, 3);
+    if (highConf.length) {
+      const interpCards = el('div', 'ai-dashboard-cards');
+      interpCards.style.marginBottom = 'var(--space-2)';
+      for (const interp of highConf) {
+        const card = el('div', 'ai-dash-card ai-dash-card--neutral');
+        const label = el('span', 'ai-dash-card__label', String(interp.type ?? '').replace(/_/g, ' '));
+        const value = el('span', 'ai-dash-card__value');
+        value.style.fontSize = 'var(--text-xs)';
+        value.textContent = i18n(interp.summary);
+        card.append(label, value);
+        interpCards.append(card);
+      }
+      pane.append(interpCards);
+    }
+  }
+
   // One-liner
   const oneLiner = analysis.dashboard?.one_liner;
   if (oneLiner) {
@@ -538,6 +630,11 @@ function renderExpertTab(analysis: any): void {
     pane.append(makeAccordion(t('ai.expert.mechanism'), escapeHtml(i18n(mechNote))));
   }
 
+  // Depth analysis (v4)
+  if (exp.depth_analysis) {
+    pane.append(makeAccordion(t('ai.expert.depth'), escapeHtml(i18n(exp.depth_analysis))));
+  }
+
   // Sequence classification
   if (exp.sequence) {
     const content = el('div');
@@ -585,6 +682,11 @@ function renderExpertTab(analysis: any): void {
     pane.append(makeAccordion(t('ai.expert.aftershock'), '', content));
   }
 
+  // Coulomb stress (v4)
+  if (exp.coulomb_note) {
+    pane.append(makeAccordion(t('ai.expert.coulomb'), escapeHtml(i18n(exp.coulomb_note))));
+  }
+
   // Seismic gap (v2: is_gap + note, v1: is_in_gap + analysis)
   const gap = exp.seismic_gap;
   if (gap?.note || gap?.analysis) {
@@ -629,6 +731,33 @@ function renderExpertTab(analysis: any): void {
     });
     pane.append(makeAccordion(t('ai.expert.notable'), '', container));
   }
+
+  // Model notes (v4: assumptions, unknowns, what_will_update)
+  if (exp.model_notes) {
+    const container = el('div');
+    const sections: [string, string[]][] = [
+      ['Assumptions', exp.model_notes.assumptions ?? []],
+      ['Unknowns', exp.model_notes.unknowns ?? []],
+      ['Will Update', exp.model_notes.what_will_update ?? []],
+    ];
+    for (const [label, items] of sections) {
+      if (items.length === 0) continue;
+      const heading = el('p', 'ai-notable-feature__title', label);
+      heading.style.marginTop = 'var(--space-2)';
+      container.append(heading);
+      const list = document.createElement('ul');
+      list.style.fontSize = 'var(--text-xs)';
+      list.style.color = 'var(--text-tertiary)';
+      list.style.paddingLeft = 'var(--space-4)';
+      for (const item of items) {
+        const li = document.createElement('li');
+        li.textContent = item;
+        list.append(li);
+      }
+      container.append(list);
+    }
+    pane.append(makeAccordion(t('ai.expert.modelNotes'), '', container));
+  }
 }
 
 function addFactRow(container: HTMLElement, label: string, value: string): void {
@@ -661,6 +790,39 @@ function renderDataTab(analysis: any): void {
     URL.revokeObjectURL(url);
   };
   pane.append(downloadBtn);
+
+  // Interpretations (v4: structured AI inferences)
+  if (analysis.interpretations?.length) {
+    const interpDiv = el('div');
+    interpDiv.style.marginBottom = 'var(--space-3)';
+    const interpLabel = el('p', undefined, t('ai.expert.interpretations'));
+    interpLabel.style.fontSize = 'var(--text-xs)';
+    interpLabel.style.color = 'var(--text-tertiary)';
+    interpLabel.style.marginBottom = 'var(--space-1)';
+    interpDiv.append(interpLabel);
+
+    for (const interp of analysis.interpretations as any[]) {
+      const row = el('div', 'ai-fact-row');
+      row.style.alignItems = 'flex-start';
+      const left = el('div');
+      left.style.display = 'flex';
+      left.style.gap = 'var(--space-1)';
+      left.style.flexShrink = '0';
+      left.append(
+        makeBadge(String(interp.type ?? '').replace(/_/g, ' ')),
+        makeBadge(
+          String(interp.confidence ?? ''),
+          interp.confidence === 'high' ? 'positive' : interp.confidence === 'medium' ? undefined : 'warning',
+        ),
+      );
+      const right = el('span', 'ai-fact-value');
+      right.textContent = i18n(interp.summary);
+      right.style.fontSize = 'var(--text-xs)';
+      row.append(left, right);
+      interpDiv.append(row);
+    }
+    pane.append(interpDiv);
+  }
 
   // Key metrics table
   if (analysis.public?.intensity_guide?.length) {

@@ -534,3 +534,108 @@
 .ai-badge-icon {
   font-size: 1.1em;
 }
+
+/* ── Question Area ── */
+
+.ai-panel__question {
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3);
+  flex-shrink: 0;
+}
+
+.ai-question__history {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: var(--space-2);
+}
+
+.ai-question__history:empty {
+  display: none;
+}
+
+.ai-question__bubble {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 12px;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+  line-height: 1.5;
+  max-width: 90%;
+  word-wrap: break-word;
+}
+
+.ai-question__bubble--user {
+  background: var(--ai-tab-indicator, #3b82f6);
+  color: white;
+  margin-left: auto;
+  text-align: right;
+}
+
+.ai-question__bubble--ai {
+  background: var(--bg-elevated, #1e293b);
+  color: var(--text-secondary);
+}
+
+.ai-question__bubble--error {
+  color: var(--color-danger, #ef4444);
+}
+
+.ai-question__examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.ai-question__chip {
+  font-size: var(--text-xs);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.ai-question__chip:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--ai-tab-indicator);
+}
+
+.ai-question__input-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.ai-question__input {
+  flex: 1;
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  outline: none;
+}
+
+.ai-question__input:focus {
+  border-color: var(--ai-tab-indicator, #3b82f6);
+}
+
+.ai-question__submit {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--ai-tab-indicator, #3b82f6);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s;
+}
+
+.ai-question__submit:hover {
+  opacity: 0.85;
+}

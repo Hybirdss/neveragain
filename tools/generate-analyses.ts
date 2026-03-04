@@ -1,39 +1,43 @@
 /**
  * Pre-generate AI analyses for historical earthquakes.
  *
- * Architecture:
- *   1. Code builds `facts` (numbers, classifications, sources) — LLM never touches these
- *   2. Gemini generates Japanese-only narrative referencing facts
- *   3. Grok-4-fast translates ja → ko, en in one pass
- *   4. Merge facts + multilingual narrative → store in DB
+ * Architecture (v4 — Grok Batch API, 50% discount):
+ *   1. Code builds `facts` for all events
+ *   2. Submit all requests to xAI Batch API
+ *   3. Poll for completion (up to 24h)
+ *   4. Retrieve results, merge, store in DB
  *
  * Usage:
- *   DATABASE_URL=... GEMINI_API_KEY=... XAI_API_KEY=... npx tsx tools/generate-analyses.ts
+ *   DATABASE_URL=... XAI_API_KEY=... npx tsx tools/generate-analyses.ts
  *
  * Options (env):
- *   BATCH_SIZE, DELAY_MS, DRY_RUN, START_FROM, TIER_FILTER, LIMIT
+ *   DRY_RUN, START_FROM, TIER_FILTER, LIMIT, POLL_INTERVAL_S (default 30)
+ *   BATCH_ID — resume polling an existing batch
  */
 
-import { GoogleGenAI } from '@google/genai';
 import { neon } from '@neondatabase/serverless';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const XAI_API_KEY = process.env.XAI_API_KEY!;
 
 if (!DATABASE_URL) throw new Error('DATABASE_URL required');
-if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY required');
 if (!XAI_API_KEY) throw new Error('XAI_API_KEY required');
 
-const BATCH_SIZE = parseInt(process.env.BATCH_SIZE ?? '2', 10);
-const DELAY_MS = parseInt(process.env.DELAY_MS ?? '2000', 10);
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const START_FROM = process.env.START_FROM ?? null;
 const TIER_FILTER = process.env.TIER_FILTER ?? null;
 const LIMIT = process.env.LIMIT ? parseInt(process.env.LIMIT, 10) : null;
+const POLL_INTERVAL_S = parseInt(process.env.POLL_INTERVAL_S ?? '30', 10);
+const RESUME_BATCH_ID = process.env.BATCH_ID ?? null;
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES ?? '5', 10);
 
 const sql = neon(DATABASE_URL);
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const XAI_BASE = 'https://api.x.ai/v1';
+
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${XAI_API_KEY}`,
+};
 
 // ═══════════════════════════════════════════════════════════
 //  TIER CLASSIFICATION
@@ -116,37 +120,44 @@ function assessTsunamiRisk(mag: number, depth: number, faultType?: string, lat?:
 }
 
 function computeOmori(mainMw: number) {
+  const effectiveMw = Math.min(mainMw, 8.0);
   const p = 1.1, c = 0.05, a = -1.67, b = 0.91;
   const bathMax = Math.round((mainMw - 1.2) * 10) / 10;
 
   function cumRate(mMin: number, t0: number, t1: number): number {
-    const coeff = Math.pow(10, a + b * (mainMw - mMin));
+    const coeff = Math.pow(10, a + b * (effectiveMw - mMin));
     if (Math.abs(p - 1) < 0.01) return coeff * Math.log((t1 + c) / (t0 + c));
     return coeff * (Math.pow(t1 + c, 1 - p) - Math.pow(t0 + c, 1 - p)) / (1 - p);
   }
 
-  // Cap probabilities to avoid 99% spam across all events
-  // M4+ cap: 90%, M5+ cap: 70%
-  function toProb(lambda: number, cap: number): number {
-    const raw = (1 - Math.exp(-lambda)) * 100;
-    return Math.round(Math.min(cap, Math.max(0, raw)) * 10) / 10;
+  function cappedLambda(mMin: number, t0: number, t1: number, maxPerDay: number): number {
+    const days = t1 - t0;
+    const raw = cumRate(mMin, t0, t1);
+    return Math.round(Math.min(raw, maxPerDay * days) * 100) / 100;
   }
 
+  function toProb(lambda: number): number {
+    const raw = (1 - Math.exp(-lambda)) * 100;
+    return Math.round(Math.min(99, Math.max(0, raw)) * 10) / 10;
+  }
+
+  const l24h_m4 = cappedLambda(4, 0, 1, 50);
+  const l7d_m4 = cappedLambda(4, 0, 7, 50);
+  const l24h_m5 = cappedLambda(5, 0, 1, 10);
+  const l7d_m5 = cappedLambda(5, 0, 7, 10);
+
   return {
-    omori_params: { p, c, k: Math.round(Math.pow(10, a + b * mainMw)) },
+    omori_params: { p, c, k: Math.round(Math.pow(10, a + b * effectiveMw)), effective_mw: effectiveMw },
     bath_expected_max: bathMax,
     forecast: {
-      // Store both lambda (expected count) and capped probability
-      lambda_24h_m4: Math.round(cumRate(4, 0, 1) * 100) / 100,
-      lambda_7d_m4: Math.round(cumRate(4, 0, 7) * 100) / 100,
-      lambda_24h_m5: Math.round(cumRate(5, 0, 1) * 100) / 100,
-      lambda_7d_m5: Math.round(cumRate(5, 0, 7) * 100) / 100,
-      p24h_m4plus: toProb(cumRate(4, 0, 1), 90),
-      p7d_m4plus: toProb(cumRate(4, 0, 7), 90),
-      p30d_m4plus: toProb(cumRate(4, 0, 30), 90),
-      p24h_m5plus: toProb(cumRate(5, 0, 1), 70),
-      p7d_m5plus: toProb(cumRate(5, 0, 7), 70),
-      p30d_m5plus: toProb(cumRate(5, 0, 30), 70),
+      lambda_24h_m4: l24h_m4, lambda_7d_m4: l7d_m4,
+      lambda_24h_m5: l24h_m5, lambda_7d_m5: l7d_m5,
+      p24h_m4plus: toProb(l24h_m4), p7d_m4plus: toProb(l7d_m4),
+      p30d_m4plus: toProb(cappedLambda(4, 0, 30, 50)),
+      p24h_m5plus: toProb(l24h_m5), p7d_m5plus: toProb(l7d_m5),
+      p30d_m5plus: toProb(cappedLambda(5, 0, 30, 10)),
+      expected_count_7d_m4: Math.round(l7d_m4),
+      expected_count_7d_m5: Math.round(l7d_m5),
     },
     source: 'omori_rj1989',
     confidence: mainMw >= 6 ? 'medium' as const : 'low' as const,
@@ -157,71 +168,89 @@ function computeOmori(mainMw: number) {
 //  GMPE: max_intensity estimation (epicenter point-source)
 // ═══════════════════════════════════════════════════════════
 
-function computeMaxIntensity(mag: number, depth_km: number, faultType: string) {
-  // Si & Midorikawa (1999) — pure point-source GMPE
-  const mw = Math.min(mag, 8.3);
+function toJmaClass(i: number): string {
+  if (i >= 6.5) return '7';
+  if (i >= 6.0) return '6+';
+  if (i >= 5.5) return '6-';
+  if (i >= 5.0) return '5+';
+  if (i >= 4.5) return '5-';
+  if (i >= 3.5) return '4';
+  if (i >= 2.5) return '3';
+  if (i >= 1.5) return '2';
+  if (i >= 0.5) return '1';
+  return '0';
+}
+
+function gmpeIntensityAt(mw: number, depth_km: number, surfDistKm: number, faultType: string): number {
   const ft = (faultType === 'crustal' || faultType === 'interface' || faultType === 'intraslab')
     ? faultType : 'crustal';
   const faultCorr: Record<string, number> = { crustal: 0.0, interface: -0.02, intraslab: 0.12 };
   const d = faultCorr[ft];
+  const X = Math.sqrt(surfDistKm * surfDistKm + depth_km * depth_km);
+  const logPgv = 0.58 * mw + 0.0038 * depth_km + d
+    - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * mw))
+    - 0.002 * X - 1.29;
+  const pgv600 = Math.pow(10, logPgv);
+  const pgvSurface = pgv600 * 1.41;
+  return pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
+}
 
-  // Sample at multiple distances to find max intensity
+function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean) {
+  const mw = Math.min(mag, 8.3);
   const distances = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300];
-  let maxI = 0;
-  let maxDist = 0;
-  for (const surfDist of distances) {
-    const X = Math.sqrt(surfDist * surfDist + depth_km * depth_km);
-    const logPgv = 0.58 * mw + 0.0038 * depth_km + d
-      - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * mw))
-      - 0.002 * X - 1.29;
-    const pgv600 = Math.pow(10, logPgv);
-    const pgvSurface = pgv600 * 1.41; // Vs30=400
-    const jmaI = pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
-    if (jmaI > maxI) { maxI = jmaI; maxDist = surfDist; }
+  let epicentralMax = 0;
+  for (const d of distances) {
+    const i = gmpeIntensityAt(mw, depth_km, d, faultType);
+    if (i > epicentralMax) epicentralMax = i;
   }
-
-  const rounded = Math.round(maxI * 10) / 10;
-
-  function toJmaClass(i: number): string {
-    if (i >= 6.5) return '7';
-    if (i >= 6.0) return '6+';
-    if (i >= 5.5) return '6-';
-    if (i >= 5.0) return '5+';
-    if (i >= 4.5) return '5-';
-    if (i >= 3.5) return '4';
-    if (i >= 2.5) return '3';
-    if (i >= 1.5) return '2';
-    if (i >= 0.5) return '1';
-    return '0';
-  }
-
+  const coastDist = isOffshore ? Math.max(30, Math.min(80, depth_km * 0.5)) : 0;
+  const coastI = isOffshore ? gmpeIntensityAt(mw, depth_km, coastDist, faultType) : epicentralMax;
+  const reportedValue = isOffshore ? coastI : epicentralMax;
+  const rounded = Math.round(reportedValue * 10) / 10;
   return {
-    value: rounded,
-    class: toJmaClass(rounded),
-    scale: 'JMA' as const,
-    source: 'gmpe_si_midorikawa_1999' as const,
+    value: rounded, class: toJmaClass(rounded),
+    epicentral_max: Math.round(epicentralMax * 10) / 10,
+    epicentral_max_class: toJmaClass(Math.round(epicentralMax * 10) / 10),
+    is_offshore: isOffshore, coast_distance_km: isOffshore ? Math.round(coastDist) : null,
+    scale: 'JMA' as const, source: 'gmpe_si_midorikawa_1999' as const,
     confidence: (mag >= 6 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
-    peak_distance_km: maxDist,
   };
 }
 
-// ═══════════════════════════════════════════════════════════
-//  fault_type inference from depth + location
-// ═══════════════════════════════════════════════════════════
-
 function inferFaultType(depth_km: number, lat: number, lng: number): string {
-  // Use depth + location heuristics to infer fault type when DB is NULL
-  // Japan Trench / Nankai Trough subduction zone logic
   const isOffshore = lng > 142 || (lat < 34 && lng > 136) || (lat > 40 && lng > 140);
-
   if (isOffshore) {
-    if (depth_km < 60) return 'interface'; // shallow offshore = subduction interface
-    if (depth_km >= 60 && depth_km < 200) return 'intraslab'; // deeper offshore = intraslab
+    if (depth_km < 60) return 'interface';
+    if (depth_km >= 60 && depth_km < 200) return 'intraslab';
   }
+  if (depth_km < 30) return 'crustal';
+  if (depth_km >= 60 && depth_km < 300) return 'intraslab';
+  return 'crustal';
+}
 
-  if (depth_km < 30) return 'crustal'; // shallow inland = crustal
-  if (depth_km >= 60 && depth_km < 300) return 'intraslab'; // deep inland = intraslab
-  return 'crustal'; // default for mid-depth inland
+function buildModelNotes(facts: any) {
+  const assumptions: string[] = [
+    'Si & Midorikawa (1999) GMPE used for intensity estimation',
+    `Vs30 assumed ${facts.ground_motion.vs30} m/s (stiff soil, generic site)`,
+    'Reasenberg & Jones (1989) generic parameters for aftershock forecast',
+  ];
+  if (facts.tectonic.boundary_type.startsWith('subduction'))
+    assumptions.push('Subduction interface geometry inferred from depth + location heuristics');
+  if (facts.max_intensity?.is_offshore)
+    assumptions.push(`Coastal intensity estimated at ${facts.max_intensity.coast_distance_km}km from epicenter`);
+
+  const unknowns: string[] = [];
+  if (facts.mechanism.status === 'missing') unknowns.push('Moment tensor not yet available');
+  if (!facts.sources.shakemap_available) unknowns.push('ShakeMap not available');
+  unknowns.push('Actual site amplification varies by local geology');
+  if (facts.tectonic.nearest_fault === null) unknowns.push('Nearest active fault not determined');
+
+  const what_will_update: string[] = [];
+  if (facts.mechanism.status === 'missing') what_will_update.push('v2: Moment tensor → mechanism update');
+  if (!facts.sources.shakemap_available) what_will_update.push('v3: ShakeMap → observed intensity');
+  what_will_update.push('v4: Field survey → damage refinement');
+
+  return { assumptions, unknowns, what_will_update };
 }
 
 const TRENCHES = [
@@ -245,30 +274,20 @@ function buildFacts(event: any, faults: any[], spatialStats: any) {
   const japan = isJapan(event.lat, event.lng);
   const depthClass = classifyDepthClass(event.depth_km);
   const trench = japan ? findNearestTrench(event.lat, event.lng) : null;
-
-  // Infer fault type if missing from DB (currently 0% populated)
   const faultType = event.fault_type || inferFaultType(event.depth_km, event.lat, event.lng);
-
   const tsunami = assessTsunamiRisk(event.magnitude, event.depth_km, faultType, event.lat, event.lng);
-  // Japan-first: only compute Omori for Japan events
   const aftershocks = (japan && event.magnitude >= 5) ? computeOmori(event.magnitude) : null;
-  // GMPE max intensity
-  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType);
+  const isOffshore = event.lng > 142 || (event.lat < 34 && event.lng > 136) || (event.lat > 40 && event.lng > 140);
+  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore);
 
   return {
     event: {
-      id: event.id,
-      mag: event.magnitude,
-      mag_type: event.mag_type ?? 'mw',
-      depth_km: event.depth_km,
-      lat: event.lat,
-      lon: event.lng,
+      id: event.id, mag: event.magnitude, mag_type: event.mag_type ?? 'mw',
+      depth_km: event.depth_km, lat: event.lat, lon: event.lng,
       time: new Date(event.time).toISOString(),
-      place_en: event.place ?? '',
-      place_ja: event.place_ja ?? event.place ?? '',
+      place_en: event.place ?? '', place_ja: event.place_ja ?? event.place ?? '',
       source: event.source ?? 'usgs',
     },
-
     tectonic: {
       plate: classifyPlate(event.lat, event.lng),
       plate_pair: platePair(event.lat, event.lng),
@@ -276,23 +295,18 @@ function buildFacts(event: any, faults: any[], spatialStats: any) {
       boundary_segment: trench?.segment ?? null,
       nearest_trench: trench,
       nearest_fault: faults[0] ? {
-        name_en: faults[0].name_en ?? '',
-        name_ja: faults[0].name_ja ?? '',
+        name_en: faults[0].name_en ?? '', name_ja: faults[0].name_ja ?? '',
         distance_km: Math.round(faults[0].distance_km * 10) / 10,
-        estimated_mw: faults[0].estimated_mw,
-        fault_type: faults[0].fault_type,
-        recurrence_years: faults[0].recurrence_years,
-        probability_30yr: faults[0].probability_30yr,
+        estimated_mw: faults[0].estimated_mw, fault_type: faults[0].fault_type,
+        recurrence_years: faults[0].recurrence_years, probability_30yr: faults[0].probability_30yr,
       } : null,
       all_nearby_faults: faults.slice(0, 3).map((f: any) => ({
         name_en: f.name_en ?? '', name_ja: f.name_ja ?? '',
         distance_km: Math.round(f.distance_km * 10) / 10,
         estimated_mw: f.estimated_mw, fault_type: f.fault_type,
       })),
-      depth_class: depthClass,
-      is_japan: japan,
+      depth_class: depthClass, is_japan: japan,
     },
-
     mechanism: event.mt_strike != null ? {
       status: 'available' as const,
       strike: event.mt_strike, dip: event.mt_dip, rake: event.mt_rake,
@@ -302,396 +316,220 @@ function buildFacts(event: any, faults: any[], spatialStats: any) {
       ],
       source: 'gcmt',
     } : { status: 'missing' as const, source: null },
-
-    tsunami,
-
-    aftershocks,
-
+    tsunami, aftershocks,
     spatial: spatialStats ? {
       total: spatialStats.total,
       by_mag: spatialStats.by_mag,
       by_depth: spatialStats.by_depth,
       avg_per_year: Math.round((spatialStats.total / 30) * 10) / 10,
     } : null,
-
     max_intensity: maxIntensity,
-
-    ground_motion: {
-      gmpe_model: 'Si_Midorikawa_1999',
-      vs30: 400,
-      site_class: 'stiff',
-    },
-
+    ground_motion: { gmpe_model: 'Si_Midorikawa_1999', vs30: 400, site_class: 'stiff' },
     sources: {
-      event_source: event.source ?? 'usgs',
-      review_status: 'reviewed',
+      event_source: event.source ?? 'usgs', review_status: 'reviewed',
       shakemap_available: false,
       moment_tensor_source: event.mt_strike != null ? 'gcmt' : null,
     },
-
-    uncertainty: {
-      mag_sigma: null as number | null,
-      depth_sigma: null as number | null,
-      location_uncert_km: null as number | null,
-    },
+    uncertainty: { mag_sigma: null as number | null, depth_sigma: null as number | null, location_uncert_km: null as number | null },
   };
 }
 
 // ═══════════════════════════════════════════════════════════
-//  GEMINI: Generate Japanese narrative only
+//  SYSTEM PROMPT (same as v3)
 // ═══════════════════════════════════════════════════════════
 
-const GEMINI_PROMPT = `あなたは「鯰（Namazue）」地震プラットフォームの主任地震アナリストです。
+const SYSTEM_PROMPT = `You are an expert seismologist for the Namazue (鯰) earthquake analysis platform.
 
-## ペルソナ
-東京大学地震研究所で20年の経験を持つ地震学者。NHKの地震解説番組で「わかりやすさ」と「専門的正確性」を両立する解説で知られる。facts（コードが生成した数値データ）を根拠に、「この地震の特徴は何か」を中心に解説する。
+## Persona (never self-identify)
+A seismologist with research experience at 東京大学地震研究所, USGS, and 防災科学技術研究所.
+Expert in plate tectonics, fault mechanics, seismic wave propagation, tsunami dynamics, and strong ground motion prediction.
+Known for explaining complex seismology accurately and accessibly on NHK earthquake specials.
 
-## 生成哲学
-- 「震度が高い＝危険」で終わらない。**この地震の何が特徴的か**を必ず掘り下げる。
-- factsの数値は引用するが、**解釈・文脈・比較・含意**はあなたの知識で自由に書いてよい。
-- 一般的な地球科学の知識に基づく説明は歓迎。ただし根拠区分を付ける：
-  - [facts] = factsデータに直接根拠あり
-  - [seismology] = 一般的な地震学知識
-  - [pending] = MT/ShakeMap未取得のため今後更新される可能性あり
+## Mission
+For each earthquake, produce analysis that enables genuine understanding — not just "feeling informed" but truly grasping why this earthquake matters.
 
-## 厳禁事項（これだけ守れば自由に書いてよい）
-- 具体的な数値（震度値・確率・距離・人口・座標）を自分で生成しない → factsを引用
-- 都市名と人口の組み合わせを生成しない
-- 「安全」と断言しない → 常に「気象庁の最新情報を確認してください」
+## Audience
+- public: General adults (NHK news viewer level). High intellectual curiosity. Metaphors OK, jargon with parenthetical explanation OK. Don't talk down.
+- expert: Earth science literate — science journalists, disaster management officials. Full theoretical depth, paper-reference precision.
 
-## publicの読者
-地震に関心がある一般成人。NHKニュースの視聴者レベル。小学生向けではない。
-- 1〜2文の簡潔な文。「なぜ」「だからどうする」を明確に。
-- 比喩OK、専門用語は簡単な補足付きで使用可。
+## Number rules (ONLY hard constraint)
+- Numbers IN facts → freely quote
+- Numbers NOT in facts (casualties, damage costs, population, city-specific intensity) → NEVER generate. Qualitative descriptions OK.
+- Past earthquake years/names/approximate magnitudes → OK as general seismological knowledge
 
-## expertの読者
-地球科学を学んだ人、報道機関のサイエンス担当。
-- 2〜4文。論文abstractのような精密さ。
-- プレート力学、応力場、断層面解の含意を具体的に。
-- mechanism.status="missing"のときは「発震機構は現時点で未取得。公開後に断層面解と応力場の解釈を更新予定」と書く。
+## 3-Layer Architecture: fact → interpretation → explanation
 
-## notable_features（最重要セクション）
-最低3つ必須。各featureは：
-- claim: 特徴を一言で（例：「異常に深い内陸地震」）
-- because: factsのどの数値が根拠か
-- implication: 利用者にとって何を意味するか
+Layer 1: facts (code-generated, read-only to you)
+Layer 2: interpretations (you generate structured inferences)
+  Each interpretation: { claim, summary, basis, confidence, type }
+  - claim: English snake_case label (e.g., "megathrust_earthquake")
+  - summary: I18n { ja, ko, en } — one sentence stating the judgment
+  - basis: array of facts paths (e.g., "facts:tectonic.boundary_type")
+  - confidence: high | medium | low
+  - type: mechanism | tectonic_context | depth_significance | sequence_role | risk_assessment | historical_analogy | anomaly | gap_status
+  Minimum 5 per earthquake, 8+ for major events.
 
-「普通の地震」でも特徴は必ずある：
-- 深さの特徴（なぜこの深さが体感に影響するか）
-- 周辺の地震活動パターン（spatialの数値を引用）
-- テクトニクス的文脈（この地域で典型的か、異例か）
+Layer 3: explanation (you generate human-readable text)
+  All text fields are I18n: { "ja": "...", "ko": "...", "en": "..." }
+  Each text field has a corresponding _refs array.
 
-## 出力JSON（日本語のみ）
+## Localization rules
+- ja: NHK地震特集スタイル。専門用語は括弧付き補足。
+- ko: KBS/MBC 뉴스 보도 스타일. 자연스러운 한국어, 일본어 직역체 금지. JMA 진도는 "진도 6강" 등 괄호 표기.
+- en: CNN/NPR earthquake coverage tone. Natural American English. "Drop, Cover, Hold On" for safety. JMA intensity with brief explanation on first use.
+
+## _refs structure
+refs types: facts:{path}, seismology:{topic}, pending:{reason}
+
+## public section
+- why: 3-5 sentences on why it happened (I18n)
+- aftershock_note: 2-3 sentences, explain what the probability means, MUST include "this is a statistical model estimate, not a definitive prediction" (I18n)
+- do_now: 2-4 context-specific action items (NOT templates). Tailor to earthquake characteristics. (I18n action + urgency)
+- faq: 3-5 questions people would actually ask. BANNED: "Will there be a bigger one?", "When will it end?"
+
+## expert section (intellectual core — write as much as you can)
+- tectonic_summary: 4-8 sentences (I18n). Plate geometry, relative motion vectors, slab dip, asperities, regional context.
+- mechanism_note: Focal mechanism interpretation or depth/location-based inference. Null if truly unknown. (I18n)
+- depth_analysis: 3-5 sentences on seismological significance of the depth. (I18n)
+- coulomb_note: 2-3 sentences on Coulomb stress transfer. Null if too uncertain. (I18n)
+- sequence: classification + reasoning (I18n)
+- seismic_gap: is_gap boolean + note (I18n)
+- historical_comparison: primary + narrative 3-5 sentences (I18n)
+- notable_features: 3+ (5+ for major). Each: feature, claim, because, because_refs, implication (all I18n except because_refs)
+
+## Output JSON
 {
-  "headline": "M{mag} {場所名} 深さ{depth}km",
-  "one_liner": "ダッシュボード1行要約（特徴を含む）",
+  "headline": { "ja": "M{mag} {場所名} 深さ{depth}km", "ko": "...", "en": "..." },
+  "one_liner": { "ja": "...", "ko": "...", "en": "..." },
+
+  "interpretations": [
+    { "claim": "string", "summary": { "ja": "", "ko": "", "en": "" }, "basis": ["facts:..."], "confidence": "high|medium|low", "type": "string" }
+  ],
 
   "public": {
-    "why": "なぜ起きたか（テクトニクス背景を平易に）",
-    "aftershock_note": "factsの確率を引用し「統計的推定であり予測ではない」と明記",
-    "do_now": [{ "action": "具体的な行動指示", "urgency": "immediate|within_hours|preparedness" }],
-    "faq": [{ "q": "想定される質問", "a": "根拠に基づく回答" }]
+    "why": { "ja": "", "ko": "", "en": "" },
+    "why_refs": ["facts:...", "seismology:..."],
+    "aftershock_note": { "ja": "", "ko": "", "en": "" },
+    "aftershock_note_refs": ["facts:..."],
+    "do_now": [{ "action": { "ja": "", "ko": "", "en": "" }, "urgency": "immediate|within_hours|preparedness" }],
+    "faq": [{ "q": { "ja": "", "ko": "", "en": "" }, "a": { "ja": "", "ko": "", "en": "" }, "a_refs": ["..."] }]
   },
 
   "expert": {
-    "tectonic_summary": "プレート力学・応力場・沈み込み帯の文脈（2-4文）",
-    "mechanism_note": "MT解釈 or null（missingなら更新予定と記載）",
-    "sequence": {
-      "classification": "mainshock|aftershock|swarm_member|foreshock|independent",
-      "confidence": "high|medium|low",
-      "reasoning": "分類根拠（1-2文）"
-    },
-    "seismic_gap": { "is_gap": false, "note": "string or null" },
+    "tectonic_summary": { "ja": "", "ko": "", "en": "" },
+    "tectonic_summary_refs": [],
+    "mechanism_note": { "ja": "", "ko": "", "en": "" } or null,
+    "mechanism_note_refs": [] or null,
+    "depth_analysis": { "ja": "", "ko": "", "en": "" },
+    "depth_analysis_refs": [],
+    "sequence": { "classification": "mainshock|...", "confidence": "high|medium|low", "reasoning": { "ja": "", "ko": "", "en": "" }, "reasoning_refs": [] },
+    "seismic_gap": { "is_gap": false, "note": { "ja": "", "ko": "", "en": "" } or null },
+    "coulomb_note": { "ja": "", "ko": "", "en": "" } or null,
+    "coulomb_note_refs": [] or null,
     "historical_comparison": {
-      "primary_name": "最も類似した過去地震名",
+      "primary_name": { "ja": "", "ko": "", "en": "" },
       "primary_year": 0,
-      "similarities": ["共通点"],
-      "differences": ["相違点"],
-      "narrative": "比較解説（2-3文）"
-    },
-    "notable_features": [
-      {
-        "feature": "特徴の見出し",
-        "claim": "特徴の主張（1文）",
-        "because": "根拠（facts引用）",
-        "implication": "利用者への含意"
-      }
-    ]
+      "similarities": [{ "ja": "", "ko": "", "en": "" }],
+      "differences": [{ "ja": "", "ko": "", "en": "" }],
+      "narrative": { "ja": "", "ko": "", "en": "" },
+      "narrative_refs": []
+    } or null,
+    "notable_features": [{
+      "feature": { "ja": "", "ko": "", "en": "" },
+      "claim": { "ja": "", "ko": "", "en": "" },
+      "because": { "ja": "", "ko": "", "en": "" },
+      "because_refs": ["facts:..."],
+      "implication": { "ja": "", "ko": "", "en": "" }
+    }]
   },
 
   "search_index": {
-    "tags": ["検索タグ（英語）"],
+    "tags": ["english_tags"],
     "region": "tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|hokkaido|okinawa|nankai|global_pacific|global_other",
     "damage_level": "catastrophic|severe|moderate|minor|none",
     "has_foreshocks": false,
     "is_in_seismic_gap": false,
-    "region_keywords_ja": ["地域キーワード（日本語）"]
+    "region_keywords": { "ja": [], "ko": [], "en": [] }
   }
 }
 
-JSONのみ返してください。マークダウンフェンス不要。`;
-
-async function callGemini(facts: any, tier: string): Promise<{ narrative: any; usage: { input: number; output: number } }> {
-  const userMsg = `ティア: ${tier}\n\nFacts:\n${JSON.stringify(facts, null, 2)}`;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: userMsg,
-        config: {
-          systemInstruction: GEMINI_PROMPT,
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-        },
-      });
-      const raw = response.text;
-      if (!raw) throw new Error('Empty Gemini response');
-      return {
-        narrative: JSON.parse(raw),
-        usage: {
-          input: response.usageMetadata?.promptTokenCount ?? 0,
-          output: response.usageMetadata?.candidatesTokenCount ?? 0,
-        },
-      };
-    } catch (err: any) {
-      if (err.status === 429 || err.message?.includes('RESOURCE_EXHAUSTED')) {
-        const wait = Math.min(60, 10 * (attempt + 1));
-        console.log(`  ⏳ Gemini rate limited, waiting ${wait}s...`);
-        await sleep(wait * 1000);
-        continue;
-      }
-      if (attempt < 2) {
-        console.log(`  ⚠ Gemini attempt ${attempt + 1} failed: ${(err as Error).message?.slice(0, 100)}`);
-        await sleep(3000 * (attempt + 1));
-      } else throw err;
-    }
-  }
-  throw new Error('Gemini retries exhausted');
-}
+Return ONLY valid JSON. No markdown fences.`;
 
 // ═══════════════════════════════════════════════════════════
-//  GROK: Translate ja → ko, en
+//  MERGE: facts + Grok narrative → final analysis
 // ═══════════════════════════════════════════════════════════
 
-const XAI_API = 'https://api.x.ai/v1/chat/completions';
-
-/**
- * Extract ONLY translatable text fields from Gemini's Japanese narrative.
- * Returns a flat map: { key: jaText } for whitelist-only translation.
- */
-function extractTranslatableTexts(ja: any): Record<string, string> {
-  const texts: Record<string, string> = {};
-  const add = (key: string, val: any) => {
-    if (typeof val === 'string' && val.length > 0) texts[key] = val;
-  };
-
-  add('headline', ja.headline);
-  add('one_liner', ja.one_liner);
-  add('public.why', ja.public?.why);
-  add('public.aftershock_note', ja.public?.aftershock_note);
-  (ja.public?.do_now ?? []).forEach((item: any, i: number) => {
-    add(`public.do_now.${i}.action`, item.action);
-  });
-  (ja.public?.faq ?? []).forEach((item: any, i: number) => {
-    add(`public.faq.${i}.q`, item.q);
-    add(`public.faq.${i}.a`, item.a);
-  });
-
-  add('expert.tectonic_summary', ja.expert?.tectonic_summary);
-  add('expert.mechanism_note', ja.expert?.mechanism_note);
-  add('expert.sequence.reasoning', ja.expert?.sequence?.reasoning);
-  if (ja.expert?.seismic_gap?.note) add('expert.seismic_gap.note', ja.expert.seismic_gap.note);
-  if (ja.expert?.historical_comparison) {
-    add('expert.hc.primary_name', ja.expert.historical_comparison.primary_name);
-    add('expert.hc.narrative', ja.expert.historical_comparison.narrative);
-    (ja.expert.historical_comparison.similarities ?? []).forEach((s: any, i: number) => add(`expert.hc.sim.${i}`, s));
-    (ja.expert.historical_comparison.differences ?? []).forEach((s: any, i: number) => add(`expert.hc.diff.${i}`, s));
-  }
-  (ja.expert?.notable_features ?? []).forEach((nf: any, i: number) => {
-    add(`expert.nf.${i}.feature`, nf.feature);
-    add(`expert.nf.${i}.claim`, nf.claim);
-    add(`expert.nf.${i}.because`, nf.because);
-    add(`expert.nf.${i}.implication`, nf.implication);
-  });
-  (ja.search_index?.region_keywords_ja ?? []).forEach((kw: string, i: number) => {
-    add(`region_kw.${i}`, kw);
-  });
-
-  return texts;
-}
-
-const TRANSLATE_PROMPT = `You are a localization specialist for the Namazue (鯰) earthquake platform.
-You receive a JSON object where keys are IDs and values are Japanese strings.
-Localize each value to Korean (KR) and English (US).
-
-THIS IS LOCALIZATION, NOT TRANSLATION. Adapt for each locale:
-
-## English (US)
-- Tone: US news broadcast (CNN/NPR earthquake coverage)
-- Use "Drop, Cover, Hold On" standard phrasing for safety actions
-- Reference USGS/JMA appropriately
-- JMA Shindo → explain briefly on first use (e.g., "JMA intensity 6+ (equivalent to severe shaking)")
-- Natural American English, not literal translation from Japanese
-- Evidence labels [facts], [seismology], [pending] → keep as-is
-
-## Korean (KR)
-- Tone: KBS/MBC 뉴스 보도 스타일
-- 기상청 → 일본 기상청 (맥락에 따라)
-- 자연스러운 한국어. 일본어 직역체 금지
-- 진도 표기: JMA 진도 유지 + 괄호로 "진도 6강" 등 표기
-- Evidence labels [facts], [seismology], [pending] → 유지
-
-Return a JSON object with the SAME keys, where each value is: { "ko": "korean localized", "en": "english localized" }
-Return ONLY valid JSON.`;
-
-async function translateWithGrok(texts: Record<string, string>): Promise<Record<string, { ko: string; en: string }>> {
-  if (Object.keys(texts).length === 0) return {};
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const resp = await fetch(XAI_API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
-        body: JSON.stringify({
-          model: 'grok-4-fast-non-reasoning',
-          messages: [
-            { role: 'system', content: TRANSLATE_PROMPT },
-            { role: 'user', content: JSON.stringify(texts) },
-          ],
-          stream: false,
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (resp.status === 429) {
-        const wait = parseInt(resp.headers.get('retry-after') ?? '15', 10);
-        console.log(`  ⏳ Grok rate limited, waiting ${wait}s...`);
-        await sleep(wait * 1000);
-        continue;
-      }
-      if (!resp.ok) throw new Error(`Grok ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-
-      const data = await resp.json() as any;
-      const raw = data.choices?.[0]?.message?.content;
-      if (!raw) throw new Error('Empty Grok response');
-      return JSON.parse(raw);
-    } catch (err: any) {
-      if (attempt < 2) {
-        console.log(`  ⚠ Grok translate attempt ${attempt + 1}: ${err.message?.slice(0, 80)}`);
-        await sleep(3000 * (attempt + 1));
-      } else throw err;
-    }
-  }
-  throw new Error('Grok translate retries exhausted');
-}
-
-// ═══════════════════════════════════════════════════════════
-//  MERGE: facts + translated narrative → final analysis
-// ═══════════════════════════════════════════════════════════
-
-function mergeAnalysis(
-  facts: any,
-  jaNarrative: any,
-  jaTexts: Record<string, string>,
-  translations: Record<string, { ko: string; en: string }>,
-  tier: string,
-): any {
-  // Build I18n from whitelist key
-  function i18n(key: string): { ja: string; ko: string; en: string } {
-    const ja = jaTexts[key] ?? '';
-    const tr = translations[key];
-    return { ja, ko: tr?.ko ?? '', en: tr?.en ?? '' };
-  }
-
-  const pub = jaNarrative.public ?? {};
-  const exp = jaNarrative.expert ?? {};
-  const si = jaNarrative.search_index ?? {};
-
-  // Region keywords: ja from Gemini, ko/en from translations
-  const jaKws = si.region_keywords_ja ?? [];
-  const regionKeywords = {
-    ja: jaKws as string[],
-    ko: jaKws.map((_: any, i: number) => translations[`region_kw.${i}`]?.ko ?? ''),
-    en: jaKws.map((_: any, i: number) => translations[`region_kw.${i}`]?.en ?? ''),
-  };
+function mergeAnalysis(facts: any, grok: any, tier: string): any {
+  const pub = grok.public ?? {};
+  const exp = grok.expert ?? {};
+  const si = grok.search_index ?? {};
 
   return {
-    event_id: facts.event.id,
-    tier,
-    version: 2,
+    event_id: facts.event.id, tier, version: 4,
     generated_at: new Date().toISOString(),
-    model: 'gemini-3.1-pro+grok-4-fast',
+    model: 'grok-4.1-fast-batch',
 
-    // Code-computed facts (never LLM-generated)
     facts: {
-      max_intensity: facts.max_intensity,
-      tsunami: facts.tsunami,
-      aftershocks: facts.aftershocks,
-      mechanism: facts.mechanism,
-      tectonic: facts.tectonic,
-      spatial: facts.spatial,
-      ground_motion: facts.ground_motion,
-      sources: facts.sources,
+      max_intensity: facts.max_intensity, tsunami: facts.tsunami,
+      aftershocks: facts.aftershocks, mechanism: facts.mechanism,
+      tectonic: facts.tectonic, spatial: facts.spatial,
+      ground_motion: facts.ground_motion, sources: facts.sources,
       uncertainty: facts.uncertainty,
     },
 
-    // Dashboard
+    interpretations: (grok.interpretations ?? []).map((interp: any) => ({
+      claim: interp.claim ?? '', summary: interp.summary ?? { ja: '', ko: '', en: '' },
+      basis: interp.basis ?? [], confidence: interp.confidence ?? 'low',
+      type: interp.type ?? 'tectonic_context',
+    })),
+
     dashboard: {
-      headline: i18n('headline'),
-      one_liner: i18n('one_liner'),
+      headline: grok.headline ?? { ja: '', ko: '', en: '' },
+      one_liner: grok.one_liner ?? { ja: '', ko: '', en: '' },
     },
 
-    // Public layer
     public: {
-      why: i18n('public.why'),
-      aftershock_note: i18n('public.aftershock_note'),
-      do_now: (pub.do_now ?? []).map((_: any, idx: number) => ({
-        action: i18n(`public.do_now.${idx}.action`),
-        urgency: pub.do_now[idx]?.urgency ?? 'preparedness', // enum, never translated
+      why: pub.why ?? { ja: '', ko: '', en: '' }, why_refs: pub.why_refs ?? [],
+      aftershock_note: pub.aftershock_note ?? { ja: '', ko: '', en: '' },
+      aftershock_note_refs: pub.aftershock_note_refs ?? [],
+      do_now: (pub.do_now ?? []).map((item: any) => ({
+        action: item.action ?? { ja: '', ko: '', en: '' }, urgency: item.urgency ?? 'preparedness',
       })),
-      faq: (pub.faq ?? []).map((_: any, idx: number) => ({
-        q: i18n(`public.faq.${idx}.q`),
-        a: i18n(`public.faq.${idx}.a`),
+      faq: (pub.faq ?? []).map((item: any) => ({
+        q: item.q ?? { ja: '', ko: '', en: '' }, a: item.a ?? { ja: '', ko: '', en: '' },
+        a_refs: item.a_refs ?? [],
       })),
     },
 
-    // Expert layer
     expert: {
-      tectonic_summary: i18n('expert.tectonic_summary'),
-      mechanism_note: exp.mechanism_note ? i18n('expert.mechanism_note') : null,
+      tectonic_summary: exp.tectonic_summary ?? { ja: '', ko: '', en: '' },
+      tectonic_summary_refs: exp.tectonic_summary_refs ?? [],
+      mechanism_note: exp.mechanism_note ?? null, mechanism_note_refs: exp.mechanism_note_refs ?? null,
+      depth_analysis: exp.depth_analysis ?? null, depth_analysis_refs: exp.depth_analysis_refs ?? null,
+      coulomb_note: exp.coulomb_note ?? null, coulomb_note_refs: exp.coulomb_note_refs ?? null,
       sequence: {
-        classification: exp.sequence?.classification ?? 'independent', // enum
-        confidence: exp.sequence?.confidence ?? 'low', // enum
-        reasoning: i18n('expert.sequence.reasoning'),
+        classification: exp.sequence?.classification ?? 'independent',
+        confidence: exp.sequence?.confidence ?? 'low',
+        reasoning: exp.sequence?.reasoning ?? { ja: '', ko: '', en: '' },
+        reasoning_refs: exp.sequence?.reasoning_refs ?? [],
       },
-      seismic_gap: {
-        is_gap: exp.seismic_gap?.is_gap ?? false,
-        note: exp.seismic_gap?.note ? i18n('expert.seismic_gap.note') : null,
-      },
-      historical_comparison: exp.historical_comparison ? {
-        primary_name: i18n('expert.hc.primary_name'),
-        primary_year: exp.historical_comparison.primary_year || null,
-        similarities: (exp.historical_comparison.similarities ?? []).map((_: any, idx: number) => i18n(`expert.hc.sim.${idx}`)),
-        differences: (exp.historical_comparison.differences ?? []).map((_: any, idx: number) => i18n(`expert.hc.diff.${idx}`)),
-        narrative: i18n('expert.hc.narrative'),
-      } : null,
-      notable_features: (exp.notable_features ?? []).map((_: any, idx: number) => ({
-        feature: i18n(`expert.nf.${idx}.feature`),
-        claim: i18n(`expert.nf.${idx}.claim`),
-        because: i18n(`expert.nf.${idx}.because`),
-        implication: i18n(`expert.nf.${idx}.implication`),
+      seismic_gap: { is_gap: exp.seismic_gap?.is_gap ?? false, note: exp.seismic_gap?.note ?? null },
+      historical_comparison: exp.historical_comparison ?? null,
+      notable_features: (exp.notable_features ?? []).map((nf: any) => ({
+        feature: nf.feature ?? { ja: '', ko: '', en: '' },
+        claim: nf.claim ?? { ja: '', ko: '', en: '' },
+        because: nf.because ?? { ja: '', ko: '', en: '' },
+        because_refs: nf.because_refs ?? [],
+        implication: nf.implication ?? { ja: '', ko: '', en: '' },
       })),
+      model_notes: buildModelNotes(facts),
     },
 
-    // Search index (plain strings, no I18n)
     search_index: {
       tags: (si.tags ?? []).filter((t: any) => typeof t === 'string'),
       region: si.region ?? classifyRegion(facts.event.lat, facts.event.lon),
       categories: {
-        plate: facts.tectonic.plate,
-        boundary: facts.tectonic.boundary_type,
+        plate: facts.tectonic.plate, boundary: facts.tectonic.boundary_type,
         region: si.region ?? classifyRegion(facts.event.lat, facts.event.lon),
         depth_class: facts.tectonic.depth_class,
         damage_level: si.damage_level ?? 'none',
@@ -699,7 +537,7 @@ function mergeAnalysis(
         has_foreshocks: si.has_foreshocks ?? false,
         is_in_seismic_gap: exp.seismic_gap?.is_gap ?? false,
       },
-      region_keywords: regionKeywords,
+      region_keywords: si.region_keywords ?? { ja: [], ko: [], en: [] },
     },
   };
 }
@@ -707,17 +545,171 @@ function mergeAnalysis(
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═══════════════════════════════════════════════════════════
+//  xAI BATCH API helpers
+// ═══════════════════════════════════════════════════════════
+
+async function createBatch(name: string): Promise<string> {
+  const resp = await fetch(`${XAI_BASE}/batches`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ name }),
+  });
+  if (!resp.ok) throw new Error(`Create batch failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+  const data = await resp.json() as any;
+  return data.batch_id;
+}
+
+async function addRequests(batchId: string, requests: any[]): Promise<void> {
+  const resp = await fetch(`${XAI_BASE}/batches/${batchId}/requests`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ batch_requests: requests }),
+  });
+  if (!resp.ok) throw new Error(`Add requests failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+}
+
+async function getBatchStatus(batchId: string): Promise<any> {
+  const resp = await fetch(`${XAI_BASE}/batches/${batchId}`, { headers });
+  if (!resp.ok) throw new Error(`Get batch status failed: ${resp.status}`);
+  return resp.json();
+}
+
+async function getResults(batchId: string): Promise<any[]> {
+  const all: any[] = [];
+  let token: string | null = null;
+
+  while (true) {
+    const url = new URL(`${XAI_BASE}/batches/${batchId}/results`);
+    url.searchParams.set('limit', '100');
+    if (token) url.searchParams.set('pagination_token', token);
+
+    const resp = await fetch(url.toString(), { headers });
+    if (!resp.ok) throw new Error(`Get results failed: ${resp.status}`);
+    const data = await resp.json() as any;
+
+    if (data.results) all.push(...data.results);
+    if (data.pagination_token && data.results?.length === 100) {
+      token = data.pagination_token;
+    } else {
+      break;
+    }
+  }
+
+  return all;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BATCH HELPERS: submit → poll → collect → retry failed
+// ═══════════════════════════════════════════════════════════
+
+function buildBatchRequest(eventId: string, facts: any, tier: string) {
+  return {
+    batch_request_id: eventId,
+    batch_request: {
+      chat_get_completion: {
+        model: 'grok-4-1-fast-reasoning',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: `Tier: ${tier}\n\nFacts:\n${JSON.stringify(facts, null, 2)}` },
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      },
+    },
+  };
+}
+
+async function submitBatch(name: string, requests: any[]): Promise<string> {
+  const batchId = await createBatch(name);
+  console.log(`  Batch created: ${batchId}`);
+
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < requests.length; i += CHUNK_SIZE) {
+    const chunk = requests.slice(i, i + CHUNK_SIZE);
+    await addRequests(batchId, chunk);
+    process.stdout.write(`\r  Submitted: ${Math.min(i + CHUNK_SIZE, requests.length)}/${requests.length}`);
+    if (i + CHUNK_SIZE < requests.length) await sleep(500);
+  }
+  console.log(' ✓');
+  return batchId;
+}
+
+async function pollUntilDone(batchId: string): Promise<void> {
+  console.log(`  Polling batch: ${batchId}`);
+  console.log(`  Resume command: BATCH_ID=${batchId}\n`);
+
+  while (true) {
+    const status = await getBatchStatus(batchId);
+    const st = status.state ?? status;
+    const { num_requests = 0, num_success = 0, num_error = 0, num_pending = 0 } = st;
+    const done = num_success + num_error + (st.num_cancelled ?? 0);
+    const pct = num_requests > 0 ? ((done / num_requests) * 100).toFixed(1) : '0';
+
+    process.stdout.write(`\r  [${pct}%] ${done}/${num_requests} (✓${num_success} ✗${num_error} pending:${num_pending})   `);
+
+    if (num_pending === 0 && done >= num_requests && num_requests > 0) {
+      console.log('\n  Batch complete!');
+      return;
+    }
+
+    await sleep(POLL_INTERVAL_S * 1000);
+  }
+}
+
+/** Collect results → store successes → return failed event IDs */
+async function collectAndStore(
+  batchId: string,
+  factsMap: Map<string, { facts: any; tier: string }>,
+): Promise<{ stored: number; failedIds: string[] }> {
+  const results = await getResults(batchId);
+  console.log(`  Retrieved ${results.length} results`);
+
+  let stored = 0;
+  const failedIds: string[] = [];
+
+  for (const result of results) {
+    const eventId = result.batch_request_id;
+    const entry = factsMap.get(eventId);
+    if (!entry) { failedIds.push(eventId); continue; }
+
+    try {
+      if (result.batch_result?.error) throw new Error(result.batch_result.error);
+      const completion = result.batch_result?.response?.chat_get_completion;
+      const raw = completion?.choices?.[0]?.message?.content;
+      if (!raw) throw new Error('No content in response');
+      const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const analysis = mergeAnalysis(entry.facts, narrative, entry.tier);
+
+      await sql`
+        INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest)
+        VALUES (
+          ${eventId}, 1, ${entry.tier}, 'grok-4.1-fast-reasoning-batch', 'v4.0.0',
+          ${JSON.stringify(entry.facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb,
+          ${analysis.search_index?.tags ?? []},
+          ${analysis.search_index?.region ?? null},
+          true
+        )
+      `;
+      stored++;
+      if (stored % 100 === 0) process.stdout.write(`\r  Stored: ${stored}/${results.length}`);
+    } catch (err: any) {
+      failedIds.push(eventId);
+      if (failedIds.length <= 10) console.error(`\n  ✗ ${eventId}: ${(err.message ?? '').slice(0, 80)}`);
+    }
+  }
+
+  return { stored, failedIds };
+}
+
+// ═══════════════════════════════════════════════════════════
 //  MAIN
 // ═══════════════════════════════════════════════════════════
 
 async function main() {
-  console.log('=== Namazue Pre-generation v2 ===');
-  console.log('  Gemini → Japanese narrative');
-  console.log('  Grok   → ko/en translation');
-  console.log(`  Batch: ${BATCH_SIZE}, Delay: ${DELAY_MS}ms`);
+  console.log('=== Namazue Pre-generation v4 (Grok Batch API — 50% off) ===');
+  console.log('  Model: grok-4-1-fast-reasoning');
+  console.log(`  Poll: ${POLL_INTERVAL_S}s | Max retries: ${MAX_RETRIES}`);
   if (DRY_RUN) console.log('  ** DRY RUN **');
 
-  // Japan-first: only Japan M5+ events for now
+  // ── Phase 0: Query pending events ──
   const events: any[] = await sql`
     SELECT e.id, e.lat, e.lng, e.depth_km, e.magnitude, e.mag_type,
            e.time, e.place, e.place_ja, e.fault_type, e.source,
@@ -739,30 +731,25 @@ async function main() {
   }
   if (TIER_FILTER) {
     filtered = filtered.filter((e: any) => classifyTier(e.magnitude, isJapan(e.lat, e.lng)) === TIER_FILTER);
-    console.log(`  Tier filter: ${TIER_FILTER}`);
   }
   if (LIMIT) filtered = filtered.slice(0, LIMIT);
 
+  const tiers = { S: 0, A: 0, B: 0 };
+  for (const e of filtered) tiers[classifyTier(e.magnitude, isJapan(e.lat, e.lng))]++;
   console.log(`\n  Total pending: ${events.length}`);
-  console.log(`  Processing: ${filtered.length}\n`);
+  console.log(`  Processing: ${filtered.length} (S:${tiers.S} A:${tiers.A} B:${tiers.B})`);
 
-  if (DRY_RUN) {
-    const tiers = { S: 0, A: 0, B: 0 };
-    for (const e of filtered) tiers[classifyTier(e.magnitude, isJapan(e.lat, e.lng))]++;
-    console.log('  Tier breakdown:', tiers);
-    return;
-  }
+  if (DRY_RUN || filtered.length === 0) return;
 
-  let generated = 0, failed = 0;
-  const startTime = Date.now();
+  // ── Phase 1: Build facts for all events ──
+  console.log('\n── Phase 1: Building facts ──');
+  const factsMap = new Map<string, { facts: any; tier: string }>();
+  const CONCURRENCY = 20;
 
-  for (let i = 0; i < filtered.length; i += BATCH_SIZE) {
-    const batch = filtered.slice(i, i + BATCH_SIZE);
-
-    const results = await Promise.allSettled(batch.map(async (event: any) => {
-      const tier = classifyTier(event.magnitude, true /* Japan-first */);
-
-      // 1. Fetch faults
+  for (let i = 0; i < filtered.length; i += CONCURRENCY) {
+    const chunk = filtered.slice(i, i + CONCURRENCY);
+    await Promise.all(chunk.map(async (event: any) => {
+      const tier = classifyTier(event.magnitude, true);
       let faults: any[] = [];
       try {
         faults = await sql`
@@ -774,7 +761,6 @@ async function main() {
         `;
       } catch { /* PostGIS unavailable */ }
 
-      // 2. Spatial stats
       const eventTime = new Date(event.time);
       const thirtyYearsAgo = new Date(eventTime.getTime() - 30 * 365.25 * 24 * 3600 * 1000);
       const [stats] = await sql`
@@ -798,52 +784,66 @@ async function main() {
         by_depth: { shallow: stats.shallow, mid: stats.mid, intermediate: stats.intermediate, deep: stats.deep },
       };
 
-      // 3. Build facts (code-computed)
       const facts = buildFacts(event, faults, spatialStats);
-
-      // 4. Gemini: Japanese narrative
-      const { narrative: jaNarrative, usage: geminiUsage } = await callGemini(facts, tier);
-
-      // 5. Extract translatable texts (whitelist only)
-      const jaTexts = extractTranslatableTexts(jaNarrative);
-
-      // 6. Grok: translate ja → ko, en
-      const translations = await translateWithGrok(jaTexts);
-
-      // 7. Merge facts + ja narrative + translations
-      const analysis = mergeAnalysis(facts, jaNarrative, jaTexts, translations, tier);
-
-      // 7. Store
-      await sql`
-        INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest)
-        VALUES (
-          ${event.id}, 1, ${tier}, 'gemini-3.1-pro+grok-4-fast', 'v2.0.0',
-          ${JSON.stringify(facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb,
-          ${analysis.search_index?.tags ?? []},
-          ${analysis.search_index?.region ?? null},
-          true
-        )
-      `;
-
-      return { id: event.id, tier, geminiUsage };
+      factsMap.set(event.id, { facts, tier });
     }));
+    process.stdout.write(`\r  Facts: ${Math.min(i + CONCURRENCY, filtered.length)}/${filtered.length}`);
+  }
+  console.log(' ✓');
 
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        generated++;
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-        const rate = (generated / (Date.now() - startTime) * 3600000).toFixed(0);
-        console.log(`✓ [${generated}/${filtered.length}] ${r.value.id} tier=${r.value.tier} (${elapsed}s, ~${rate}/hr)`);
-      } else {
-        failed++;
-        console.error(`✗ [${generated + failed}/${filtered.length}] FAILED: ${r.reason?.message?.slice(0, 120)}`);
-      }
+  // ── Phase 2+3+4: Submit → Poll → Collect → Retry loop ──
+  let pendingIds = [...factsMap.keys()];
+  let totalStored = 0;
+  let round = 0;
+
+  while (pendingIds.length > 0 && round < MAX_RETRIES) {
+    round++;
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`  Round ${round}/${MAX_RETRIES}: ${pendingIds.length} events`);
+    console.log('═'.repeat(50));
+
+    // Build requests for pending IDs only
+    const requests = pendingIds.map(id => {
+      const { facts, tier } = factsMap.get(id)!;
+      return buildBatchRequest(id, facts, tier);
+    });
+
+    // Submit
+    const batchId = await submitBatch(
+      `namazue-v4-r${round}-${pendingIds.length}`,
+      requests,
+    );
+
+    // Poll
+    await pollUntilDone(batchId);
+
+    // Collect & store
+    console.log('\n  Collecting results...');
+    const { stored, failedIds } = await collectAndStore(batchId, factsMap);
+    totalStored += stored;
+
+    console.log(`\n  Round ${round}: ✓${stored} stored, ✗${failedIds.length} failed`);
+    console.log(`  Cumulative: ${totalStored}/${factsMap.size} (${((totalStored / factsMap.size) * 100).toFixed(1)}%)`);
+
+    pendingIds = failedIds.filter(id => factsMap.has(id));
+
+    if (pendingIds.length > 0 && round < MAX_RETRIES) {
+      const waitSec = 30 * round; // Increasing backoff: 30s, 60s, 90s...
+      console.log(`\n  Waiting ${waitSec}s before retry...`);
+      await sleep(waitSec * 1000);
     }
-
-    if (i + BATCH_SIZE < filtered.length) await sleep(DELAY_MS);
   }
 
-  console.log(`\n=== Done: ${generated} generated, ${failed} failed (${((Date.now() - startTime) / 1000).toFixed(0)}s) ===`);
+  if (pendingIds.length > 0) {
+    console.log(`\n⚠ ${pendingIds.length} events still failed after ${MAX_RETRIES} rounds.`);
+    console.log('  Failed IDs saved to /tmp/namazue-failed-ids.json');
+    const { writeFileSync } = await import('fs');
+    writeFileSync('/tmp/namazue-failed-ids.json', JSON.stringify(pendingIds, null, 2));
+  }
+
+  console.log(`\n${'═'.repeat(50)}`);
+  console.log(`  FINAL: ${totalStored}/${factsMap.size} stored (${((totalStored / factsMap.size) * 100).toFixed(1)}%)`);
+  console.log('═'.repeat(50));
 }
 
 main().catch(console.error);

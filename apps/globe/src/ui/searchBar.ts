@@ -152,6 +152,7 @@ export function openSearch(): void {
   resultButtons = [];
   activeResultIndex = -1;
   requestAnimationFrame(() => input?.focus());
+  renderEmptyState();
 }
 
 export function closeSearch(): void {
@@ -226,6 +227,86 @@ async function executeSearch(): Promise<void> {
       activeSearchController = null;
     }
   }
+}
+
+function renderEmptyState(): void {
+  if (!resultsList) return;
+  resultsList.textContent = '';
+
+  // Quick filter chips
+  const chipsSection = document.createElement('div');
+  chipsSection.className = 'search-empty-section';
+
+  const chipsLabel = document.createElement('div');
+  chipsLabel.className = 'search-section-label';
+  chipsLabel.textContent = t('search.quickFilters');
+  chipsSection.appendChild(chipsLabel);
+
+  const chipsRow = document.createElement('div');
+  chipsRow.className = 'search-chips';
+
+  const chips = [
+    { label: 'M6+', query: 'M6+' },
+    { label: 'M7+', query: 'M7+' },
+    { label: t('search.chip.recent'), query: '24h' },
+    { label: t('search.chip.tsunami'), query: 'tsunami' },
+    { label: t('search.chip.tohoku'), query: 'tohoku' },
+    { label: t('search.chip.nankai'), query: 'nankai' },
+    { label: t('search.chip.kanto'), query: 'kanto' },
+    { label: t('search.chip.deep'), query: 'deep' },
+  ];
+
+  for (const chip of chips) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'search-chip';
+    btn.textContent = chip.label;
+    btn.addEventListener('click', () => {
+      if (input) {
+        input.value = chip.query;
+        void executeSearch();
+      }
+    });
+    chipsRow.appendChild(btn);
+  }
+  chipsSection.appendChild(chipsRow);
+  resultsList.appendChild(chipsSection);
+
+  // Search examples
+  const examplesSection = document.createElement('div');
+  examplesSection.className = 'search-empty-section';
+
+  const examplesLabel = document.createElement('div');
+  examplesLabel.className = 'search-section-label';
+  examplesLabel.textContent = t('search.examples');
+  examplesSection.appendChild(examplesLabel);
+
+  const examples = [
+    '"M6+ tohoku 2024"',
+    '"tsunami kyushu"',
+    '"\u6DF1\u3055300km\u4EE5\u4E0A"',
+    '"nankai M7"',
+    '"\uADDC\uBAA8 5 \uC774\uC0C1 \uB3C4\uD638\uCFE0"',
+  ];
+
+  const exList = document.createElement('div');
+  exList.className = 'search-examples';
+  for (const ex of examples) {
+    const exEl = document.createElement('button');
+    exEl.type = 'button';
+    exEl.className = 'search-example';
+    exEl.textContent = ex;
+    exEl.addEventListener('click', () => {
+      if (input) {
+        const cleanQuery = ex.replace(/^"|"$/g, '');
+        input.value = cleanQuery;
+        void executeSearch();
+      }
+    });
+    exList.appendChild(exEl);
+  }
+  examplesSection.appendChild(exList);
+  resultsList.appendChild(examplesSection);
 }
 
 function renderResults(results: unknown[]): void {

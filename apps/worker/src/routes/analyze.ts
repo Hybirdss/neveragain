@@ -66,6 +66,107 @@ function derivePlatePair(plate: string): string {
   return 'Unknown';
 }
 
+function classifyRegion(lat: number, lng: number): string {
+  if (!isJapan(lat, lng)) {
+    if (lng > 100 && lng < 180 && lat > -60 && lat < 60) return 'global_pacific';
+    return 'global_other';
+  }
+  if (lat > 41) return 'hokkaido';
+  if (lat > 38) return 'tohoku';
+  if (lat > 36) return 'kanto';
+  if (lat > 35 && lng < 138) return 'chubu';
+  if (lat > 34 && lng < 136) return 'kinki';
+  if (lat > 33 && lng < 133) return 'chugoku';
+  if (lat > 32 && lng > 132 && lng < 135) return 'shikoku';
+  if (lat > 30 && lat <= 34) return 'kyushu';
+  return 'okinawa';
+}
+
+function inferFaultType(depth_km: number, lat: number, lng: number): string {
+  const isOffshore = lng > 142 || (lat < 34 && lng > 136) || (lat > 40 && lng > 140);
+  if (isOffshore) {
+    if (depth_km < 60) return 'interface';
+    if (depth_km >= 60 && depth_km < 200) return 'intraslab';
+  }
+  if (depth_km < 30) return 'crustal';
+  if (depth_km >= 60 && depth_km < 300) return 'intraslab';
+  return 'crustal';
+}
+
+function toJmaClass(i: number): string {
+  if (i >= 6.5) return '7';
+  if (i >= 6.0) return '6+';
+  if (i >= 5.5) return '6-';
+  if (i >= 5.0) return '5+';
+  if (i >= 4.5) return '5-';
+  if (i >= 3.5) return '4';
+  if (i >= 2.5) return '3';
+  if (i >= 1.5) return '2';
+  if (i >= 0.5) return '1';
+  return '0';
+}
+
+function gmpeIntensityAt(mw: number, depth_km: number, surfDistKm: number, faultType: string): number {
+  const ft = (faultType === 'crustal' || faultType === 'interface' || faultType === 'intraslab')
+    ? faultType : 'crustal';
+  const faultCorr: Record<string, number> = { crustal: 0.0, interface: -0.02, intraslab: 0.12 };
+  const d = faultCorr[ft];
+  const X = Math.sqrt(surfDistKm * surfDistKm + depth_km * depth_km);
+  const logPgv = 0.58 * mw + 0.0038 * depth_km + d
+    - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * mw))
+    - 0.002 * X - 1.29;
+  const pgv600 = Math.pow(10, logPgv);
+  const pgvSurface = pgv600 * 1.41;
+  return pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
+}
+
+function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean) {
+  const mw = Math.min(mag, 8.3);
+  const distances = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300];
+  let epicentralMax = 0;
+  for (const d of distances) {
+    const i = gmpeIntensityAt(mw, depth_km, d, faultType);
+    if (i > epicentralMax) epicentralMax = i;
+  }
+  const coastDist = isOffshore ? Math.max(30, Math.min(80, depth_km * 0.5)) : 0;
+  const coastI = isOffshore ? gmpeIntensityAt(mw, depth_km, coastDist, faultType) : epicentralMax;
+  const reportedValue = isOffshore ? coastI : epicentralMax;
+  const rounded = Math.round(reportedValue * 10) / 10;
+  return {
+    value: rounded, class: toJmaClass(rounded),
+    epicentral_max: Math.round(epicentralMax * 10) / 10,
+    epicentral_max_class: toJmaClass(Math.round(epicentralMax * 10) / 10),
+    is_offshore: isOffshore, coast_distance_km: isOffshore ? Math.round(coastDist) : null,
+    scale: 'JMA' as const, source: 'gmpe_si_midorikawa_1999' as const,
+    confidence: (mag >= 6 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
+  };
+}
+
+function buildModelNotes(facts: any) {
+  const assumptions: string[] = [
+    'Si & Midorikawa (1999) GMPE used for intensity estimation',
+    `Vs30 assumed ${facts.ground_motion.vs30} m/s (stiff soil, generic site)`,
+    'Reasenberg & Jones (1989) generic parameters for aftershock forecast',
+  ];
+  if (facts.tectonic.boundary_type.startsWith('subduction'))
+    assumptions.push('Subduction interface geometry inferred from depth + location heuristics');
+  if (facts.max_intensity?.is_offshore)
+    assumptions.push(`Coastal intensity estimated at ${facts.max_intensity.coast_distance_km}km from epicenter`);
+
+  const unknowns: string[] = [];
+  if (facts.mechanism.status === 'missing') unknowns.push('Moment tensor not yet available');
+  if (!facts.sources.shakemap_available) unknowns.push('ShakeMap not available');
+  unknowns.push('Actual site amplification varies by local geology');
+  if (facts.tectonic.nearest_fault === null) unknowns.push('Nearest active fault not determined');
+
+  const what_will_update: string[] = [];
+  if (facts.mechanism.status === 'missing') what_will_update.push('v2: Moment tensor → mechanism update');
+  if (!facts.sources.shakemap_available) what_will_update.push('v3: ShakeMap → observed intensity');
+  what_will_update.push('v4: Field survey → damage refinement');
+
+  return { assumptions, unknowns, what_will_update };
+}
+
 export async function generateAndStoreAnalysis(
   env: Env,
   eventId: string,
@@ -178,7 +279,11 @@ export async function generateAndStoreAnalysis(
 
   const context = buildContext(builderInput);
 
-  // Build v2 facts block from context (code-computed, LLM never touches)
+  // Build v4 facts block from context (code-computed, LLM never touches)
+  const faultType = event.fault_type ?? inferFaultType(event.depth_km, event.lat, event.lng);
+  const isOffshore = event.lng > 142 || (event.lat < 34 && event.lng > 136) || (event.lat > 40 && event.lng > 140);
+  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore);
+
   const facts = {
     event: context.basic,
     tectonic: {
@@ -193,26 +298,32 @@ export async function generateAndStoreAnalysis(
     mechanism: context.mechanism
       ? { status: 'available' as const, strike: context.mechanism.strike, dip: context.mechanism.dip, rake: context.mechanism.rake, source: 'gcmt' }
       : { status: 'missing' as const, source: null },
+    max_intensity: maxIntensity,
     tsunami: context.impact?.tsunami ?? { risk: 'none', source: 'rule_engine', factors: [], confidence: 'high' },
     aftershocks: context.aftershock_stats,
     spatial: context.spatial.nearby_30yr_stats,
     ground_motion: { gmpe_model: 'Si_Midorikawa_1999', vs30: context.tectonic.vs30, site_class: context.tectonic.soil_class },
-    sources: { event_source: 'usgs', review_status: 'reviewed', moment_tensor_source: context.mechanism ? 'gcmt' : null },
+    sources: { event_source: 'usgs', review_status: 'reviewed', shakemap_available: false, moment_tensor_source: context.mechanism ? 'gcmt' : null },
     uncertainty: { mag_sigma: null, depth_sigma: null, location_uncert_km: null },
   };
 
   const { analysis: narrative, usage } = await callGrok(env, facts as any, tier);
 
-  // Merge facts + Grok narrative into v2 analysis
+  // Merge facts + Grok narrative into v4 analysis
   const grok = narrative as any;
+  const pub = grok.public ?? {};
+  const exp = grok.expert ?? {};
+  const si = grok.search_index ?? {};
+
   const mergedAnalysis = {
     event_id: event.id,
     tier,
-    version: 1,
+    version: 4,
     generated_at: new Date().toISOString(),
-    model: 'grok-4-fast',
+    model: 'grok-4.1-fast-reasoning',
+
     facts: {
-      max_intensity: { value: null, class: null, scale: 'JMA', source: 'gmpe', confidence: 'low' },
+      max_intensity: facts.max_intensity,
       tsunami: facts.tsunami,
       aftershocks: facts.aftershocks,
       mechanism: facts.mechanism,
@@ -222,23 +333,80 @@ export async function generateAndStoreAnalysis(
       sources: facts.sources,
       uncertainty: facts.uncertainty,
     },
-    dashboard: grok.dashboard ?? {},
-    public: grok.public ?? {},
-    expert: grok.expert ?? {},
+
+    interpretations: (grok.interpretations ?? []).map((interp: any) => ({
+      claim: interp.claim ?? '',
+      summary: interp.summary ?? { ja: '', ko: '', en: '' },
+      basis: interp.basis ?? [],
+      confidence: interp.confidence ?? 'low',
+      type: interp.type ?? 'tectonic_context',
+    })),
+
+    dashboard: {
+      headline: grok.headline ?? grok.dashboard?.headline ?? { ja: '', ko: '', en: '' },
+      one_liner: grok.one_liner ?? grok.dashboard?.one_liner ?? { ja: '', ko: '', en: '' },
+    },
+
+    public: {
+      why: pub.why ?? { ja: '', ko: '', en: '' },
+      why_refs: pub.why_refs ?? [],
+      aftershock_note: pub.aftershock_note ?? { ja: '', ko: '', en: '' },
+      aftershock_note_refs: pub.aftershock_note_refs ?? [],
+      do_now: (pub.do_now ?? []).map((item: any) => ({
+        action: item.action ?? { ja: '', ko: '', en: '' },
+        urgency: item.urgency ?? 'preparedness',
+      })),
+      faq: (pub.faq ?? []).map((item: any) => ({
+        q: item.q ?? { ja: '', ko: '', en: '' },
+        a: item.a ?? { ja: '', ko: '', en: '' },
+        a_refs: item.a_refs ?? [],
+      })),
+    },
+
+    expert: {
+      tectonic_summary: exp.tectonic_summary ?? { ja: '', ko: '', en: '' },
+      tectonic_summary_refs: exp.tectonic_summary_refs ?? [],
+      mechanism_note: exp.mechanism_note ?? null,
+      mechanism_note_refs: exp.mechanism_note_refs ?? null,
+      depth_analysis: exp.depth_analysis ?? null,
+      depth_analysis_refs: exp.depth_analysis_refs ?? null,
+      coulomb_note: exp.coulomb_note ?? null,
+      coulomb_note_refs: exp.coulomb_note_refs ?? null,
+      sequence: {
+        classification: exp.sequence?.classification ?? 'independent',
+        confidence: exp.sequence?.confidence ?? 'low',
+        reasoning: exp.sequence?.reasoning ?? { ja: '', ko: '', en: '' },
+        reasoning_refs: exp.sequence?.reasoning_refs ?? [],
+      },
+      seismic_gap: {
+        is_gap: exp.seismic_gap?.is_gap ?? false,
+        note: exp.seismic_gap?.note ?? null,
+      },
+      historical_comparison: exp.historical_comparison ?? null,
+      notable_features: (exp.notable_features ?? []).map((nf: any) => ({
+        feature: nf.feature ?? { ja: '', ko: '', en: '' },
+        claim: nf.claim ?? { ja: '', ko: '', en: '' },
+        because: nf.because ?? { ja: '', ko: '', en: '' },
+        because_refs: nf.because_refs ?? [],
+        implication: nf.implication ?? { ja: '', ko: '', en: '' },
+      })),
+      model_notes: buildModelNotes(facts),
+    },
+
     search_index: {
-      tags: grok.search_index?.tags ?? [],
-      region: grok.search_index?.region ?? null,
+      tags: (si.tags ?? []).filter((t: any) => typeof t === 'string'),
+      region: si.region ?? classifyRegion(event.lat, event.lng),
       categories: {
         plate: facts.tectonic.plate,
         boundary: facts.tectonic.boundary_type,
-        region: grok.search_index?.region ?? null,
+        region: si.region ?? classifyRegion(event.lat, event.lng),
         depth_class: facts.tectonic.depth_class,
-        damage_level: grok.search_index?.damage_level ?? 'none',
+        damage_level: si.damage_level ?? 'none',
         tsunami_generated: facts.tsunami.risk !== 'none',
-        has_foreshocks: grok.search_index?.has_foreshocks ?? false,
-        is_in_seismic_gap: grok.expert?.seismic_gap?.is_gap ?? false,
+        has_foreshocks: si.has_foreshocks ?? false,
+        is_in_seismic_gap: exp.seismic_gap?.is_gap ?? false,
       },
-      region_keywords: grok.search_index?.region_keywords ?? { ja: [], ko: [], en: [] },
+      region_keywords: si.region_keywords ?? { ja: [], ko: [], en: [] },
     },
   };
 
@@ -251,10 +419,10 @@ export async function generateAndStoreAnalysis(
 
   await db.insert(analyses).values({
     event_id: event.id,
-    version: 1,
+    version: 4,
     tier,
-    model: 'grok-4-fast',
-    prompt_version: 'v2.0.0',
+    model: 'grok-4.1-fast-reasoning',
+    prompt_version: 'v4.0.0',
     context: facts as any,
     analysis: mergedAnalysis as any,
     search_tags: mergedAnalysis.search_index.tags,

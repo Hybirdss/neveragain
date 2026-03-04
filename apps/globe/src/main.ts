@@ -96,7 +96,7 @@ import { loadTimelineData } from './data/timelineLoader';
 import { t, onLocaleChange } from './i18n/index';
 
 // AI
-import { initAiPanel, disposeAiPanel } from './ui/aiPanel';
+import { initAiPanel, disposeAiPanel, openAiPanel } from './ui/aiPanel';
 import { fetchAnalysis } from './ai/client';
 import { shouldFetchOnClick } from './ai/tierRouter';
 import { initSearchBar, toggleSearch, disposeSearchBar } from './ui/searchBar';
@@ -491,6 +491,7 @@ function wireSubscriptions(globe: GlobeInstance, worker: Worker): () => void {
     // AI analysis: open panel and trigger fetch for qualifying events
     if (shouldFetchOnClick(event)) {
       fetchAnalysis(event.id);
+      openAiPanel();
     } else {
       // Prevent stale analysis from a previously selected event.
       store.set('ai', {
