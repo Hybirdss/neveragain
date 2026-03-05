@@ -4,9 +4,10 @@
   right: 0;
   top: 0;
   bottom: 0;
-  width: var(--sidebar-width);
+  width: min(500px, 45vw);
   background: var(--bg-analysis);
   border-left: 1px solid var(--grid-line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
   z-index: var(--z-sidebar);
   display: flex;
   flex-direction: column;
