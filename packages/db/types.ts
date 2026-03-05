@@ -440,6 +440,7 @@ export interface BuilderInput {
     place?: string;
     place_ja?: string;
     mag_type?: string;
+    tsunami?: boolean;
   };
   tier: AnalysisTier;
   similar_events?: SimilarPastEvent[];

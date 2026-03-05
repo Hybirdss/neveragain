@@ -218,6 +218,8 @@ export interface RealtimePollerHandle {
   stop: () => void;
   /** Clear the seen-ID set so the next poll re-delivers all events from the feed. */
   resetSeen: () => void;
+  /** Trigger an immediate poll cycle (non-blocking, deduped with in-flight). */
+  pollNow: () => Promise<void>;
   /** Promise that resolves when the first poll completes (success or failure). */
   firstPollDone: Promise<void>;
 }
@@ -296,6 +298,7 @@ export function startRealtimePolling(
       seen.clear();
       seenQueue.length = 0;
     },
+    pollNow: poll,
     firstPollDone,
   };
 }

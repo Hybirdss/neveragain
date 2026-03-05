@@ -39,8 +39,9 @@ import { initGeocoder, disposeGeocoder } from './globe/geocoder';
 import { HISTORICAL_PRESETS } from './engine/presets';
 
 // UI
-import { initLeftPanel } from './ui/leftPanel';
+import { initLeftPanel, getToolbarSlot, getTabPane } from './ui/leftPanel';
 import { initLiveFeed } from './ui/liveFeed';
+import { initDetailPanel, disposeDetailPanel } from './ui/detailPanel';
 import { initTimeline, updateTimeline, disposeTimeline } from './ui/timeline';
 import { initIntensityLegend, disposeIntensityLegend } from './ui/intensityLegend';
 import { initScenarioPicker, disposeScenarioPicker } from './ui/scenarioPicker';
@@ -51,6 +52,7 @@ import { initModeSwitcher, disposeModeSwitcher } from './ui/modeSwitcher';
 import { initLocaleSwitcher, disposeLocaleSwitcher } from './ui/localeSwitcher';
 import { initDepthScale, disposeDepthScale } from './ui/depthScale';
 import { initMobileShell, disposeMobileShell } from './ui/mobileShell';
+import { initMobileSheet, disposeMobileSheet } from './ui/mobileSheet';
 import { initSearchBar, disposeSearchBar } from './ui/searchBar';
 import { initCrossSection, disposeCrossSection } from './ui/crossSection';
 import { initImpactPanel, disposeImpactPanel } from './ui/impactPanel';
@@ -128,8 +130,23 @@ async function bootstrap(): Promise<void> {
 
   // 4. UI modules
   updateLoading('Setting up interface…', 60);
-  initLeftPanel(layout.panelContainer);
-  initLiveFeed();
+
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+  if (isMobile) {
+    // Mobile: Google Maps-style peek sheet
+    const sheet = initMobileSheet();
+    initLiveFeed(sheet.listContainer);
+    initDetailPanel(sheet.detailContainer);
+    // mobileShell tab bar not needed — sheet replaces it
+  } else {
+    // Desktop: left panel + inline detail
+    initLeftPanel(layout.panelContainer);
+    initLiveFeed();
+    initDetailPanel(getTabPane('live')!);
+    initMobileShell(layout.globeArea); // viewport resize fallback
+  }
+
   initImpactPanel(layout.sidebarContainer);
   initTimeline(layout.timelineContainer, createTimelineCallbacks());
   initIntensityLegend(layout.legendContainer);
@@ -140,15 +157,17 @@ async function bootstrap(): Promise<void> {
   initDepthScale(layout.globeArea);
   initSearchBar();
   initCrossSection(layout.globeArea);
-  initMobileShell(layout.globeArea);
   initHomeButton(layout.globeArea, globe);
-  initModeSwitcher(layout.globeArea, {
-    onLoadTimeline: (start, end) => {
-      loadTimelineData(start, end).catch((err) =>
-        console.error('[main] Timeline load failed:', err),
-      );
-    },
-  });
+  const toolbarSlot = getToolbarSlot();
+  if (toolbarSlot) {
+    initModeSwitcher(toolbarSlot, {
+      onLoadTimeline: (start, end) => {
+        loadTimelineData(start, end).catch((err) =>
+          console.error('[main] Timeline load failed:', err),
+        );
+      },
+    });
+  }
 
   // Timeline container: hidden in realtime mode, visible in timeline/scenario mode
   const timelineEl = layout.timelineContainer;
@@ -262,6 +281,8 @@ async function bootstrap(): Promise<void> {
       disposeImpactPanel();
       disposeSearchBar();
       disposeMobileShell();
+      disposeMobileSheet();
+      disposeDetailPanel();
       disposeHomeButton();
       disposeGeocoder();
       disposeModeSwitcher();

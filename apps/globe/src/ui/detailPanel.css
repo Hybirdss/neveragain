@@ -7,10 +7,23 @@
   padding: var(--space-3) var(--spacing-panel-x);
   animation: slide-in var(--duration-panel) var(--ease-panel);
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
   transition: opacity var(--duration-fade-out) ease, max-height var(--duration-fade-out) ease;
   opacity: 1;
-  max-height: clamp(200px, 40vh, 400px);
+  max-height: clamp(200px, 55vh, 600px);
+}
+
+.detail-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.detail-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.detail-panel::-webkit-scrollbar-thumb {
+  background: var(--border-emphasis);
+  border-radius: 2px;
 }
 
 .detail-panel--hidden {
@@ -19,84 +32,6 @@
   padding: 0 var(--spacing-panel-x);
   border-top: none;
   pointer-events: none;
-}
-
-/* --- Cinematic Trigger Button --- */
-.cinematic-btn {
-  display: block;
-  width: 100%;
-  margin-top: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  background: var(--surface-danger-subtle);
-  border: 1px solid var(--border-danger-subtle);
-  border-radius: var(--panel-radius);
-  color: var(--accent-danger);
-  cursor: pointer;
-  transition: background var(--duration-hover) var(--ease-panel),
-    border-color var(--duration-hover) var(--ease-panel);
-}
-
-.cinematic-btn:hover {
-  background: rgba(220, 38, 38, 0.15);
-  border-color: var(--accent-danger);
-}
-
-.cinematic-btn--hidden {
-  display: none;
-}
-
-.detail-panel__header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.detail-panel__magnitude {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.detail-panel__place {
-  font-family: var(--font-sans);
-  font-size: var(--text-base);
-  color: var(--text-primary);
-}
-
-.detail-panel__row {
-  display: flex;
-  justify-content: space-between;
-  padding: var(--space-1) 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.detail-panel__key {
-  font-family: var(--font-sans);
-  font-size: var(--text-base);
-  color: var(--text-tertiary);
-}
-
-.detail-panel__val {
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  color: var(--text-primary);
-}
-
-.detail-panel__jma-badge {
-  display: inline-block;
-  padding: 2px var(--space-2);
-  border-radius: var(--panel-radius);
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: #000;
 }
 
 /* --- MMI Bar (detail panel) --- */
@@ -208,59 +143,6 @@
   letter-spacing: 0.5px;
 }
 
-/* --- AI Analysis Section --- */
-.detail-ai {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.detail-ai__one-liner {
-  font-size: var(--text-base);
-  color: var(--text-primary);
-  line-height: 1.7;
-  font-weight: 500;
-}
-
-.detail-ai__why {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-top: 8px;
-}
-
-.detail-ai__disclaimer {
-  font-size: var(--text-2xs);
-  color: var(--text-disabled);
-  margin-top: 10px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm, 8px);
-  background: rgba(255, 255, 255, 0.02);
-  border-left: 2px solid var(--text-disabled);
-}
-
-.detail-ai__skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skeleton-line {
-  height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(90deg,
-    var(--surface-card) 0%,
-    var(--surface-hover) 40%,
-    var(--surface-card) 80%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-scan 1.5s ease-in-out infinite;
-}
-
-.skeleton-line--short {
-  width: 60%;
-}
-
 /* --- Detail Action Buttons --- */
 .detail-actions {
   display: flex;
@@ -286,17 +168,4 @@
   color: var(--text-primary);
 }
 
-.detail-action-btn--danger {
-  background: var(--surface-danger-subtle);
-  border-color: var(--border-danger-subtle);
-  color: var(--accent-danger);
-  font-family: var(--font-mono);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-
-.detail-action-btn--danger:hover {
-  background: rgba(220, 38, 38, 0.15);
-  border-color: rgba(220, 38, 38, 0.3);
-}
 

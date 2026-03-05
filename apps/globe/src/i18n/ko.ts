@@ -104,7 +104,6 @@ const ko: Record<string, string> = {
   // Sidebar extras
   'sidebar.eventCount': '건 / 7일',
   'sidebar.eventCount.one': '건 / 7일',
-  'sidebar.cinematic': '\uc9c4\uc6d0 \ud3ec\ucee4\uc2a4',
   'sidebar.scenarios': '\uc2dc\ub098\ub9ac\uc624',
   'sidebar.training': '훈련',
   'sidebar.alert': 'M5+ 경보',
@@ -210,6 +209,10 @@ const ko: Record<string, string> = {
   'ai.loading': '분석 중...',
   'ai.panelLabel': 'AI 분석 패널',
   'ai.close': 'AI 패널 닫기',
+  'ai.disclaimer': 'AI 분석은 참고용입니다. 공식 정보는 기상청을 확인하세요.',
+  'ai.urgency.immediate': '즉시',
+  'ai.urgency.within_hours': '수시간',
+  'ai.urgency.preparedness': '대비',
   'ai.noPublic': '공개 분석 데이터가 없습니다',
   'ai.noExpert': '전문 분석 데이터가 없습니다',
 
@@ -246,8 +249,11 @@ const ko: Record<string, string> = {
   // Mobile shell
   'mobile.tab.map': '지도',
   'mobile.tab.live': '실시간',
-  'mobile.tab.ask': '질문',
   'mobile.nav.label': '모바일 내비게이션',
+
+  // Mobile sheet
+  'sheet.events': '{n}건',
+  'sheet.noSelection': '지진을 탭하세요',
 
   // Navigation
   'nav.returnToJapan': '일본으로 돌아가기',
@@ -259,7 +265,9 @@ const ko: Record<string, string> = {
 
   // Left Panel Tabs
   'panel.tab.live': '실시간',
+  'panel.tab.archive': '기록',
   'panel.tab.ask': '질문',
+  'search.inlineHint': '지진 검색 (규모·지역·기간)',
 
   // Ask Panel
   'ask.welcome.title': 'Namazue AI',

@@ -218,7 +218,7 @@ export interface PlateauCityConfig {
 
 // ── Navigation State ──────────────────────────────────────
 
-export type PanelTab = 'live';
+export type PanelTab = 'map' | 'live' | 'detail';
 
 // ── AI Analysis State ──────────────────────────────────────
 
@@ -274,7 +274,7 @@ export interface LayerVisibility {
   activeFaults: boolean;
 }
 
-export type ViewPreset = 'default' | 'underground' | 'shakemap' | 'crossSection' | 'cinematic';
+export type ViewPreset = 'default' | 'underground' | 'shakemap' | 'crossSection';
 export type IntensitySource = 'none' | 'shakemap' | 'gmpe';
 
 // ============================================================

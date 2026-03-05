@@ -53,16 +53,8 @@ export function initRealtimeOrchestrator(): RealtimeOrchestratorHandle {
 
     if (mode === 'realtime') {
       pollerHandle.resetSeen();
-      earthquakeStore.clear();
-      const now = Date.now();
-      store.set('timeline', {
-        events: [],
-        currentIndex: -1,
-        currentTime: now,
-        isPlaying: false,
-        speed: 1,
-        timeRange: [now - 86_400_000, now],
-      });
+      // Keep existing data visible while re-polling (no earthquakeStore.clear())
+      pollerHandle.pollNow(); // Immediate fetch — no 60s wait
     }
   });
 

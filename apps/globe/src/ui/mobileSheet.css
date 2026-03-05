@@ -1,0 +1,107 @@
+/* ============================================================
+ * Mobile Sheet — Google Maps-style draggable peek sheet
+ * ============================================================ */
+
+.mobile-sheet {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100dvh;
+    z-index: calc(var(--z-sidebar) + 1);
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .mobile-sheet__handle {
+    flex-shrink: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    pointer-events: auto;
+    background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
+    border-radius: 16px 16px 0 0;
+    border-top: 1px solid var(--border-strong);
+    backdrop-filter: blur(var(--blur-lg, 24px));
+    -webkit-backdrop-filter: blur(var(--blur-lg, 24px));
+  }
+
+  .mobile-sheet__handle:active {
+    cursor: grabbing;
+  }
+
+  .mobile-sheet__handle-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border-emphasis);
+  }
+
+  .mobile-sheet__peek {
+    flex-shrink: 0;
+    padding: 8px 16px 12px;
+    pointer-events: auto;
+    background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
+    backdrop-filter: blur(var(--blur-lg, 24px));
+    -webkit-backdrop-filter: blur(var(--blur-lg, 24px));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-primary);
+    min-height: 44px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .mobile-sheet__body {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    pointer-events: auto;
+    background: var(--surface-panel);
+  }
+
+  .peek__mag {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent);
+  }
+
+  .peek__place {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+  }
+
+  .peek__meta,
+  .peek__count {
+    font-size: var(--text-xs);
+    color: var(--text-disabled);
+  }
+
+  .peek__empty {
+    color: var(--text-disabled);
+    font-size: var(--text-xs);
+  }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .mobile-sheet__peek {
+    padding: 6px 16px 8px;
+    min-height: 36px;
+  }
+}

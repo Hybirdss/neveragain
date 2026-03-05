@@ -1,13 +1,9 @@
 /* --- Mode Switcher --- */
 .mode-switcher-wrapper {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  z-index: var(--z-hud);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  align-items: flex-end;
+  align-items: stretch;
 }
 
 .mode-switcher {
@@ -48,6 +44,7 @@
 .mode-date-picker {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   background: var(--surface-panel);
   border: 1px solid var(--border-subtle);

@@ -59,9 +59,4 @@
     background: var(--accent-subtle, var(--surface-card));
   }
 
-  .mobile-shell__btn[data-tab='training'].mobile-shell__btn--active {
-    color: var(--accent-danger);
-    border-color: var(--border-danger-subtle);
-    background: var(--surface-danger-subtle);
-  }
 }

@@ -82,7 +82,8 @@ export function buildContext(input: BuilderInput): EarthquakeContext {
 
   // ── Tsunami ──
   const tsunami_risk = assessTsunamiRisk(
-    event.magnitude, event.depth_km, event.fault_type, event.lat, event.lng
+    event.magnitude, event.depth_km, event.fault_type, event.lat, event.lng,
+    event.place, event.place_ja, event.tsunami,
   );
 
   // ── Impact ──
@@ -114,6 +115,8 @@ export function buildContext(input: BuilderInput): EarthquakeContext {
 // ── Helpers ──
 
 function classifyPlate(lat: number, lng: number): TectonicContext['plate'] {
+  // Non-Japan region
+  if (lat < 20 || lat > 50 || lng < 120 || lng > 155) return 'other';
   // Simplified: East of Japan trench → Pacific plate
   if (lng > 144 && lat > 30) return 'pacific';
   if (lng > 136 && lat < 34) return 'philippine';
@@ -133,12 +136,16 @@ function classifyBoundary(
 }
 
 function findNearestTrench(lat: number, lng: number) {
-  // Simplified: major trenches around Japan
+  // Japan-only trench classification — not meaningful for global events
+  if (lat < 20 || lat > 50 || lng < 120 || lng > 155) {
+    return { name: 'Outside Japan region', distance_km: -1 };
+  }
+
   const trenches = [
-    { name: 'Japan Trench', lat: 38, lng: 144, dist: 0 },
-    { name: 'Nankai Trough', lat: 33, lng: 135, dist: 0 },
-    { name: 'Ryukyu Trench', lat: 27, lng: 128, dist: 0 },
-    { name: 'Izu-Bonin Trench', lat: 30, lng: 142, dist: 0 },
+    { name: 'Japan Trench', lat: 38, lng: 144 },
+    { name: 'Nankai Trough', lat: 33, lng: 135 },
+    { name: 'Ryukyu Trench', lat: 27, lng: 128 },
+    { name: 'Izu-Bonin Trench', lat: 30, lng: 142 },
   ];
 
   let nearest = trenches[0];

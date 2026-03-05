@@ -16,7 +16,11 @@ import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
 import { callGrok } from '../lib/grok.ts';
 import { buildContext } from '../context/builder.ts';
-import { analyses, earthquakes } from '@namazue/db';
+import {
+  analyses, earthquakes, classifyLocation,
+  inferFaultType as inferFaultTypeGeo,
+  computeMaxIntensity as computeMaxIntensityShared,
+} from '@namazue/db';
 import type { AnalysisTier, BuilderInput } from '@namazue/db';
 import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
 
@@ -105,73 +109,27 @@ function classifyRegion(lat: number, lng: number): string {
   return 'okinawa';
 }
 
-function inferFaultType(depth_km: number, lat: number, lng: number): string {
-  const isOffshore = lng > 142 || (lat < 34 && lng > 136) || (lat > 40 && lng > 140);
-  if (isOffshore) {
-    if (depth_km < 60) return 'interface';
-    if (depth_km >= 60 && depth_km < 200) return 'intraslab';
-  }
-  if (depth_km < 30) return 'crustal';
-  if (depth_km >= 60 && depth_km < 300) return 'intraslab';
-  return 'crustal';
+function inferFaultType(depth_km: number, lat: number, lng: number, place?: string, place_ja?: string): string {
+  return inferFaultTypeGeo(depth_km, lat, lng, place, place_ja);
 }
 
-function toJmaClass(i: number): string {
-  if (i >= 6.5) return '7';
-  if (i >= 6.0) return '6+';
-  if (i >= 5.5) return '6-';
-  if (i >= 5.0) return '5+';
-  if (i >= 4.5) return '5-';
-  if (i >= 3.5) return '4';
-  if (i >= 2.5) return '3';
-  if (i >= 1.5) return '2';
-  if (i >= 0.5) return '1';
-  return '0';
-}
-
-function gmpeIntensityAt(mw: number, depth_km: number, surfDistKm: number, faultType: string): number {
-  const ft = (faultType === 'crustal' || faultType === 'interface' || faultType === 'intraslab')
-    ? faultType : 'crustal';
-  const faultCorr: Record<string, number> = { crustal: 0.0, interface: -0.02, intraslab: 0.12 };
-  const d = faultCorr[ft];
-  const X = Math.sqrt(surfDistKm * surfDistKm + depth_km * depth_km);
-  const logPgv = 0.58 * mw + 0.0038 * depth_km + d
-    - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * mw))
-    - 0.002 * X - 1.29;
-  const pgv600 = Math.pow(10, logPgv);
-  const pgvSurface = pgv600 * 1.41;
-  return pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
-}
-
-function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean) {
-  const mw = Math.min(mag, 8.3);
-  const distances = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300];
-  let epicentralMax = 0;
-  for (const d of distances) {
-    const i = gmpeIntensityAt(mw, depth_km, d, faultType);
-    if (i > epicentralMax) epicentralMax = i;
-  }
-  const coastDist = isOffshore ? Math.max(30, Math.min(80, depth_km * 0.5)) : 0;
-  const coastI = isOffshore ? gmpeIntensityAt(mw, depth_km, coastDist, faultType) : epicentralMax;
-  const reportedValue = isOffshore ? coastI : epicentralMax;
-  const rounded = Math.round(reportedValue * 10) / 10;
-  return {
-    value: rounded, class: toJmaClass(rounded),
-    epicentral_max: Math.round(epicentralMax * 10) / 10,
-    epicentral_max_class: toJmaClass(Math.round(epicentralMax * 10) / 10),
-    is_offshore: isOffshore, coast_distance_km: isOffshore ? Math.round(coastDist) : null,
-    scale: 'JMA' as const, source: 'gmpe_si_midorikawa_1999' as const,
-    confidence: (mag >= 6 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
-  };
+function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean, coastDistKm?: number | null) {
+  return computeMaxIntensityShared(mag, depth_km, faultType, isOffshore, coastDistKm);
 }
 
 function buildModelNotes(facts: any) {
   const assumptions: string[] = [
-    'Si & Midorikawa (1999) GMPE used for intensity estimation',
+    'Si & Midorikawa (1999) GMPE used for intensity estimation (point-source model)',
     `Vs30 assumed ${facts.ground_motion.vs30} m/s (stiff soil, generic site)`,
     'Reasenberg & Jones (1989) generic parameters for aftershock forecast',
   ];
-  if (facts.tectonic.boundary_type.startsWith('subduction'))
+  if (facts.event?.mag >= 8.0)
+    assumptions.push('GMPE extrapolated beyond calibration range (M8+) — intensity may be underestimated');
+  if (facts.event?.depth_km > 300)
+    assumptions.push(`Deep event (${facts.event.depth_km}km) — GMPE outside calibration range (designed for <300km)`);
+  if (!facts.tectonic?.is_japan)
+    assumptions.push('Japan-specific GMPE applied to non-Japan region — intensity estimates are approximate');
+  if (facts.tectonic?.boundary_type?.startsWith('subduction'))
     assumptions.push('Subduction interface geometry inferred from depth + location heuristics');
   if (facts.max_intensity?.is_offshore)
     assumptions.push(`Coastal intensity estimated at ${facts.max_intensity.coast_distance_km}km from epicenter`);
@@ -193,13 +151,39 @@ function buildModelNotes(facts: any) {
 export async function generateAndStoreAnalysis(
   env: Env,
   eventId: string,
-): Promise<{ status: 'cached' | 'generated'; analysis: unknown }> {
+  triggerReason: string = 'initial',
+): Promise<{ status: 'cached' | 'generated' | 'skipped'; analysis: unknown }> {
   const db = createDb(env.DATABASE_URL);
 
+  // Cache check: skip if already generated (unless re-analysis trigger)
   const cached = await getLatestAnalysis(db, eventId);
-  if (cached) {
+  if (cached && (triggerReason === 'initial' || triggerReason === 'backfill')) {
     return { status: 'cached', analysis: cached.analysis };
   }
+
+  // Magnitude revision: verify actual change ≥0.3 before regenerating
+  if (triggerReason === 'mag_revision' && cached) {
+    const evRows = await db.select({ magnitude: earthquakes.magnitude })
+      .from(earthquakes).where(eq(earthquakes.id, eventId)).limit(1);
+    const currentMag = evRows[0]?.magnitude ?? 0;
+    const cachedMag = (cached.analysis as any)?.facts?.event?.magnitude ?? 0;
+    if (Math.abs(currentMag - cachedMag) < 0.3) {
+      return { status: 'skipped', analysis: cached.analysis };
+    }
+  }
+
+  // KV mutex: prevent duplicate concurrent LLM calls for same event
+  const lockKey = `anlk:${eventId}`;
+  if (env.RATE_LIMIT) {
+    const lock = await env.RATE_LIMIT.get(lockKey);
+    if (lock) {
+      console.log(`[analyze] ${eventId} already in progress, skipping`);
+      return { status: 'skipped', analysis: cached?.analysis ?? null };
+    }
+    await env.RATE_LIMIT.put(lockKey, '1', { expirationTtl: 60 });
+  }
+
+  try {
 
   const events = await db.select()
     .from(earthquakes)
@@ -263,6 +247,7 @@ export async function generateAndStoreAnalysis(
       place: event.place ?? undefined,
       place_ja: event.place_ja ?? undefined,
       mag_type: event.mag_type ?? undefined,
+      tsunami: event.tsunami ?? undefined,
     },
     tier: tier as 'S' | 'A' | 'B',
     spatial_stats: {
@@ -294,9 +279,10 @@ export async function generateAndStoreAnalysis(
   const context = buildContext(builderInput);
 
   // Build v4 facts block from context (code-computed, LLM never touches)
-  const faultType = event.fault_type ?? inferFaultType(event.depth_km, event.lat, event.lng);
-  const isOffshore = event.lng > 142 || (event.lat < 34 && event.lng > 136) || (event.lat > 40 && event.lng > 140);
-  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore);
+  const faultType = event.fault_type ?? inferFaultType(event.depth_km, event.lat, event.lng, event.place ?? undefined, event.place_ja ?? undefined);
+  const loc = classifyLocation(event.lat, event.lng, event.place ?? undefined, event.place_ja ?? undefined);
+  const isOffshore = loc.type !== 'inland';
+  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore, loc.coastDistanceKm);
 
   const facts = {
     event: context.basic,
@@ -442,13 +428,21 @@ export async function generateAndStoreAnalysis(
     search_tags: mergedAnalysis.search_index.tags,
     search_region: mergedAnalysis.search_index.region,
     is_latest: true,
+    trigger_reason: triggerReason,
   });
 
-  console.log(`[analyze] generated event=${event.id} tier=${tier} tokens=${usage.input_tokens}+${usage.output_tokens}`);
+  console.log(`[analyze] generated event=${event.id} tier=${tier} reason=${triggerReason} tokens=${usage.input_tokens}+${usage.output_tokens}`);
   return { status: 'generated', analysis: mergedAnalysis as unknown };
+
+  } finally {
+    // Release KV mutex
+    if (env.RATE_LIMIT) {
+      await env.RATE_LIMIT.delete(lockKey).catch(() => {});
+    }
+  }
 }
 
-// Client route: cached fetch only
+// Client route: cached fetch or synchronous generation
 analyzeRoute.post('/', async (c) => {
   const { event_id } = await c.req.json<{ event_id: string }>().catch(() => ({ event_id: '' }));
   if (!event_id) {
@@ -461,11 +455,33 @@ analyzeRoute.post('/', async (c) => {
     return c.json(cached.analysis);
   }
 
-  return c.json({
-    status: 'pending',
-    event_id,
-    message: 'Analysis is being prepared on the server.',
-  }, 202);
+  // No cached analysis — check if event qualifies for real-time generation (M4+ Japan)
+  if (!c.env.XAI_API_KEY) {
+    return c.json({ status: 'pending', event_id, message: 'Analysis is being prepared on the server.' }, 202);
+  }
+
+  const events = await db.select({
+    magnitude: earthquakes.magnitude,
+    lat: earthquakes.lat,
+    lng: earthquakes.lng,
+  })
+    .from(earthquakes)
+    .where(eq(earthquakes.id, event_id))
+    .limit(1);
+
+  const ev = events[0];
+  if (!ev || ev.magnitude < 4 || !isJapan(ev.lat, ev.lng)) {
+    return c.json({ status: 'pending', event_id, message: 'Analysis is being prepared on the server.' }, 202);
+  }
+
+  // Generate synchronously for M4+ Japan events
+  try {
+    const result = await generateAndStoreAnalysis(c.env, event_id);
+    return c.json(result.analysis);
+  } catch (err) {
+    console.error(`[analyze] realtime generation failed for ${event_id}:`, err);
+    return c.json({ status: 'pending', event_id, message: 'Analysis generation in progress.' }, 202);
+  }
 });
 
 // Internal route: force generation (ingestion pipeline / ops use)

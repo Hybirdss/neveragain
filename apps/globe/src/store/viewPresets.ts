@@ -76,20 +76,6 @@ const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
     translucent: false,
     frontFaceAlpha: 1.0,
   },
-  cinematic: {
-    layers: {
-      tectonicPlates: false,
-      seismicPoints: true,
-      waveRings: true,
-      isoseismalContours: true,
-      shakeMapContours: false,
-      slab2Contours: false,
-      labels: false,
-      crossSection: false,
-    },
-    translucent: false,
-    frontFaceAlpha: 1.0,
-  },
 };
 
 /**

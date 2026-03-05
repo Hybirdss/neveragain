@@ -104,7 +104,6 @@ const ja: Record<string, string> = {
   // Sidebar extras
   'sidebar.eventCount': '件 / 7日間',
   'sidebar.eventCount.one': '件 / 7日間',
-  'sidebar.cinematic': '\u9707\u6e90\u30d5\u30a9\u30fc\u30ab\u30b9',
   'sidebar.scenarios': '\u30b7\u30ca\u30ea\u30aa',
   'sidebar.training': '訓練',
   'sidebar.alert': 'M5+ 警報',
@@ -210,6 +209,10 @@ const ja: Record<string, string> = {
   'ai.loading': '分析中...',
   'ai.panelLabel': 'AI分析パネル',
   'ai.close': 'AIパネルを閉じる',
+  'ai.disclaimer': 'AI分析は参考情報です。公式情報は気象庁をご確認ください。',
+  'ai.urgency.immediate': '直ちに',
+  'ai.urgency.within_hours': '数時間',
+  'ai.urgency.preparedness': '備え',
   'ai.noPublic': '公開分析データがありません',
   'ai.noExpert': '専門分析データがありません',
 
@@ -245,8 +248,11 @@ const ja: Record<string, string> = {
   // Mobile shell
   'mobile.tab.map': '地図',
   'mobile.tab.live': 'ライブ',
-  'mobile.tab.ask': '質問',
   'mobile.nav.label': 'モバイルナビゲーション',
+
+  // Mobile sheet
+  'sheet.events': '{n}件',
+  'sheet.noSelection': '地震をタップ',
 
   // Navigation
   'nav.returnToJapan': '日本に戻る',
@@ -258,7 +264,9 @@ const ja: Record<string, string> = {
 
   // Left Panel Tabs
   'panel.tab.live': 'ライブ',
+  'panel.tab.archive': 'アーカイブ',
   'panel.tab.ask': '質問',
+  'search.inlineHint': '地震検索（規模・地域・期間）',
 
   // Ask Panel
   'ask.welcome.title': 'Namazue AI',

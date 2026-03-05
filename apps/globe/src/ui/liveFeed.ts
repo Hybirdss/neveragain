@@ -2,17 +2,16 @@
  * Live Feed — Event list for the "Live" tab pane.
  *
  * Renders real-time earthquake events as a scrollable list.
- * Mounts into the left panel's "live" pane via getTabPane('live').
+ * Mounts into the left panel's "live" pane via getTabPane('live'),
+ * or into an explicit container (mobile sheet).
  */
 
-import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
-import { computeGmpe } from '../engine/gmpe';
+import type { EarthquakeEvent, IntensitySource } from '../types';
 import { store } from '../store/appState';
 import { t, onLocaleChange, getLocale } from '../i18n/index';
 import { depthToColor } from '../utils/colorScale';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { clusterEvents, getDisplayEvents, type ClusteredEvent } from '../utils/aftershockCluster';
-import { MMI_COLORS } from '../utils/colorScale';
 import { getTabPane } from './leftPanel';
 import { getLastUpdatedAt } from '../data/usgsRealtime';
 
@@ -24,29 +23,10 @@ let headerCountEl: HTMLElement;
 let alertBadgeEl: HTMLElement;
 let eventListEl: HTMLElement;
 
-// Detail panel elements
-let detailPanel: HTMLElement;
-let detailMagEl: HTMLElement;
-let detailPlaceEl: HTMLElement;
-let detailMetaEl: HTMLElement;
-let detailSourceTag: HTMLElement;
-let mmiBarContainer: HTMLElement;
-let mmiBarEl: HTMLElement;
-let mmiLevelEl: HTMLElement;
-let mmiTitleEl: HTMLElement;
-let crossSectionBtn: HTMLElement;
-let cinematicBtn: HTMLElement;
-let aiSectionEl: HTMLElement;
-let aiOneLinerEl: HTMLElement;
-let aiWhyEl: HTMLElement;
-let aiDisclaimerEl: HTMLElement;
-let aiSkeletonEl: HTMLElement;
-
 let statusBarEl: HTMLElement;
 let unsubLocale: (() => void) | null = null;
 let unsubSelected: (() => void) | null = null;
 let unsubNetworkError: (() => void) | null = null;
-let unsubAi: (() => void) | null = null;
 let statusTimerId: ReturnType<typeof setInterval> | null = null;
 let currentEvents: EarthquakeEvent[] = [];
 let currentClusters: Map<string, ClusteredEvent> = new Map();
@@ -290,123 +270,6 @@ function renderEvents(events: EarthquakeEvent[], selectedId: string | null): voi
   }
 }
 
-// ── Detail Panel ──
-
-function computeJmaForEvent(event: EarthquakeEvent): JmaClass {
-  return computeGmpe({
-    Mw: event.magnitude,
-    depth_km: event.depth_km,
-    distance_km: Math.max(event.depth_km, 1),
-    faultType: event.faultType,
-  }).jmaClass;
-}
-
-function jmaToMmi(jmaClass: JmaClass): number {
-  const map: Record<JmaClass, number> = {
-    '0': 1, '1': 2, '2': 3, '3': 4, '4': 5,
-    '5-': 6, '5+': 7, '6-': 8, '6+': 9, '7': 10,
-  };
-  return map[jmaClass] || 1;
-}
-
-function mmiDescription(mmi: number): string {
-  if (mmi >= 8) return t('mmi.destructive');
-  if (mmi >= 6) return t('mmi.strong');
-  if (mmi >= 4) return t('mmi.moderate');
-  return t('mmi.weak');
-}
-
-function buildDetailPanel(): HTMLElement {
-  detailPanel = el('div', 'detail-panel detail-panel--hidden');
-
-  const header = el('div', 'detail-panel__header-refined');
-  const headerLeft = el('div', 'detail-panel__header-left');
-
-  const magRow = el('div', 'detail-panel__mag-row');
-  detailMagEl = el('span', 'detail-panel__magnitude-lg');
-  detailPlaceEl = el('span', 'detail-panel__place-lg');
-  magRow.appendChild(detailMagEl);
-  magRow.appendChild(detailPlaceEl);
-  headerLeft.appendChild(magRow);
-
-  detailMetaEl = el('div', 'detail-panel__meta-row');
-  headerLeft.appendChild(detailMetaEl);
-  header.appendChild(headerLeft);
-
-  detailSourceTag = el('span', 'source-tag');
-  detailSourceTag.style.display = 'none';
-  header.appendChild(detailSourceTag);
-
-  // Close button
-  const closeBtn = el('button', 'detail-panel__close');
-  closeBtn.innerHTML = '\u00d7';
-  closeBtn.setAttribute('aria-label', 'Close');
-  closeBtn.addEventListener('click', () => {
-    store.set('selectedEvent', null);
-  });
-  header.appendChild(closeBtn);
-
-  detailPanel.appendChild(header);
-
-  // MMI Bar
-  mmiBarContainer = el('div');
-  mmiBarContainer.style.marginTop = '10px';
-  mmiBarContainer.style.display = 'none';
-
-  mmiTitleEl = el('div', 'mmi-bar__title', t('sidebar.mmiTitle'));
-  mmiBarContainer.appendChild(mmiTitleEl);
-
-  mmiBarEl = el('div', 'mmi-bar');
-  for (let i = 1; i <= 10; i++) {
-    const seg = el('div', 'mmi-segment');
-    seg.style.background = MMI_COLORS[i];
-    seg.dataset.mmi = String(i);
-    mmiBarEl.appendChild(seg);
-  }
-  mmiBarContainer.appendChild(mmiBarEl);
-
-  const labels = el('div', 'mmi-bar__labels');
-  labels.appendChild(el('span', 'mmi-bar__label', 'I'));
-  mmiLevelEl = el('span', 'mmi-bar__level');
-  labels.appendChild(mmiLevelEl);
-  labels.appendChild(el('span', 'mmi-bar__label', 'X'));
-  mmiBarContainer.appendChild(labels);
-  detailPanel.appendChild(mmiBarContainer);
-
-  // AI Analysis Section
-  aiSectionEl = el('div', 'detail-ai');
-  aiSectionEl.style.display = 'none';
-
-  aiSkeletonEl = el('div', 'detail-ai__skeleton');
-  aiSkeletonEl.innerHTML = '<div class="skeleton-line"></div><div class="skeleton-line skeleton-line--short"></div>';
-  aiSectionEl.appendChild(aiSkeletonEl);
-
-  aiOneLinerEl = el('div', 'detail-ai__one-liner');
-  aiSectionEl.appendChild(aiOneLinerEl);
-
-  aiWhyEl = el('div', 'detail-ai__why');
-  aiSectionEl.appendChild(aiWhyEl);
-
-  aiDisclaimerEl = el('div', 'detail-ai__disclaimer', '⚠ AI分析は参考情報です。公式情報は気象庁をご確認ください。');
-  aiSectionEl.appendChild(aiDisclaimerEl);
-
-  detailPanel.appendChild(aiSectionEl);
-
-  // Action buttons
-  const actions = el('div', 'detail-actions');
-  crossSectionBtn = el('button', 'detail-action-btn', t('detail.crossSection'));
-  crossSectionBtn.addEventListener('click', () => store.set('viewPreset', 'crossSection'));
-  actions.appendChild(crossSectionBtn);
-
-  cinematicBtn = el('button', 'detail-action-btn');
-  cinematicBtn.textContent = `\u25B6 ${t('sidebar.cinematic')}`;
-  cinematicBtn.addEventListener('click', () => store.set('viewPreset', 'cinematic'));
-  actions.appendChild(cinematicBtn);
-
-  detailPanel.appendChild(actions);
-  return detailPanel;
-}
-
 function buildCreditFooter(): HTMLElement {
   const credit = el('div', 'feed__credit');
   credit.appendChild(el('span', undefined, '\u00A9 \u56FD\u571F\u5730\u7406\u9662 \u00B7 USGS'));
@@ -416,33 +279,30 @@ function buildCreditFooter(): HTMLElement {
 
 // ── Public API ──
 
-export function initLiveFeed(): void {
-  const pane = getTabPane('live');
+/**
+ * Initialize the live feed. If container is provided, mounts into it directly.
+ * Otherwise falls back to getTabPane('live') for the desktop left panel.
+ */
+export function initLiveFeed(container?: HTMLElement): void {
+  const pane = container || getTabPane('live');
   if (!pane) return;
 
   feedEl = el('div', 'live-feed');
   feedEl.appendChild(buildHeader());
   feedEl.appendChild(buildStatusBar());
   feedEl.appendChild(buildEventList());
-  feedEl.appendChild(buildDetailPanel());
   feedEl.appendChild(buildCreditFooter());
   pane.appendChild(feedEl);
 
-  // Subscribe to selected event changes for detail panel
+  // Subscribe to selected event changes for active state highlight
   unsubSelected = store.subscribe('selectedEvent', () => {
     const selected = store.get('selectedEvent');
-    const intensitySource = store.get('intensitySource');
-    refreshDetailPanel(selected, intensitySource);
-    // Fast active-state toggle without full re-render
     updateActiveState(selected?.id ?? null);
   });
 
   unsubLocale = onLocaleChange(() => {
     headerTitleEl.textContent = t('sidebar.title');
     alertBadgeEl.textContent = t('sidebar.alert');
-    crossSectionBtn.textContent = t('detail.crossSection');
-    cinematicBtn.textContent = `\u25B6 ${t('sidebar.cinematic')}`;
-    mmiTitleEl.textContent = t('sidebar.mmiTitle');
     refreshStatusBar();
     if (currentEvents.length > 0) {
       headerCountEl.textContent = formatEventCount(currentEvents.length);
@@ -455,15 +315,6 @@ export function initLiveFeed(): void {
   // Update status bar on network error changes
   unsubNetworkError = store.subscribe('networkError', () => {
     refreshStatusBar();
-  });
-
-  // Update detail panel when AI analysis arrives
-  unsubAi = store.subscribe('ai', () => {
-    const selected = store.get('selectedEvent');
-    if (selected) {
-      const intensitySource = store.get('intensitySource');
-      refreshDetailPanel(selected, intensitySource);
-    }
   });
 
   // Refresh "Updated X min ago" and card relative times periodically
@@ -485,7 +336,7 @@ export function initLiveFeed(): void {
 export function updateLiveFeed(
   events: EarthquakeEvent[],
   selectedEvent?: EarthquakeEvent | null,
-  intensitySource: IntensitySource = 'none',
+  _intensitySource: IntensitySource = 'none',
 ): void {
   currentEvents = events;
   hasReceivedData = true;
@@ -499,105 +350,11 @@ export function updateLiveFeed(
 
   const displayEvents = getDisplayEvents(events, currentClusters);
   renderEvents(displayEvents, selectedEvent?.id ?? null);
-
-  refreshDetailPanel(selectedEvent ?? null, intensitySource);
 }
 
-function refreshDetailPanel(
-  selectedEvent: EarthquakeEvent | null,
-  intensitySource: IntensitySource,
-): void {
-  if (selectedEvent) {
-    detailPanel.classList.remove('detail-panel--hidden');
-
-    detailMagEl.textContent = `M${selectedEvent.magnitude.toFixed(1)}`;
-    detailPlaceEl.textContent = eventPlaceName(selectedEvent);
-
-    detailMetaEl.textContent = '';
-    detailMetaEl.appendChild(el('span', undefined, formatRelativeTime(selectedEvent.time)));
-    const depthSpan = el('span');
-    depthSpan.append(document.createTextNode(`${t('detail.depth')} `));
-    const depthValue = el('span');
-    depthValue.style.color = 'var(--text-secondary)';
-    depthValue.textContent = `${Math.round(selectedEvent.depth_km)}km`;
-    depthSpan.append(depthValue);
-    detailMetaEl.appendChild(depthSpan);
-    detailMetaEl.appendChild(el('span', undefined,
-      `${Math.abs(selectedEvent.lat).toFixed(3)}\u00B0${selectedEvent.lat >= 0 ? 'N' : 'S'}`));
-    detailMetaEl.appendChild(el('span', undefined,
-      `${Math.abs(selectedEvent.lng).toFixed(3)}\u00B0${selectedEvent.lng >= 0 ? 'E' : 'W'}`));
-    if (selectedEvent.tsunami) {
-      detailMetaEl.appendChild(el('span', 'feed-item__tsunami', '津波注意'));
-    }
-
-    if (intensitySource === 'shakemap') {
-      detailSourceTag.className = 'source-tag source-tag--shakemap';
-      detailSourceTag.textContent = t('detail.source.shakemap');
-      detailSourceTag.style.display = 'inline-block';
-      detailSourceTag.style.fontSize = 'var(--text-xs)';
-    } else if (intensitySource === 'gmpe') {
-      detailSourceTag.className = 'source-tag source-tag--gmpe';
-      detailSourceTag.textContent = t('detail.source.gmpe');
-      detailSourceTag.style.display = 'inline-block';
-      detailSourceTag.style.fontSize = 'var(--text-xs)';
-    } else {
-      detailSourceTag.style.display = 'none';
-    }
-
-    const jma = computeJmaForEvent(selectedEvent);
-    const mmi = jmaToMmi(jma);
-    if (mmi >= 2) {
-      mmiBarContainer.style.display = 'block';
-      const segments = mmiBarEl.children;
-      for (let i = 0; i < segments.length; i++) {
-        (segments[i] as HTMLElement).style.opacity = (i + 1) <= mmi ? '0.7' : '0.1';
-      }
-      mmiLevelEl.textContent = mmiDescription(mmi);
-      mmiLevelEl.style.color = MMI_COLORS[mmi] || '#888';
-    } else {
-      mmiBarContainer.style.display = 'none';
-    }
-
-    // AI Analysis rendering
-    const aiState = store.get('ai');
-    if (aiState.analysisLoading) {
-      aiSectionEl.style.display = 'block';
-      aiSkeletonEl.style.display = 'block';
-      aiOneLinerEl.style.display = 'none';
-      aiWhyEl.style.display = 'none';
-      aiDisclaimerEl.style.display = 'none';
-    } else if (aiState.currentAnalysis) {
-      const a = aiState.currentAnalysis as any;
-      aiSectionEl.style.display = 'block';
-      aiSkeletonEl.style.display = 'none';
-
-      const aiLocale = getLocale();
-      const oneLiner = a.dashboard?.one_liner?.[aiLocale] || a.dashboard?.one_liner?.en || '';
-      if (oneLiner) {
-        aiOneLinerEl.textContent = oneLiner;
-        aiOneLinerEl.style.display = 'block';
-      } else {
-        aiOneLinerEl.style.display = 'none';
-      }
-
-      const why = a.public?.why?.[aiLocale] || a.public?.why?.en || '';
-      if (why) {
-        aiWhyEl.textContent = why;
-        aiWhyEl.style.display = 'block';
-      } else {
-        aiWhyEl.style.display = 'none';
-      }
-
-      aiDisclaimerEl.style.display = 'block';
-    } else {
-      aiSectionEl.style.display = 'none';
-    }
-
-    crossSectionBtn.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';
-    cinematicBtn.style.display = selectedEvent.magnitude >= 5.0 ? 'block' : 'none';
-  } else {
-    detailPanel.classList.add('detail-panel--hidden');
-  }
+/** Expose current events for other modules (e.g. mobileSheet peek). */
+export function getLiveFeedEvents(): EarthquakeEvent[] {
+  return currentEvents;
 }
 
 export function disposeLiveFeed(): void {
@@ -607,8 +364,6 @@ export function disposeLiveFeed(): void {
   unsubSelected = null;
   unsubNetworkError?.();
   unsubNetworkError = null;
-  unsubAi?.();
-  unsubAi = null;
   if (statusTimerId !== null) {
     clearInterval(statusTimerId);
     statusTimerId = null;

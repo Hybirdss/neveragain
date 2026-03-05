@@ -16,6 +16,12 @@
  */
 
 import { neon } from '@neondatabase/serverless';
+import {
+  classifyLocation, inferFaultType as inferFaultTypeShared,
+  assessTsunamiRisk as assessTsunamiRiskShared,
+  computeMaxIntensity as computeMaxIntensityShared,
+  computeOmori as computeOmoriShared,
+} from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const XAI_API_KEY = process.env.XAI_API_KEY!;
@@ -30,6 +36,7 @@ const LIMIT = process.env.LIMIT ? parseInt(process.env.LIMIT, 10) : null;
 const POLL_INTERVAL_S = parseInt(process.env.POLL_INTERVAL_S ?? '30', 10);
 const RESUME_BATCH_ID = process.env.BATCH_ID ?? null;
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES ?? '5', 10);
+const REGEN_MODE = process.env.REGEN === 'true'; // Skip coordinate/time filter, pick up invalidated
 
 const sql = neon(DATABASE_URL);
 const XAI_BASE = 'https://api.x.ai/v1';
@@ -63,11 +70,11 @@ function classifyTier(mag: number, japan: boolean): 'S' | 'A' | 'B' {
 // ═══════════════════════════════════════════════════════════
 
 function classifyPlate(lat: number, lng: number): string {
+  if (lat < 20 || lat > 50 || lng < 120 || lng > 155) return 'other';
   if (lng > 144 && lat > 30) return 'pacific';
   if (lng > 136 && lat < 34) return 'philippine';
   if (lat > 36 && lng < 144) return 'north_american';
-  if (lat >= 20 && lat <= 50 && lng >= 120 && lng <= 155) return 'eurasian';
-  return 'other';
+  return 'eurasian';
 }
 
 function classifyBoundary(faultType?: string, depth?: number): string {
@@ -108,133 +115,39 @@ function platePair(lat: number, lng: number): string {
   return 'Unknown';
 }
 
-function assessTsunamiRisk(mag: number, depth: number, faultType?: string, lat?: number, lng?: number) {
-  const isOffshore = lng !== undefined && lat !== undefined && (
-    lng > 142 || (lat! < 34 && lng > 136) || (lat! > 40 && lng > 140)
-  );
-  if (!isOffshore) return { risk: 'none' as const, source: 'rule_engine', confidence: 'high' as const, factors: ['inland'] };
-  if (mag >= 7.5 && depth < 60) return { risk: 'high' as const, source: 'rule_engine', confidence: 'high' as const, factors: ['M7.5+', 'shallow', 'offshore', ...(faultType === 'interface' ? ['interface'] : [])] };
-  if (mag >= 6.5 && depth < 40) return { risk: 'moderate' as const, source: 'rule_engine', confidence: 'medium' as const, factors: ['M6.5+', 'shallow', 'offshore'] };
-  if (mag >= 5.5) return { risk: 'low' as const, source: 'rule_engine', confidence: 'medium' as const, factors: ['M5.5+', 'offshore'] };
-  return { risk: 'none' as const, source: 'rule_engine', confidence: 'high' as const, factors: ['small_offshore'] };
+function assessTsunamiRisk(mag: number, depth: number, faultType?: string, lat?: number, lng?: number, place?: string, place_ja?: string, tsunamiFlag?: boolean) {
+  return assessTsunamiRiskShared(mag, depth, faultType, lat, lng, place, place_ja, tsunamiFlag);
 }
 
 function computeOmori(mainMw: number) {
-  const effectiveMw = Math.min(mainMw, 8.0);
-  const p = 1.1, c = 0.05, a = -1.67, b = 0.91;
-  const bathMax = Math.round((mainMw - 1.2) * 10) / 10;
-
-  function cumRate(mMin: number, t0: number, t1: number): number {
-    const coeff = Math.pow(10, a + b * (effectiveMw - mMin));
-    if (Math.abs(p - 1) < 0.01) return coeff * Math.log((t1 + c) / (t0 + c));
-    return coeff * (Math.pow(t1 + c, 1 - p) - Math.pow(t0 + c, 1 - p)) / (1 - p);
-  }
-
-  function cappedLambda(mMin: number, t0: number, t1: number, maxPerDay: number): number {
-    const days = t1 - t0;
-    const raw = cumRate(mMin, t0, t1);
-    return Math.round(Math.min(raw, maxPerDay * days) * 100) / 100;
-  }
-
-  function toProb(lambda: number): number {
-    const raw = (1 - Math.exp(-lambda)) * 100;
-    return Math.round(Math.min(99, Math.max(0, raw)) * 10) / 10;
-  }
-
-  const l24h_m4 = cappedLambda(4, 0, 1, 50);
-  const l7d_m4 = cappedLambda(4, 0, 7, 50);
-  const l24h_m5 = cappedLambda(5, 0, 1, 10);
-  const l7d_m5 = cappedLambda(5, 0, 7, 10);
-
-  return {
-    omori_params: { p, c, k: Math.round(Math.pow(10, a + b * effectiveMw)), effective_mw: effectiveMw },
-    bath_expected_max: bathMax,
-    forecast: {
-      lambda_24h_m4: l24h_m4, lambda_7d_m4: l7d_m4,
-      lambda_24h_m5: l24h_m5, lambda_7d_m5: l7d_m5,
-      p24h_m4plus: toProb(l24h_m4), p7d_m4plus: toProb(l7d_m4),
-      p30d_m4plus: toProb(cappedLambda(4, 0, 30, 50)),
-      p24h_m5plus: toProb(l24h_m5), p7d_m5plus: toProb(l7d_m5),
-      p30d_m5plus: toProb(cappedLambda(5, 0, 30, 10)),
-      expected_count_7d_m4: Math.round(l7d_m4),
-      expected_count_7d_m5: Math.round(l7d_m5),
-    },
-    source: 'omori_rj1989',
-    confidence: mainMw >= 6 ? 'medium' as const : 'low' as const,
-  };
+  return computeOmoriShared(mainMw);
 }
 
 // ═══════════════════════════════════════════════════════════
-//  GMPE: max_intensity estimation (epicenter point-source)
+//  GMPE: max_intensity estimation — delegated to @namazue/db
 // ═══════════════════════════════════════════════════════════
 
-function toJmaClass(i: number): string {
-  if (i >= 6.5) return '7';
-  if (i >= 6.0) return '6+';
-  if (i >= 5.5) return '6-';
-  if (i >= 5.0) return '5+';
-  if (i >= 4.5) return '5-';
-  if (i >= 3.5) return '4';
-  if (i >= 2.5) return '3';
-  if (i >= 1.5) return '2';
-  if (i >= 0.5) return '1';
-  return '0';
+function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean, coastDistKm?: number | null) {
+  return computeMaxIntensityShared(mag, depth_km, faultType, isOffshore, coastDistKm);
 }
 
-function gmpeIntensityAt(mw: number, depth_km: number, surfDistKm: number, faultType: string): number {
-  const ft = (faultType === 'crustal' || faultType === 'interface' || faultType === 'intraslab')
-    ? faultType : 'crustal';
-  const faultCorr: Record<string, number> = { crustal: 0.0, interface: -0.02, intraslab: 0.12 };
-  const d = faultCorr[ft];
-  const X = Math.sqrt(surfDistKm * surfDistKm + depth_km * depth_km);
-  const logPgv = 0.58 * mw + 0.0038 * depth_km + d
-    - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * mw))
-    - 0.002 * X - 1.29;
-  const pgv600 = Math.pow(10, logPgv);
-  const pgvSurface = pgv600 * 1.41;
-  return pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
-}
-
-function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean) {
-  const mw = Math.min(mag, 8.3);
-  const distances = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300];
-  let epicentralMax = 0;
-  for (const d of distances) {
-    const i = gmpeIntensityAt(mw, depth_km, d, faultType);
-    if (i > epicentralMax) epicentralMax = i;
-  }
-  const coastDist = isOffshore ? Math.max(30, Math.min(80, depth_km * 0.5)) : 0;
-  const coastI = isOffshore ? gmpeIntensityAt(mw, depth_km, coastDist, faultType) : epicentralMax;
-  const reportedValue = isOffshore ? coastI : epicentralMax;
-  const rounded = Math.round(reportedValue * 10) / 10;
-  return {
-    value: rounded, class: toJmaClass(rounded),
-    epicentral_max: Math.round(epicentralMax * 10) / 10,
-    epicentral_max_class: toJmaClass(Math.round(epicentralMax * 10) / 10),
-    is_offshore: isOffshore, coast_distance_km: isOffshore ? Math.round(coastDist) : null,
-    scale: 'JMA' as const, source: 'gmpe_si_midorikawa_1999' as const,
-    confidence: (mag >= 6 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
-  };
-}
-
-function inferFaultType(depth_km: number, lat: number, lng: number): string {
-  const isOffshore = lng > 142 || (lat < 34 && lng > 136) || (lat > 40 && lng > 140);
-  if (isOffshore) {
-    if (depth_km < 60) return 'interface';
-    if (depth_km >= 60 && depth_km < 200) return 'intraslab';
-  }
-  if (depth_km < 30) return 'crustal';
-  if (depth_km >= 60 && depth_km < 300) return 'intraslab';
-  return 'crustal';
+function inferFaultType(depth_km: number, lat: number, lng: number, place?: string, place_ja?: string): string {
+  return inferFaultTypeShared(depth_km, lat, lng, place, place_ja);
 }
 
 function buildModelNotes(facts: any) {
   const assumptions: string[] = [
-    'Si & Midorikawa (1999) GMPE used for intensity estimation',
+    'Si & Midorikawa (1999) GMPE used for intensity estimation (point-source model)',
     `Vs30 assumed ${facts.ground_motion.vs30} m/s (stiff soil, generic site)`,
     'Reasenberg & Jones (1989) generic parameters for aftershock forecast',
   ];
-  if (facts.tectonic.boundary_type.startsWith('subduction'))
+  if (facts.event?.mag >= 8.0)
+    assumptions.push('GMPE extrapolated beyond calibration range (M8+) — intensity may be underestimated');
+  if (facts.event?.depth_km > 300)
+    assumptions.push(`Deep event (${facts.event.depth_km}km) — GMPE outside calibration range (designed for <300km)`);
+  if (!facts.tectonic?.is_japan)
+    assumptions.push('Japan-specific GMPE applied to non-Japan region — intensity estimates are approximate');
+  if (facts.tectonic?.boundary_type?.startsWith('subduction'))
     assumptions.push('Subduction interface geometry inferred from depth + location heuristics');
   if (facts.max_intensity?.is_offshore)
     assumptions.push(`Coastal intensity estimated at ${facts.max_intensity.coast_distance_km}km from epicenter`);
@@ -274,11 +187,15 @@ function buildFacts(event: any, faults: any[], spatialStats: any) {
   const japan = isJapan(event.lat, event.lng);
   const depthClass = classifyDepthClass(event.depth_km);
   const trench = japan ? findNearestTrench(event.lat, event.lng) : null;
-  const faultType = event.fault_type || inferFaultType(event.depth_km, event.lat, event.lng);
-  const tsunami = assessTsunamiRisk(event.magnitude, event.depth_km, faultType, event.lat, event.lng);
-  const aftershocks = (japan && event.magnitude >= 5) ? computeOmori(event.magnitude) : null;
-  const isOffshore = event.lng > 142 || (event.lat < 34 && event.lng > 136) || (event.lat > 40 && event.lng > 140);
-  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore);
+  const faultType = event.fault_type || inferFaultType(event.depth_km, event.lat, event.lng, event.place, event.place_ja);
+  const tsunami = assessTsunamiRisk(event.magnitude, event.depth_km, faultType, event.lat, event.lng, event.place, event.place_ja, event.tsunami);
+  // Compute aftershocks for: Japan M4+ or global M5+ (was Japan-only before)
+  const aftershocks = (japan && event.magnitude >= 4) || (!japan && event.magnitude >= 5)
+    ? computeOmori(event.magnitude)
+    : null;
+  const loc = classifyLocation(event.lat, event.lng, event.place, event.place_ja);
+  const isOffshore = loc.type !== 'inland';
+  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore, loc.coastDistanceKm);
 
   return {
     event: {
@@ -559,11 +476,20 @@ async function createBatch(name: string): Promise<string> {
 }
 
 async function addRequests(batchId: string, requests: any[]): Promise<void> {
-  const resp = await fetch(`${XAI_BASE}/batches/${batchId}/requests`, {
-    method: 'POST', headers,
-    body: JSON.stringify({ batch_requests: requests }),
-  });
-  if (!resp.ok) throw new Error(`Add requests failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const resp = await fetch(`${XAI_BASE}/batches/${batchId}/requests`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ batch_requests: requests }),
+    });
+    if (resp.ok) return;
+    const body = (await resp.text()).slice(0, 200);
+    if (resp.status === 500 && body.includes('expired') && attempt < 2) {
+      console.log(`\n  Auth expired, retrying (${attempt + 1}/3)...`);
+      await sleep(2000);
+      continue;
+    }
+    throw new Error(`Add requests failed: ${resp.status} ${body}`);
+  }
 }
 
 async function getBatchStatus(batchId: string): Promise<any> {
@@ -636,6 +562,10 @@ async function pollUntilDone(batchId: string): Promise<void> {
   console.log(`  Polling batch: ${batchId}`);
   console.log(`  Resume command: BATCH_ID=${batchId}\n`);
 
+  let lastDone = 0;
+  let stuckCount = 0;
+  const MAX_STUCK = 10; // Give up after 10 polls with no progress (~5 min)
+
   while (true) {
     const status = await getBatchStatus(batchId);
     const st = status.state ?? status;
@@ -648,6 +578,18 @@ async function pollUntilDone(batchId: string): Promise<void> {
     if (num_pending === 0 && done >= num_requests && num_requests > 0) {
       console.log('\n  Batch complete!');
       return;
+    }
+
+    // Detect stuck batches (no progress for MAX_STUCK polls)
+    if (done === lastDone) {
+      stuckCount++;
+      if (stuckCount >= MAX_STUCK) {
+        console.log(`\n  Batch stalled (${num_pending} stuck pending). Proceeding with available results.`);
+        return;
+      }
+    } else {
+      stuckCount = 0;
+      lastDone = done;
     }
 
     await sleep(POLL_INTERVAL_S * 1000);
@@ -709,20 +651,102 @@ async function main() {
   console.log(`  Poll: ${POLL_INTERVAL_S}s | Max retries: ${MAX_RETRIES}`);
   if (DRY_RUN) console.log('  ** DRY RUN **');
 
+  // ── Resume mode: just poll + collect an existing batch ──
+  if (RESUME_BATCH_ID) {
+    console.log(`\n  Resuming batch: ${RESUME_BATCH_ID}`);
+    await pollUntilDone(RESUME_BATCH_ID);
+    console.log('\n  Collecting results...');
+    // Build a minimal factsMap from DB for merging
+    const results = await getResults(RESUME_BATCH_ID);
+    console.log(`  Retrieved ${results.length} results`);
+    let stored = 0, errors = 0;
+    for (const result of results) {
+      const eventId = result.batch_request_id;
+      try {
+        if (result.batch_result?.error) throw new Error(result.batch_result.error);
+        const completion = result.batch_result?.response?.chat_get_completion;
+        const raw = completion?.choices?.[0]?.message?.content;
+        if (!raw) throw new Error('No content in response');
+
+        // Check if already stored
+        const [existing] = await sql`SELECT id FROM analyses WHERE event_id = ${eventId} AND is_latest = true`;
+        if (existing) { stored++; continue; }
+
+        // Get event data and build facts on the fly
+        const [event] = await sql`
+          SELECT id, lat, lng, depth_km, magnitude, mag_type, time, place, place_ja,
+                 fault_type, source, mt_strike, mt_dip, mt_rake, mt_strike2, mt_dip2, mt_rake2, tsunami
+          FROM earthquakes WHERE id = ${eventId}`;
+        if (!event) { errors++; continue; }
+
+        let faults: any[] = [];
+        try { faults = await sql`SELECT name_ja, name_en, fault_type, recurrence_years, estimated_mw, probability_30yr, ST_Distance(geom::geography, ST_MakePoint(${event.lng}, ${event.lat})::geography)/1000 as distance_km FROM active_faults WHERE geom IS NOT NULL ORDER BY geom <-> ST_MakePoint(${event.lng}, ${event.lat})::geometry LIMIT 3`; } catch {}
+
+        const eventTime = new Date(event.time);
+        const thirtyYearsAgo = new Date(eventTime.getTime() - 30 * 365.25 * 24 * 3600 * 1000);
+        const [stats] = await sql`
+          SELECT count(*)::int as total,
+            count(*) filter (where magnitude >= 4 and magnitude < 5)::int as m4,
+            count(*) filter (where magnitude >= 5 and magnitude < 6)::int as m5,
+            count(*) filter (where magnitude >= 6 and magnitude < 7)::int as m6,
+            count(*) filter (where magnitude >= 7)::int as m7plus,
+            count(*) filter (where depth_km < 30)::int as shallow,
+            count(*) filter (where depth_km >= 30 and depth_km < 70)::int as mid,
+            count(*) filter (where depth_km >= 70 and depth_km < 300)::int as intermediate,
+            count(*) filter (where depth_km >= 300)::int as deep
+          FROM earthquakes
+          WHERE time >= ${thirtyYearsAgo} AND time <= ${eventTime}
+            AND sqrt(power(lat - ${event.lat}, 2) + power(lng - ${event.lng}, 2)) * 111 < 200
+        `;
+        const spatialStats = {
+          total: stats.total,
+          by_mag: { m4: stats.m4, m5: stats.m5, m6: stats.m6, m7plus: stats.m7plus },
+          by_depth: { shallow: stats.shallow, mid: stats.mid, intermediate: stats.intermediate, deep: stats.deep },
+        };
+        const facts = buildFacts(event, faults, spatialStats);
+        const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
+        const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const analysis = mergeAnalysis(facts, narrative, tier);
+
+        await sql`INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest) VALUES (${eventId}, 1, ${tier}, 'grok-4.1-fast-reasoning-batch', 'v4.0.0', ${JSON.stringify(facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb, ${analysis.search_index?.tags ?? []}, ${analysis.search_index?.region ?? null}, true)`;
+        stored++;
+        if (stored % 50 === 0) process.stdout.write(`\r  Stored: ${stored}`);
+      } catch (err: any) {
+        errors++;
+        if (errors <= 10) console.error(`\n  ✗ ${eventId}: ${(err.message ?? '').slice(0, 80)}`);
+      }
+    }
+    console.log(`\n  Resume complete: ✓${stored} stored, ✗${errors} errors`);
+    return;
+  }
+
   // ── Phase 0: Query pending events ──
-  const events: any[] = await sql`
-    SELECT e.id, e.lat, e.lng, e.depth_km, e.magnitude, e.mag_type,
-           e.time, e.place, e.place_ja, e.fault_type, e.source,
-           e.mt_strike, e.mt_dip, e.mt_rake,
-           e.mt_strike2, e.mt_dip2, e.mt_rake2
-    FROM earthquakes e
-    LEFT JOIN analyses a ON a.event_id = e.id AND a.is_latest = true
-    WHERE a.id IS NULL
-      AND e.magnitude >= 5
-      AND e.lat >= 20 AND e.lat <= 50
-      AND e.lng >= 120 AND e.lng <= 155
-    ORDER BY e.magnitude DESC, e.time DESC
-  `;
+  // Default: M5+ all time + M4+ within 3 years (no geographic filter)
+  // REGEN=true: M4+ all time (for re-generating invalidated analyses)
+  const events: any[] = REGEN_MODE
+    ? await sql`
+        SELECT e.id, e.lat, e.lng, e.depth_km, e.magnitude, e.mag_type,
+               e.time, e.place, e.place_ja, e.fault_type, e.source,
+               e.mt_strike, e.mt_dip, e.mt_rake,
+               e.mt_strike2, e.mt_dip2, e.mt_rake2,
+               e.tsunami
+        FROM earthquakes e
+        LEFT JOIN analyses a ON a.event_id = e.id AND a.is_latest = true
+        WHERE a.id IS NULL AND e.magnitude >= 4
+        ORDER BY e.magnitude DESC, e.time DESC
+      `
+    : await sql`
+        SELECT e.id, e.lat, e.lng, e.depth_km, e.magnitude, e.mag_type,
+               e.time, e.place, e.place_ja, e.fault_type, e.source,
+               e.mt_strike, e.mt_dip, e.mt_rake,
+               e.mt_strike2, e.mt_dip2, e.mt_rake2,
+               e.tsunami
+        FROM earthquakes e
+        LEFT JOIN analyses a ON a.event_id = e.id AND a.is_latest = true
+        WHERE a.id IS NULL
+          AND (e.magnitude >= 5 OR (e.magnitude >= 4 AND e.time >= NOW() - INTERVAL '3 years'))
+        ORDER BY e.magnitude DESC, e.time DESC
+      `;
 
   let filtered = events;
   if (START_FROM) {
@@ -792,43 +816,59 @@ async function main() {
   console.log(' ✓');
 
   // ── Phase 2+3+4: Submit → Poll → Collect → Retry loop ──
+  // Split into sub-batches of BATCH_SIZE to avoid auth context expiration
+  const BATCH_SIZE = 2000;
   let pendingIds = [...factsMap.keys()];
   let totalStored = 0;
   let round = 0;
 
   while (pendingIds.length > 0 && round < MAX_RETRIES) {
     round++;
+
+    // Split into sub-batches
+    const subBatches: string[][] = [];
+    for (let i = 0; i < pendingIds.length; i += BATCH_SIZE) {
+      subBatches.push(pendingIds.slice(i, i + BATCH_SIZE));
+    }
+
     console.log(`\n${'═'.repeat(50)}`);
-    console.log(`  Round ${round}/${MAX_RETRIES}: ${pendingIds.length} events`);
+    console.log(`  Round ${round}/${MAX_RETRIES}: ${pendingIds.length} events in ${subBatches.length} sub-batch(es)`);
     console.log('═'.repeat(50));
 
-    // Build requests for pending IDs only
-    const requests = pendingIds.map(id => {
-      const { facts, tier } = factsMap.get(id)!;
-      return buildBatchRequest(id, facts, tier);
-    });
+    const allFailedIds: string[] = [];
 
-    // Submit
-    const batchId = await submitBatch(
-      `namazue-v4-r${round}-${pendingIds.length}`,
-      requests,
-    );
+    for (let sb = 0; sb < subBatches.length; sb++) {
+      const subIds = subBatches[sb];
+      console.log(`\n  Sub-batch ${sb + 1}/${subBatches.length}: ${subIds.length} events`);
 
-    // Poll
-    await pollUntilDone(batchId);
+      const requests = subIds.map(id => {
+        const { facts, tier } = factsMap.get(id)!;
+        return buildBatchRequest(id, facts, tier);
+      });
 
-    // Collect & store
-    console.log('\n  Collecting results...');
-    const { stored, failedIds } = await collectAndStore(batchId, factsMap);
-    totalStored += stored;
+      // Submit
+      const batchId = await submitBatch(
+        `namazue-v4-r${round}-sb${sb + 1}-${subIds.length}`,
+        requests,
+      );
 
-    console.log(`\n  Round ${round}: ✓${stored} stored, ✗${failedIds.length} failed`);
-    console.log(`  Cumulative: ${totalStored}/${factsMap.size} (${((totalStored / factsMap.size) * 100).toFixed(1)}%)`);
+      // Poll
+      await pollUntilDone(batchId);
 
-    pendingIds = failedIds.filter(id => factsMap.has(id));
+      // Collect & store
+      console.log('\n  Collecting results...');
+      const { stored, failedIds } = await collectAndStore(batchId, factsMap);
+      totalStored += stored;
+      allFailedIds.push(...failedIds.filter(id => factsMap.has(id)));
+
+      console.log(`\n  Sub-batch ${sb + 1}: ✓${stored} stored, ✗${failedIds.length} failed`);
+      console.log(`  Cumulative: ${totalStored}/${factsMap.size} (${((totalStored / factsMap.size) * 100).toFixed(1)}%)`);
+    }
+
+    pendingIds = allFailedIds;
 
     if (pendingIds.length > 0 && round < MAX_RETRIES) {
-      const waitSec = 30 * round; // Increasing backoff: 30s, 60s, 90s...
+      const waitSec = 30 * round;
       console.log(`\n  Waiting ${waitSec}s before retry...`);
       await sleep(waitSec * 1000);
     }

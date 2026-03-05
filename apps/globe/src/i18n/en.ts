@@ -104,7 +104,6 @@ const en: Record<string, string> = {
   // Sidebar extras
   'sidebar.eventCount': 'events / 7d',
   'sidebar.eventCount.one': 'event / 7d',
-  'sidebar.cinematic': 'Epicenter Focus',
   'sidebar.scenarios': 'Scenarios',
   'sidebar.training': 'Training',
   'sidebar.alert': 'M5+ ALERT',
@@ -210,6 +209,10 @@ const en: Record<string, string> = {
   'ai.loading': 'Analyzing...',
   'ai.panelLabel': 'AI analysis panel',
   'ai.close': 'Close AI panel',
+  'ai.disclaimer': 'AI analysis is for reference only. Please check official sources.',
+  'ai.urgency.immediate': 'NOW',
+  'ai.urgency.within_hours': 'SOON',
+  'ai.urgency.preparedness': 'PREP',
   'ai.noPublic': 'No public analysis available',
   'ai.noExpert': 'No expert analysis available',
 
@@ -248,8 +251,10 @@ const en: Record<string, string> = {
   'locale.ja': '\u65e5',
 
   // Left Panel Tabs
-  'panel.tab.live': 'Live',
+  'panel.tab.live': 'LIVE',
+  'panel.tab.archive': 'ARCHIVE',
   'panel.tab.ask': 'Ask',
+  'search.inlineHint': 'Search earthquakes (mag, region, period)',
 
   // Ask Panel
   'ask.welcome.title': 'Namazue AI',
@@ -268,8 +273,11 @@ const en: Record<string, string> = {
   // Mobile shell
   'mobile.tab.map': 'Map',
   'mobile.tab.live': 'Live',
-  'mobile.tab.ask': 'Ask',
   'mobile.nav.label': 'Mobile navigation',
+
+  // Mobile sheet
+  'sheet.events': '{n} events',
+  'sheet.noSelection': 'Tap an earthquake',
 };
 
 export default en;

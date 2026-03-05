@@ -11,6 +11,7 @@ import { store } from '../store/appState';
 import { t } from '../i18n/index';
 import { getPlaceText } from '../utils/earthquakeUtils';
 import { getJmaColor } from '../types';
+import { createHelpButton } from './intensityGuide';
 
 let tooltipEl: HTMLElement | null = null;
 let dismissTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,6 +92,7 @@ export function showTooltip(event: EarthquakeEvent, x: number, y: number): void 
   const brightClasses: JmaClass[] = ['3', '4', '5-', '5+'];
   badge.style.color = brightClasses.includes(jma) ? '#000' : '#fff';
   jmaRow.appendChild(badge);
+  jmaRow.appendChild(createHelpButton());
   tip.appendChild(jmaRow);
 
   if (event.tsunami) {

@@ -203,53 +203,6 @@ function rebuildCatalogPoints(): void {
   }
 }
 
-// ── Cinematic depth filter ──────────────────────────────────
-
-/** Billboards pre-added with show:false for cinematic depth reveal. */
-let cinematicPoints: { eq: EarthquakeEvent; pt: Cesium.Billboard }[] = [];
-
-/**
- * Prepare cinematic depth reveal: add all catalog points hidden.
- * Call once before the reveal animation starts.
- */
-export function prepareCinematicReveal(): void {
-  if (!billboardCollection) return;
-  // Clear normal points, add catalog with show:false
-  billboardCollection.removeAll();
-  cinematicPoints = [];
-
-  const minMag = currentLodLevel === 'far' ? 5.0 : currentLodLevel === 'medium' ? 4.0 : 3.0;
-  const filtered = catalogBuffer.filter(eq => eq.magnitude >= minMag);
-  const capped = filtered.length > MAX_POINTS ? filtered.slice(-MAX_POINTS) : filtered;
-
-  for (const eq of capped) {
-    const pt = addBillboard(eq, false);
-    cinematicPoints.push({ eq, pt });
-  }
-}
-
-/**
- * Show only points with depth <= maxDepthKm.
- * O(n) .show toggle — no object creation/destruction.
- */
-export function setDepthFilter(maxDepthKm: number): void {
-  for (const { eq, pt } of cinematicPoints) {
-    pt.show = eq.depth_km <= maxDepthKm;
-  }
-}
-
-/**
- * End cinematic reveal mode and restore normal catalog view.
- */
-export function clearCinematicReveal(): void {
-  cinematicPoints = [];
-  if (catalogActive) {
-    rebuildCatalogPoints();
-  } else {
-    rebuildPoints();
-  }
-}
-
 /** Set visibility of the billboard collection. */
 export function setPointsVisible(visible: boolean): void {
   if (billboardCollection) {

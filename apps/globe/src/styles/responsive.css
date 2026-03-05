@@ -1,15 +1,5 @@
 /* --- Responsive --- */
 @media (max-width: 1024px) {
-  :root {
-    --sidebar-width: 320px;
-    --ai-panel-width: min(420px, 92vw);
-  }
-
-  .mode-switcher-wrapper {
-    bottom: 12px;
-    right: 12px;
-  }
-
   .intensity-legend {
     right: var(--space-4);
   }
@@ -43,28 +33,9 @@
     inset: 0;
   }
 
-  /* Hide left panel by default on mobile; show as bottom sheet when active */
+  /* On mobile, left panel is hidden (sheet replaces it) */
   #panel-container {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: calc(var(--mobile-shell-height) + env(safe-area-inset-bottom) + 8px);
-    top: auto;
-    width: 100%;
-    height: min(68vh, 560px);
-    z-index: calc(var(--z-sidebar) + 1);
-    background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
-    backdrop-filter: blur(12px);
-    border-radius: 16px 16px 0 0;
-    border-top: 1px solid var(--border-strong);
-    transform: translateY(100%);
-    transition: transform var(--duration-panel) var(--ease-panel);
-    pointer-events: none;
-  }
-
-  body.mobile-panel-visible #panel-container {
-    transform: translateY(0);
-    pointer-events: auto;
+    display: none;
   }
 
   #timeline-container {
@@ -159,107 +130,60 @@
   }
 
   .training-entry-btn,
-  .mode-switcher-wrapper,
   .sidebar-toggle,
   .layer-toggles,
   .ai-badge-btn {
     display: none !important;
   }
 
-  .mode-switcher {
-    max-width: 62vw;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
+  /* Mode switcher stays inside panel toolbar on mobile */
+  .panel-toolbar .mode-switcher {
+    gap: 4px;
   }
 
-  .mode-btn {
-    min-height: 38px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-size: 11px;
+  .panel-toolbar .mode-btn {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 10px;
   }
 
-  .mode-date-picker {
-    width: min(320px, 62vw);
-    padding: 8px 10px;
-    border-radius: 10px;
-    gap: 6px;
+  .panel-toolbar .mode-date-picker {
+    padding: 6px 8px;
+    gap: 4px;
   }
 
-  .mode-date-picker__label {
+  .panel-toolbar .mode-date-picker__label {
     display: none;
   }
 
-  .mode-date-picker__input {
+  .panel-toolbar .mode-date-picker__input {
     flex: 1;
     min-width: 0;
   }
 
-  .mode-date-picker__load {
-    min-height: 36px;
-    border-radius: 8px;
+  .panel-search-kbd {
+    display: none;
   }
 
-  .sidebar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    top: auto;
-    bottom: calc(var(--mobile-shell-height) + env(safe-area-inset-bottom) + 8px);
-    width: auto;
-    min-width: 0;
-    max-width: none;
-    height: min(68vh, 560px);
-    border-left: none;
-    border-top: 1px solid var(--border-strong);
-    border-radius: 16px 16px 0 0;
-    background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
-    backdrop-filter: blur(12px);
-    box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.36);
-    transform: translateY(100%);
-    transition: transform var(--duration-panel) var(--ease-panel);
-    pointer-events: none;
-  }
-
-  .sidebar::before {
-    content: '';
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 44px;
-    height: 4px;
-    border-radius: 999px;
-    background: var(--border-emphasis);
-    opacity: 0.9;
-  }
-
-  .sidebar--open {
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-
-  .sidebar__header {
-    padding-top: 18px;
-  }
-
-  .sidebar__event-list {
-    overscroll-behavior: contain;
-  }
-
-  .sidebar-item {
-    padding: 12px 14px;
-  }
-
-  .sidebar-item__location {
-    font-size: 13px;
-  }
 
   .detail-panel {
     padding: 10px 14px 12px;
-    max-height: clamp(160px, 35vh, 280px);
+    max-height: clamp(160px, 45vh, 360px);
     overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .analysis__tabs {
+    padding: 3px;
+  }
+
+  .analysis__tab {
+    padding: 8px 0;
+    font-size: var(--text-xs);
+  }
+
+  .analysis__section-header {
+    margin: 10px 0 4px;
   }
 
   .detail-actions {
@@ -302,51 +226,8 @@
     border-radius: 2px;
   }
 
-  .hud-overlay,
   .depth-scale {
     display: none;
-  }
-
-  .ai-panel {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: calc(var(--mobile-shell-height) + env(safe-area-inset-bottom) + 8px);
-    width: auto;
-    height: min(76dvh, 680px);
-    border-left: none;
-    border: 1px solid var(--border-strong);
-    border-bottom: none;
-    border-radius: 18px 18px 0 0;
-    transform: translateY(calc(100% + var(--mobile-shell-height) + env(safe-area-inset-bottom) + 8px));
-  }
-
-  .ai-panel.open {
-    transform: translateY(0);
-  }
-
-  .ai-panel__header {
-    padding: 14px 16px 0;
-  }
-
-  .ai-panel__close {
-    top: 10px;
-    right: 10px;
-    width: 36px;
-    height: 36px;
-  }
-
-  .ai-panel__tabs {
-    padding: 0 10px;
-  }
-
-  .ai-panel__tab {
-    padding: 11px 12px;
-    font-size: 13px;
-  }
-
-  .ai-panel__content {
-    padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
   }
 
   .search-overlay {
@@ -395,9 +276,9 @@
 }
 
 @media (max-width: 420px) {
-  .mode-btn {
-    padding: 7px 9px;
-    font-size: 10px;
+  .panel-toolbar .mode-btn {
+    padding: 5px 8px;
+    font-size: 9px;
   }
 }
 
@@ -416,10 +297,6 @@
   .mobile-shell__btn {
     min-height: 36px;
     font-size: 11px;
-  }
-
-  .sidebar--open {
-    height: min(85vh, 400px);
   }
 
   .intensity-legend {

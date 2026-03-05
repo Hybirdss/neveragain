@@ -9,7 +9,7 @@
 import type { Env } from '../index.ts';
 
 const XAI_API = 'https://api.x.ai/v1/chat/completions';
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 interface GrokResult {
   analysis: Record<string, unknown>;

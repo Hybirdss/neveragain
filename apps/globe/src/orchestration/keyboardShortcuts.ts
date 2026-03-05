@@ -30,9 +30,6 @@ export function initKeyboardShortcuts(): () => void {
       case 'x':
         store.set('viewPreset', 'crossSection');
         break;
-      case 'c':
-        store.set('viewPreset', 'cinematic');
-        break;
       case 'escape':
         store.set('viewPreset', 'default');
         break;

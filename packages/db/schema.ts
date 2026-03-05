@@ -28,6 +28,11 @@ export const earthquakes = pgTable('earthquakes', {
   mt_dip2:     real('mt_dip2'),
   mt_rake2:    real('mt_rake2'),
 
+  // Metadata — data freshness & source tracking
+  updated_at:  timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  maxi:        text('maxi'),                     // JMA observed max intensity ("5+", "4")
+  data_status: text('data_status').default('automatic'), // automatic | reviewed | deleted
+
   // PostGIS — stored as geography for distance calculations
   // NOTE: PostGIS geometry column managed via raw SQL migration
   // geom: geometry('geom', { type: 'point', mode: 'xy', srid: 4326 })
@@ -59,6 +64,7 @@ export const analyses = pgTable('analyses', {
 
   // Meta
   is_latest:       boolean('is_latest').notNull().default(true),
+  trigger_reason:  text('trigger_reason').default('initial'), // initial | mag_revision | backfill
   created_at:      timestamp('created_at', { withTimezone: true })
                      .notNull().defaultNow(),
 }, (t) => [

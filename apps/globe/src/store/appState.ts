@@ -114,7 +114,7 @@ const now = Date.now();
 const initialState: AppState = {
   mode: 'realtime',
   viewState: { type: 'idle' },
-  activePanel: 'live',
+  activePanel: 'map',
   selectedEvent: null,
   intensityGrid: null,
   intensitySource: 'none',

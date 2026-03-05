@@ -1,5 +1,11 @@
 import { neon } from '@neondatabase/serverless';
 import fs from 'fs';
+import {
+  classifyLocation, inferFaultType as inferFaultTypeShared,
+  assessTsunamiRisk as assessTsunamiRiskShared,
+  computeMaxIntensity as computeMaxIntensityShared,
+  computeOmori as computeOmoriShared,
+} from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const sql = neon(DATABASE_URL);
@@ -12,11 +18,11 @@ function classifyTier(mag: number, japan: boolean): 'S' | 'A' | 'B' {
   return mag >= 8.0 ? 'S' : (mag >= 6.0 ? 'A' : 'B');
 }
 function classifyPlate(lat: number, lng: number): string {
+  if (lat < 20 || lat > 50 || lng < 120 || lng > 155) return 'other';
   if (lng > 144 && lat > 30) return 'pacific';
   if (lng > 136 && lat < 34) return 'philippine';
   if (lat > 36 && lng < 144) return 'north_american';
-  if (lat >= 20 && lat <= 50 && lng >= 120 && lng <= 155) return 'eurasian';
-  return 'other';
+  return 'eurasian';
 }
 function classifyBoundary(faultType?: string, depth?: number): string {
   if (faultType === 'interface') return 'subduction_interface';
@@ -37,96 +43,17 @@ function platePair(lat: number, lng: number): string {
   if (plate === 'north_american') return 'North American ↔ Eurasian';
   return 'Unknown';
 }
-function toJmaClass(i: number): string {
-  if (i >= 6.5) return '7';
-  if (i >= 6.0) return '6+';
-  if (i >= 5.5) return '6-';
-  if (i >= 5.0) return '5+';
-  if (i >= 4.5) return '5-';
-  if (i >= 3.5) return '4';
-  if (i >= 2.5) return '3';
-  if (i >= 1.5) return '2';
-  if (i >= 0.5) return '1';
-  return '0';
+function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean, coastDistKm?: number | null) {
+  return computeMaxIntensityShared(mag, depth_km, faultType, isOffshore, coastDistKm);
 }
-function gmpeIntensityAt(mw: number, depth_km: number, surfDistKm: number, faultType: string): number {
-  const ft = (faultType === 'crustal' || faultType === 'interface' || faultType === 'intraslab') ? faultType : 'crustal';
-  const faultCorr: Record<string, number> = { crustal: 0.0, interface: -0.02, intraslab: 0.12 };
-  const d = faultCorr[ft];
-  const X = Math.sqrt(surfDistKm * surfDistKm + depth_km * depth_km);
-  const logPgv = 0.58 * mw + 0.0038 * depth_km + d - Math.log10(X + 0.0028 * Math.pow(10, 0.5 * mw)) - 0.002 * X - 1.29;
-  const pgv600 = Math.pow(10, logPgv);
-  const pgvSurface = pgv600 * 1.41;
-  return pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
+function inferFaultType(depth_km: number, lat: number, lng: number, place?: string, place_ja?: string): string {
+  return inferFaultTypeShared(depth_km, lat, lng, place, place_ja);
 }
-function computeMaxIntensity(mag: number, depth_km: number, faultType: string, isOffshore: boolean) {
-  const mw = Math.min(mag, 8.3);
-  const distances = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300];
-  let epicentralMax = 0;
-  for (const d of distances) {
-    const i = gmpeIntensityAt(mw, depth_km, d, faultType);
-    if (i > epicentralMax) epicentralMax = i;
-  }
-  const coastDist = isOffshore ? Math.max(30, Math.min(80, depth_km * 0.5)) : 0;
-  const coastI = isOffshore ? gmpeIntensityAt(mw, depth_km, coastDist, faultType) : epicentralMax;
-  const reportedValue = isOffshore ? coastI : epicentralMax;
-  const rounded = Math.round(reportedValue * 10) / 10;
-  return {
-    value: rounded, class: toJmaClass(rounded),
-    epicentral_max: Math.round(epicentralMax * 10) / 10, epicentral_max_class: toJmaClass(Math.round(epicentralMax * 10) / 10),
-    is_offshore: isOffshore, coast_distance_km: isOffshore ? Math.round(coastDist) : null,
-    scale: 'JMA' as const, source: 'gmpe_si_midorikawa_1999' as const,
-    confidence: (mag >= 6 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
-  };
-}
-function inferFaultType(depth_km: number, lat: number, lng: number): string {
-  const isOffshore = lng > 142 || (lat < 34 && lng > 136) || (lat > 40 && lng > 140);
-  if (isOffshore) {
-    if (depth_km < 60) return 'interface';
-    if (depth_km >= 60 && depth_km < 200) return 'intraslab';
-  }
-  if (depth_km < 30) return 'crustal';
-  if (depth_km >= 60 && depth_km < 300) return 'intraslab';
-  return 'crustal';
-}
-function assessTsunamiRisk(mag: number, depth: number, faultType?: string, lat?: number, lng?: number) {
-  const isOffshore = lng !== undefined && lat !== undefined && (lng > 142 || (lat! < 34 && lng > 136) || (lat! > 40 && lng > 140));
-  if (!isOffshore) return { risk: 'none' as const, source: 'rule_engine', confidence: 'high' as const, factors: ['inland'] };
-  if (mag >= 7.5 && depth < 60) return { risk: 'high' as const, source: 'rule_engine', confidence: 'high' as const, factors: ['M7.5+', 'shallow', 'offshore', ...(faultType === 'interface' ? ['interface'] : [])] };
-  if (mag >= 6.5 && depth < 40) return { risk: 'moderate' as const, source: 'rule_engine', confidence: 'medium' as const, factors: ['M6.5+', 'shallow', 'offshore'] };
-  if (mag >= 5.5) return { risk: 'low' as const, source: 'rule_engine', confidence: 'medium' as const, factors: ['M5.5+', 'offshore'] };
-  return { risk: 'none' as const, source: 'rule_engine', confidence: 'high' as const, factors: ['small_offshore'] };
+function assessTsunamiRisk(mag: number, depth: number, faultType?: string, lat?: number, lng?: number, place?: string, place_ja?: string, tsunamiFlag?: boolean) {
+  return assessTsunamiRiskShared(mag, depth, faultType, lat, lng, place, place_ja, tsunamiFlag);
 }
 function computeOmori(mainMw: number) {
-  const effectiveMw = Math.min(mainMw, 8.0);
-  const p = 1.1, c = 0.05, a = -1.67, b = 0.91;
-  const bathMax = Math.round((mainMw - 1.2) * 10) / 10;
-  function cumRate(mMin: number, t0: number, t1: number): number {
-    const coeff = Math.pow(10, a + b * (effectiveMw - mMin));
-    if (Math.abs(p - 1) < 0.01) return coeff * Math.log((t1 + c) / (t0 + c));
-    return coeff * (Math.pow(t1 + c, 1 - p) - Math.pow(t0 + c, 1 - p)) / (1 - p);
-  }
-  function cappedLambda(mMin: number, t0: number, t1: number, maxPerDay: number): number {
-    const days = t1 - t0;
-    const raw = cumRate(mMin, t0, t1);
-    return Math.round(Math.min(raw, maxPerDay * days) * 100) / 100;
-  }
-  function toProb(lambda: number): number {
-    return Math.round(Math.min(99, Math.max(0, (1 - Math.exp(-lambda)) * 100)) * 10) / 10;
-  }
-  const l24h_m4 = cappedLambda(4, 0, 1, 50), l7d_m4 = cappedLambda(4, 0, 7, 50);
-  const l24h_m5 = cappedLambda(5, 0, 1, 10), l7d_m5 = cappedLambda(5, 0, 7, 10);
-  return {
-    omori_params: { p, c, k: Math.round(Math.pow(10, a + b * effectiveMw)), effective_mw: effectiveMw },
-    bath_expected_max: bathMax,
-    forecast: {
-      lambda_24h_m4: l24h_m4, lambda_7d_m4: l7d_m4, lambda_24h_m5: l24h_m5, lambda_7d_m5: l7d_m5,
-      p24h_m4plus: toProb(l24h_m4), p7d_m4plus: toProb(l7d_m4), p30d_m4plus: toProb(cappedLambda(4, 0, 30, 50)),
-      p24h_m5plus: toProb(l24h_m5), p7d_m5plus: toProb(l7d_m5), p30d_m5plus: toProb(cappedLambda(5, 0, 30, 10)),
-      expected_count_7d_m4: Math.round(l7d_m4), expected_count_7d_m5: Math.round(l7d_m5),
-    },
-    source: 'omori_rj1989', confidence: mainMw >= 6 ? 'medium' as const : 'low' as const,
-  };
+  return computeOmoriShared(mainMw);
 }
 const TRENCHES = [
   { name: 'Japan Trench', segment: 'japan_trench', lat: 38, lng: 144 },
@@ -147,7 +74,8 @@ async function main() {
   const [event] = await sql`
     SELECT e.id, e.lat, e.lng, e.depth_km, e.magnitude, e.mag_type,
            e.time, e.place, e.place_ja, e.fault_type, e.source,
-           e.mt_strike, e.mt_dip, e.mt_rake, e.mt_strike2, e.mt_dip2, e.mt_rake2
+           e.mt_strike, e.mt_dip, e.mt_rake, e.mt_strike2, e.mt_dip2, e.mt_rake2,
+           e.tsunami
     FROM earthquakes e
     LEFT JOIN analyses a ON a.event_id = e.id AND a.is_latest = true
     WHERE a.id IS NULL AND e.magnitude >= 5 AND e.lat >= 20 AND e.lat <= 50 AND e.lng >= 120 AND e.lng <= 155
@@ -169,11 +97,12 @@ async function main() {
   const japan = isJapan(event.lat, event.lng);
   const depthClass = classifyDepthClass(event.depth_km);
   const trench = japan ? findNearestTrench(event.lat, event.lng) : null;
-  const faultType = event.fault_type || inferFaultType(event.depth_km, event.lat, event.lng);
-  const tsunami = assessTsunamiRisk(event.magnitude, event.depth_km, faultType, event.lat, event.lng);
+  const faultType = event.fault_type || inferFaultType(event.depth_km, event.lat, event.lng, event.place, event.place_ja);
+  const tsunami = assessTsunamiRisk(event.magnitude, event.depth_km, faultType, event.lat, event.lng, event.place, event.place_ja, event.tsunami);
   const aftershocks = computeOmori(event.magnitude);
-  const isOffshore = event.lng > 142 || (event.lat < 34 && event.lng > 136) || (event.lat > 40 && event.lng > 140);
-  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore);
+  const loc = classifyLocation(event.lat, event.lng, event.place, event.place_ja);
+  const isOffshore = loc.type !== 'inland';
+  const maxIntensity = computeMaxIntensity(event.magnitude, event.depth_km, faultType, isOffshore, loc.coastDistanceKm);
 
   const facts = {
     event: { id: event.id, mag: event.magnitude, mag_type: event.mag_type ?? 'mw', depth_km: event.depth_km, lat: event.lat, lon: event.lng, time: eventTime.toISOString(), place_en: event.place ?? '', place_ja: event.place_ja ?? event.place ?? '', source: event.source ?? 'usgs' },
