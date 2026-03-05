@@ -33,10 +33,10 @@ Execution branch: `codex-enterprise-quality`
 ## Phase 3 (Day 61-90): Hotspot Refactor + Security + Release Governance
 
 - [x] Task 8. Safe decomposition of high-risk hotspot files
-- [ ] Task 9. Dependency/security hygiene gate
+- [x] Task 9. Dependency/security hygiene gate
 - [ ] Task 10. Release and rollback discipline
 
 ## Current Focus
 
-1. Start Phase 3 Task 9 dependency/security gate rollout.
-2. Define rollback checklist + release evidence template for Task 10.
+1. Start Phase 3 Task 10 release and rollback discipline.
+2. Dry-run release checklist on next deployment candidate.
