@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, isNull, sql, inArray } from 'drizzle-orm';
 import { analyses, earthquakes } from '@namazue/db';
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
@@ -8,6 +8,7 @@ import { fetchUsgsQuakes } from '../lib/usgs.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
+const CHUNK_SIZE = 5;
 
 // Dedup: if an event within ±5min, ±0.3°, ±0.5M exists, skip it
 const DEDUP_TIME_MS = 5 * 60 * 1000;
@@ -35,7 +36,7 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     magnitude: earthquakes.magnitude,
   })
     .from(earthquakes)
-    .where(sql`${earthquakes.id} = ANY(${jmaIds})`);
+    .where(inArray(earthquakes.id, jmaIds));
   const existingMap = new Map(existing.map(r => [r.id, r]));
 
   // Determine new/revised events before upserting
@@ -50,7 +51,7 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     }
   }
 
-  // Batch upsert: single round-trip to DB regardless of event count.
+  // Batch upsert in chunks (Neon HTTP has parameter limits).
   let ingested = 0;
   try {
     const now = new Date();
@@ -66,26 +67,35 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
       source: ev.source,
       mag_type: ev.mag_type,
       maxi: ev.maxi,
-      fault_type: null as null,
+      fault_type: null as string | null,
       tsunami: false,
+      mt_strike: null as number | null,
+      mt_dip: null as number | null,
+      mt_rake: null as number | null,
+      mt_strike2: null as number | null,
+      mt_dip2: null as number | null,
+      mt_rake2: null as number | null,
+      data_status: 'automatic' as string,
       updated_at: now,
     }));
 
-    await db.insert(earthquakes)
-      .values(values)
-      .onConflictDoUpdate({
-        target: earthquakes.id,
-        set: {
-          lat: sql`excluded.lat`,
-          lng: sql`excluded.lng`,
-          depth_km: sql`excluded.depth_km`,
-          magnitude: sql`excluded.magnitude`,
-          place: sql`excluded.place`,
-          place_ja: sql`excluded.place_ja`,
-          maxi: sql`excluded.maxi`,
-          updated_at: sql`excluded.updated_at`,
-        },
-      });
+    for (const row of values) {
+      await db.insert(earthquakes)
+        .values(row)
+        .onConflictDoUpdate({
+          target: earthquakes.id,
+          set: {
+            lat: sql`excluded.lat`,
+            lng: sql`excluded.lng`,
+            depth_km: sql`excluded.depth_km`,
+            magnitude: sql`excluded.magnitude`,
+            place: sql`excluded.place`,
+            place_ja: sql`excluded.place_ja`,
+            maxi: sql`excluded.maxi`,
+            updated_at: sql`excluded.updated_at`,
+          },
+        });
+    }
 
     // Count genuinely new rows (not in existingMap before upsert)
     ingested = jmaEvents.filter(ev => !existingMap.has(ev.id)).length;
@@ -136,7 +146,7 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
     magnitude: earthquakes.magnitude,
   })
     .from(earthquakes)
-    .where(sql`${earthquakes.id} = ANY(${usgsIds})`);
+    .where(inArray(earthquakes.id, usgsIds));
   const existingMap = new Map(existing.map(r => [r.id, r]));
 
   // Dedup new candidates against JMA events (proximity check)
@@ -205,62 +215,68 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
   let ingested = 0;
   const now = new Date();
 
-  // Batch insert new events (single round-trip)
+  // Batch insert new events (chunked for Neon HTTP parameter limits)
   if (newEvents.length > 0) {
     try {
-      await db.insert(earthquakes)
-        .values(newEvents.map(ev => ({
-          id: ev.id,
-          lat: ev.lat,
-          lng: ev.lng,
-          depth_km: ev.depth_km,
-          magnitude: ev.magnitude,
-          time: new Date(ev.time),
-          place: ev.place,
-          source: ev.source,
-          mag_type: ev.mag_type,
-          fault_type: null as null,
-          tsunami: ev.tsunami,
-          data_status: ev.data_status,
-          updated_at: now,
-        })))
-        .onConflictDoNothing();
+      const vals = newEvents.map(ev => ({
+        id: ev.id,
+        lat: ev.lat,
+        lng: ev.lng,
+        depth_km: ev.depth_km,
+        magnitude: ev.magnitude,
+        time: new Date(ev.time),
+        place: ev.place,
+        source: ev.source,
+        mag_type: ev.mag_type,
+        fault_type: null as null,
+        tsunami: ev.tsunami,
+        data_status: ev.data_status,
+        updated_at: now,
+      }));
+      for (let i = 0; i < vals.length; i += CHUNK_SIZE) {
+        await db.insert(earthquakes)
+          .values(vals.slice(i, i + CHUNK_SIZE))
+          .onConflictDoNothing();
+      }
       ingested = newEvents.length;
     } catch (err) {
       console.error('[usgs] batch insert failed:', err);
     }
   }
 
-  // Batch update existing USGS events via single upsert (magnitude/status revisions)
+  // Batch update existing USGS events (chunked)
   const toUpdate = usgsEvents.filter(ev => existingMap.has(ev.id));
   if (toUpdate.length > 0) {
     try {
-      await db.insert(earthquakes)
-        .values(toUpdate.map(ev => ({
-          id: ev.id,
-          lat: ev.lat,
-          lng: ev.lng,
-          depth_km: ev.depth_km,
-          magnitude: ev.magnitude,
-          time: new Date(ev.time),
-          place: ev.place,
-          source: ev.source,
-          mag_type: ev.mag_type,
-          fault_type: null as null,
-          tsunami: ev.tsunami,
-          data_status: ev.data_status,
-          updated_at: now,
-        })))
-        .onConflictDoUpdate({
-          target: earthquakes.id,
-          set: {
-            magnitude: sql`excluded.magnitude`,
-            depth_km: sql`excluded.depth_km`,
-            data_status: sql`excluded.data_status`,
-            tsunami: sql`excluded.tsunami`,
-            updated_at: sql`excluded.updated_at`,
-          },
-        });
+      const vals = toUpdate.map(ev => ({
+        id: ev.id,
+        lat: ev.lat,
+        lng: ev.lng,
+        depth_km: ev.depth_km,
+        magnitude: ev.magnitude,
+        time: new Date(ev.time),
+        place: ev.place,
+        source: ev.source,
+        mag_type: ev.mag_type,
+        fault_type: null as null,
+        tsunami: ev.tsunami,
+        data_status: ev.data_status,
+        updated_at: now,
+      }));
+      for (let i = 0; i < vals.length; i += CHUNK_SIZE) {
+        await db.insert(earthquakes)
+          .values(vals.slice(i, i + CHUNK_SIZE))
+          .onConflictDoUpdate({
+            target: earthquakes.id,
+            set: {
+              magnitude: sql`excluded.magnitude`,
+              depth_km: sql`excluded.depth_km`,
+              data_status: sql`excluded.data_status`,
+              tsunami: sql`excluded.tsunami`,
+              updated_at: sql`excluded.updated_at`,
+            },
+          });
+      }
     } catch (err) {
       console.error('[usgs] batch update failed:', err);
     }
