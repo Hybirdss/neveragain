@@ -116,37 +116,40 @@ async function bootstrap(): Promise<void> {
   updateLoading('Building layout…', 10);
   const layout = createLayout();
 
-  // 2. Globe + layers
-  updateLoading('Loading 3D globe…', 20);
-  const { globe, disposeGlobeSetup } = await setupGlobe(layout.globeContainer);
-  updateLoading('Globe ready', 50);
-
-  // 3. State machine + bridge
+  // 2. State machine (needed before any store subscriptions)
   initStateMachine();
   store.subscribe('selectedEvent', (event) => {
     if (event) dispatch({ type: 'SELECT_EARTHQUAKE', id: event.id });
     else dispatch({ type: 'DESELECT' });
   });
 
-  // 4. UI modules
-  updateLoading('Setting up interface…', 60);
-
+  // 3. UI modules (mount DOM while globe loads in parallel)
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
   if (isMobile) {
-    // Mobile: Google Maps-style peek sheet
     const sheet = initMobileSheet();
     initLiveFeed(sheet.listContainer);
     initDetailPanel(sheet.detailContainer);
-    // mobileShell tab bar not needed — sheet replaces it
   } else {
-    // Desktop: left panel + inline detail
     initLeftPanel(layout.panelContainer);
     initLiveFeed();
     initDetailPanel(getTabPane('live')!);
-    initMobileShell(layout.globeArea); // viewport resize fallback
+    initMobileShell(layout.globeArea);
   }
 
+  // 4. Start earthquake fetch EARLY — runs in parallel with globe + data grids
+  const realtime = initRealtimeOrchestrator();
+  const firstPollDone = realtime.pollerHandle.firstPollDone;
+
+  // 5. Globe + data grids in parallel
+  updateLoading('Loading 3D globe…', 20);
+  const [{ globe, disposeGlobeSetup }, dataGrids] = await Promise.all([
+    setupGlobe(layout.globeContainer),
+    loadAllDataGrids(),
+  ]);
+  updateLoading('Globe ready', 60);
+
+  // 6. Remaining UI (needs globe reference)
   initImpactPanel(layout.sidebarContainer);
   initTimeline(layout.timelineContainer, createTimelineCallbacks());
   initIntensityLegend(layout.legendContainer);
@@ -169,21 +172,18 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  // Timeline container: hidden in realtime mode, visible in timeline/scenario mode
+  // Timeline container visibility
   const timelineEl = layout.timelineContainer;
   function syncTimelineVisibility(mode: string): void {
     const show = mode !== 'realtime';
     timelineEl.style.display = show ? '' : 'none';
-    // Adjust grid to collapse timeline row when hidden
     const app = document.getElementById('app')!;
     app.style.gridTemplateRows = show ? '1fr var(--timeline-height)' : '1fr';
   }
   syncTimelineVisibility(store.get('mode'));
   const unsubTimelineMode = store.subscribe('mode', syncTimelineVisibility);
 
-  // 5. Data grids (async, non-blocking) + active faults
-  updateLoading('Loading seismic data…', 70);
-  const dataGrids = await loadAllDataGrids();
+  // 7. Active faults (uses dataGrids result)
   if (dataGrids.activeFaults.length > 0) {
     initActiveFaults(globe, dataGrids.activeFaults, (event, fault) => {
       store.set('mode', 'scenario');
@@ -201,8 +201,8 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  // 6. Orchestrators (each wires its own subscriptions)
-  updateLoading('Wiring engine…', 85);
+  // 8. Orchestrators
+  updateLoading('Wiring engine…', 80);
   const gmpe = createGmpeOrchestrator(dataGrids.vs30Grid);
   const disposeSelection = initSelectionOrchestrator(globe, gmpe);
   const disposeLayers = initLayerOrchestrator(globe, dataGrids);
@@ -210,7 +210,6 @@ async function bootstrap(): Promise<void> {
   const disposeTimeline2 = initTimelineOrchestrator(globe);
   const disposeKeyboard = initKeyboardShortcuts();
   const scenario = initScenarioOrchestrator(globe);
-  const realtime = initRealtimeOrchestrator();
 
   // Scenario picker
   initScenarioPicker(
@@ -219,7 +218,7 @@ async function bootstrap(): Promise<void> {
     HISTORICAL_PRESETS,
   );
 
-  // 7. Globe click handler
+  // 9. Globe click handler
   const clickHandler = new Cesium.ScreenSpaceEventHandler(globe.scene.canvas);
   clickHandler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
     const picked = globe.scene.pick(click.position);
@@ -239,21 +238,20 @@ async function bootstrap(): Promise<void> {
     store.set('selectedEvent', null);
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-  // 8. Initial timeline state
+  // 10. Initial timeline state
   updateTimeline(store.get('timeline'));
 
-  // 9. Dismiss loading screen after first poll
+  // 11. Dismiss loading screen — earthquake data likely already arrived
   updateLoading('Fetching earthquakes…', 90);
   const loadingScreen = document.getElementById('loading-screen');
-  realtime.pollerHandle.firstPollDone.then(() => {
+  firstPollDone.then(() => {
     updateLoading('Ready', 100);
-    // Brief pause to show "Ready" state before dismissing
     setTimeout(() => {
       if (loadingScreen) {
         loadingScreen.classList.add('exit');
         setTimeout(() => loadingScreen.remove(), 700);
       }
-    }, 400);
+    }, 200);
   });
 
   // HMR cleanup
