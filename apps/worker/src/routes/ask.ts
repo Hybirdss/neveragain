@@ -12,12 +12,11 @@ import { createDb } from '../lib/db.ts';
 import { checkRateLimit } from '../lib/rateLimit.ts';
 import { analyses } from '@namazue/db';
 import { eq, and, desc } from 'drizzle-orm';
+import { parseAskBody } from '../lib/askValidation.ts';
 
 export const askRoute = new Hono<{ Bindings: Env }>();
 
 const XAI_API = 'https://api.x.ai/v1/chat/completions';
-
-const MAX_QUESTION_LENGTH = 200;
 
 const SYSTEM_PROMPT = `You are Namazue's earthquake Q&A assistant.
 Given a pre-generated earthquake analysis, answer the user's question.
@@ -27,11 +26,6 @@ Rules:
 3. Max 3 sentences per language.
 4. Return JSON: { "answer": { "ja": "...", "ko": "...", "en": "..." }, "refs": ["facts:...", "seismology:..."] }
 Return ONLY valid JSON.`;
-
-interface AskBody {
-  event_id: string;
-  question: string;
-}
 
 interface AskResponse {
   answer: { ja: string; ko: string; en: string };
@@ -47,26 +41,18 @@ askRoute.post('/', async (c) => {
   }
 
   // Parse & validate body
-  let body: AskBody;
+  let body: unknown;
   try {
-    body = await c.req.json<AskBody>();
+    body = await c.req.json<unknown>();
   } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { event_id, question } = body;
-
-  if (!event_id || typeof event_id !== 'string') {
-    return c.json({ error: 'event_id is required' }, 400);
+  const parsedBody = parseAskBody((body ?? {}) as Record<string, unknown>);
+  if ('error' in parsedBody) {
+    return c.json({ error: parsedBody.error }, 400);
   }
-
-  if (!question || typeof question !== 'string') {
-    return c.json({ error: 'question is required' }, 400);
-  }
-
-  if (question.length > MAX_QUESTION_LENGTH) {
-    return c.json({ error: `question exceeds ${MAX_QUESTION_LENGTH} characters` }, 400);
-  }
+  const { event_id, question } = parsedBody.value;
 
   // Fetch latest analysis
   const db = createDb(c.env.DATABASE_URL);

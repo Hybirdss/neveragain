@@ -101,20 +101,25 @@ class EarthquakeStore {
     let results = this.getAll();
 
     if (criteria.minMagnitude !== undefined) {
-      results = results.filter(e => e.magnitude >= criteria.minMagnitude!);
+      const minMagnitude = criteria.minMagnitude;
+      results = results.filter((e) => e.magnitude >= minMagnitude);
     }
     if (criteria.maxDepth !== undefined) {
-      results = results.filter(e => e.depth_km <= criteria.maxDepth!);
+      const maxDepth = criteria.maxDepth;
+      results = results.filter((e) => e.depth_km <= maxDepth);
     }
     if (criteria.hoursAgo !== undefined) {
       const cutoff = Date.now() - criteria.hoursAgo * 60 * 60 * 1000;
-      results = results.filter(e => e.time >= cutoff);
+      results = results.filter((e) => e.time >= cutoff);
     }
     if (criteria.bounds) {
       const { latMin, latMax, lngMin, lngMax } = criteria.bounds;
-      results = results.filter(e =>
-        e.lat >= latMin && e.lat <= latMax &&
-        e.lng >= lngMin && e.lng <= lngMax
+      results = results.filter(
+        (e) =>
+          e.lat >= latMin &&
+          e.lat <= latMax &&
+          e.lng >= lngMin &&
+          e.lng <= lngMax,
       );
     }
 
@@ -123,7 +128,7 @@ class EarthquakeStore {
 
   /** Find earthquakes near a location within a radius (degrees). */
   findNear(lat: number, lng: number, radiusDeg: number): ReadonlyArray<EarthquakeEvent> {
-    return this.getAll().filter(e => {
+    return this.getAll().filter((e) => {
       const dlat = e.lat - lat;
       const dlng = e.lng - lng;
       return (dlat * dlat + dlng * dlng) <= radiusDeg * radiusDeg;
