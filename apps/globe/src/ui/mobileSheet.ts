@@ -306,7 +306,8 @@ export function initMobileSheet(): SheetContainers {
     if (!sheetRevealed && tl.events.length > 0) {
       sheetRevealed = true;
       sheetEl.style.transition = 'transform 500ms cubic-bezier(0.32, 0.72, 0, 1)';
-      setSheetPosition(PEEK_HEIGHT, true);
+      currentSnap = 'half';
+      setSheetPosition(getSnapHeight('half'), true);
       peekTimerId = setInterval(() => {
         if (!store.get('selectedEvent')) updatePeekSummary(null);
       }, 30_000);
@@ -337,6 +338,9 @@ export function disposeMobileSheet(): void {
   unsubLocale = null;
   if (peekTimerId) { clearInterval(peekTimerId); peekTimerId = null; }
   sheetRevealed = false;
+  // Clean up drag listeners that may still be active mid-drag
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
   handleEl?.removeEventListener('pointerdown', onDragStart);
   sheetEl?.remove();
 }
