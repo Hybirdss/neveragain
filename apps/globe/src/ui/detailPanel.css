@@ -59,6 +59,23 @@
   color: var(--text-disabled);
 }
 
+.detail-panel__trust {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-panel__trust-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .detail-panel__summary {
   margin-top: 10px;
   font-size: 13px;

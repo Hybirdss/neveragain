@@ -53,6 +53,39 @@
   color: var(--text-secondary);
 }
 
+.analysis__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.analysis__chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.analysis__chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.analysis__line-list {
+  display: grid;
+  gap: 6px;
+}
+
+.analysis__line-item {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
 .analysis__tsunami {
   padding: 10px 12px;
   border-radius: var(--panel-radius);

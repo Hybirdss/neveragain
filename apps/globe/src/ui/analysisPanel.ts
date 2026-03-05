@@ -4,6 +4,7 @@ import {
   buildDetailSummary,
   buildEvidenceSummary,
   buildShareSummary,
+  buildTrustSummary,
   deriveTsunamiAssessmentFromEvent,
 } from './presentation';
 
@@ -53,14 +54,19 @@ function loc(value: unknown): string {
   return (record[locale] as string) || (record.en as string) || (record.ja as string) || (record.ko as string) || '';
 }
 
-function uiText(key: 'about' | 'evidence' | 'data' | 'copy' | 'download' | 'error' | 'source'): string {
+function uiText(
+  key: 'about' | 'evidence' | 'data' | 'copy' | 'copyBriefing' | 'download' | 'error' | 'source' | 'briefing' | 'verification',
+): string {
   const locale = getLocale();
   if (key === 'about') return locale === 'ja' ? 'この地震について' : locale === 'ko' ? '이 지진에 대해' : 'About this earthquake';
   if (key === 'evidence') return locale === 'ja' ? '専門家向けの根拠' : locale === 'ko' ? '전문가 근거' : 'Evidence for experts';
   if (key === 'data') return locale === 'ja' ? 'データ' : locale === 'ko' ? '데이터' : 'Data';
   if (key === 'copy') return locale === 'ja' ? '要約をコピー' : locale === 'ko' ? '요약 복사' : 'Copy summary';
+  if (key === 'copyBriefing') return locale === 'ja' ? 'ブリーフィングをコピー' : locale === 'ko' ? '브리핑 복사' : 'Copy briefing';
   if (key === 'download') return locale === 'ja' ? 'JSONを保存' : locale === 'ko' ? 'JSON 저장' : 'Download JSON';
   if (key === 'source') return locale === 'ja' ? '根拠の出どころ' : locale === 'ko' ? '근거 출처' : 'Evidence basis';
+  if (key === 'briefing') return locale === 'ja' ? '3行ブリーフィング' : locale === 'ko' ? '3줄 브리핑' : '3-line briefing';
+  if (key === 'verification') return locale === 'ja' ? '検証メタデータ' : locale === 'ko' ? '검증 메타데이터' : 'Verification metadata';
   return locale === 'ja' ? '分析を読み込めませんでした' : locale === 'ko' ? '분석을 불러오지 못했습니다' : 'Could not load analysis';
 }
 
@@ -88,6 +94,18 @@ function appendBodyText(container: HTMLElement, title: string, text: string | nu
   const block = el('div', 'analysis__block');
   block.appendChild(el('div', 'analysis__block-title', title));
   block.appendChild(el('div', 'analysis__block-text', text));
+  container.appendChild(block);
+}
+
+function appendBodyLines(container: HTMLElement, title: string, lines: string[]): void {
+  if (lines.length === 0) return;
+  const block = el('div', 'analysis__block');
+  block.appendChild(el('div', 'analysis__block-title', title));
+  const list = el('div', 'analysis__line-list');
+  for (const line of lines) {
+    list.appendChild(el('div', 'analysis__line-item', line));
+  }
+  block.appendChild(list);
   container.appendChild(block);
 }
 
@@ -136,7 +154,34 @@ function renderEvidencePanel(analysis: Record<string, unknown> | null): void {
     tsunamiAssessment: tsunami,
     locale: getLocale(),
   });
+  const trust = buildTrustSummary({
+    event: selected,
+    analysis,
+    locale: getLocale(),
+    intensitySource: store.get('intensitySource'),
+  });
 
+  if (trust.chips.length > 0 || trust.lines.length > 0) {
+    const block = el('div', 'analysis__block');
+    block.appendChild(el('div', 'analysis__block-title', uiText('verification')));
+    if (trust.chips.length > 0) {
+      const chipRow = el('div', 'analysis__chip-row');
+      for (const chip of trust.chips) {
+        chipRow.appendChild(el('span', 'analysis__chip', chip));
+      }
+      block.appendChild(chipRow);
+    }
+    if (trust.lines.length > 0) {
+      const lines = el('div', 'analysis__line-list');
+      for (const line of trust.lines) {
+        lines.appendChild(el('div', 'analysis__line-item', line));
+      }
+      block.appendChild(lines);
+    }
+    evidenceBodyEl.appendChild(block);
+  }
+
+  const actions = el('div', 'analysis__actions');
   const copyBtn = el('button', 'analysis__copy', uiText('copy')) as HTMLButtonElement;
   copyBtn.type = 'button';
   copyBtn.addEventListener('click', async () => {
@@ -148,9 +193,24 @@ function renderEvidencePanel(analysis: Record<string, unknown> | null): void {
     });
     await navigator.clipboard?.writeText(summary.shortText);
   });
-  evidenceBodyEl.appendChild(copyBtn);
+  actions.appendChild(copyBtn);
+
+  const briefingBtn = el('button', 'analysis__copy', uiText('copyBriefing')) as HTMLButtonElement;
+  briefingBtn.type = 'button';
+  briefingBtn.addEventListener('click', async () => {
+    const summary = buildShareSummary({
+      event: selected,
+      analysis,
+      tsunamiAssessment: tsunami,
+      locale: getLocale(),
+    });
+    await navigator.clipboard?.writeText(summary.briefingText);
+  });
+  actions.appendChild(briefingBtn);
+  evidenceBodyEl.appendChild(actions);
 
   appendBodyText(evidenceBodyEl, uiText('copy'), share.shortText);
+  appendBodyLines(evidenceBodyEl, uiText('briefing'), share.briefingLines);
   appendBodyText(evidenceBodyEl, t('ai.expert.tectonic'), evidence.expertSummary);
   appendBodyText(evidenceBodyEl, uiText('source'), evidence.sourceNote);
   appendBodyText(evidenceBodyEl, t('ai.expert.historical'), evidence.comparisonNarrative);

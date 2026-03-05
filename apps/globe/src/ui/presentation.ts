@@ -13,8 +13,11 @@ import type {
   PresentationLiveFeedSummary,
   PresentationLocale,
   PresentationShareSummary,
+  PresentationStatusSummary,
   PresentationTsunamiSummary,
+  PresentationTrustSummary,
   TsunamiAssessment,
+  IntensitySource,
 } from '../types';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { getPlaceText } from '../utils/earthquakeUtils';
@@ -169,6 +172,7 @@ const JMA_RANK: Record<JmaClass, number> = {
 const HERO_PRIMARY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const HERO_SECONDARY_WINDOW_MS = 72 * 60 * 60 * 1000;
 const IMMEDIATE_ALERT_WINDOW_MS = 6 * 60 * 60 * 1000;
+const STATUS_TRACKED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type LocalizedLike = string | { en?: string; ja?: string; ko?: string } | null | undefined;
 type AnalysisLike = Record<string, unknown> | null | undefined;
@@ -219,6 +223,150 @@ function getEventPlace(event: EarthquakeEvent, locale: PresentationLocale): stri
   const jp = getJapanPlaceName(event.lat, event.lng);
   if (jp) return jp[locale];
   return getPlaceText(event.place) || 'Unknown';
+}
+
+function parseTimestamp(value: unknown): number | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function formatSourceLabel(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  const normalized = value.trim().toLowerCase();
+  const known: Record<string, string> = {
+    ai: 'AI',
+    emsc: 'EMSC',
+    gmpe: 'GMPE',
+    jma: 'JMA',
+    kma: 'KMA',
+    ndo: 'NDO',
+    opus: 'Opus',
+    shakemap: 'ShakeMap',
+    tsunami: 'Tsunami',
+    usgs: 'USGS',
+  };
+  return known[normalized] ?? titleCaseWords(normalized);
+}
+
+function formatStatusHeadline(locale: PresentationLocale, significantCount: number): string {
+  if (locale === 'ja') {
+    return significantCount > 0
+      ? `直近24時間で注意が必要な地震 ${significantCount}件`
+      : '直近24時間で大きな警戒はありません';
+  }
+  if (locale === 'ko') {
+    return significantCount > 0
+      ? `지난 24시간 주의가 필요한 지진 ${significantCount}건`
+      : '지난 24시간 큰 경보는 없습니다';
+  }
+  if (significantCount === 1) return '1 significant incident in the last 24h';
+  if (significantCount > 1) return `${significantCount} significant incidents in the last 24h`;
+  return 'No significant incident in the last 24h';
+}
+
+function formatStatusDetail(
+  locale: PresentationLocale,
+  hasRecentTsunami: boolean,
+  significantCount: number,
+): string {
+  if (locale === 'ja') {
+    if (hasRecentTsunami) return '最近の地震で津波の公式情報確認が必要です。';
+    if (significantCount > 0) return '最近の地震で有効な津波注意報は確認されていません。';
+    return '直近24時間で顕著な揺れや津波注意報は確認されていません。';
+  }
+  if (locale === 'ko') {
+    if (hasRecentTsunami) return '최근 지진에 대해 쓰나미 공식 발표 확인이 필요합니다.';
+    if (significantCount > 0) return '최근 사건 기준 활성 쓰나미 주의보는 없습니다.';
+    return '지난 24시간 뚜렷한 흔들림이나 쓰나미 주의보는 없습니다.';
+  }
+  if (hasRecentTsunami) return 'Active tsunami advisory on a recent incident.';
+  if (significantCount > 0) return 'No active tsunami advisory from recent incidents.';
+  return 'No significant shaking or tsunami advisory in the last 24h.';
+}
+
+function formatStatusChip(
+  locale: PresentationLocale,
+  value: number,
+  noun: 'significant' | 'tracked',
+  windowLabel: '24h' | '7d',
+): string {
+  if (locale === 'ja') {
+    const label = noun === 'significant' ? '要注意' : '追跡';
+    return `${label} ${value}件 / ${windowLabel}`;
+  }
+  if (locale === 'ko') {
+    const label = noun === 'significant' ? '주의' : '추적';
+    return `${label} ${value}건 / ${windowLabel}`;
+  }
+  return `${value} ${noun} / ${windowLabel}`;
+}
+
+function formatTrustChip(locale: PresentationLocale, kind: 'event' | 'ai' | 'shaking', value: string): string {
+  if (locale === 'ja') {
+    if (kind === 'event') return `地震 ${value}`;
+    if (kind === 'ai') return `AI ${value}`;
+    return `揺れ ${value}`;
+  }
+  if (locale === 'ko') {
+    if (kind === 'event') return `지진 ${value}`;
+    if (kind === 'ai') return `AI ${value}`;
+    return `흔들림 ${value}`;
+  }
+  if (kind === 'event') return `Event ${value}`;
+  if (kind === 'ai') return `AI ${value}`;
+  return `Shaking ${value}`;
+}
+
+function formatTrustLine(
+  locale: PresentationLocale,
+  kind: 'eventSource' | 'generated' | 'shaking',
+  value: string,
+  model?: string | null,
+): string {
+  if (locale === 'ja') {
+    if (kind === 'eventSource') return `イベント出典: ${value}`;
+    if (kind === 'generated') return model
+      ? `${model}で${value}前にAI要約を生成`
+      : `${value}前にAI要約を生成`;
+    return `揺れ推定: ${value}`;
+  }
+  if (locale === 'ko') {
+    if (kind === 'eventSource') return `이벤트 출처: ${value}`;
+    if (kind === 'generated') return model
+      ? `${model}로 ${value} 전에 AI 요약 생성`
+      : `${value} 전에 AI 요약 생성`;
+    return `흔들림 추정: ${value}`;
+  }
+  if (kind === 'eventSource') return `Event source: ${value}`;
+  if (kind === 'generated') return model
+    ? `AI summary generated ${value} with ${model}`
+    : `AI summary generated ${value}`;
+  return `Shaking estimate: ${value}`;
+}
+
+function briefingLabel(locale: PresentationLocale, key: 'situation' | 'action' | 'basis'): string {
+  if (locale === 'ja') {
+    if (key === 'situation') return '状況';
+    if (key === 'action') return '行動';
+    return '根拠';
+  }
+  if (locale === 'ko') {
+    if (key === 'situation') return '상황';
+    if (key === 'action') return '행동';
+    return '근거';
+  }
+  if (key === 'situation') return 'Situation';
+  if (key === 'action') return 'Action';
+  return 'Basis';
 }
 
 export function formatRelativeTime(
@@ -571,6 +719,37 @@ export function buildLiveFeedSummary(args: {
   };
 }
 
+export function buildStatusSummary(args: {
+  events: EarthquakeEvent[];
+  locale: PresentationLocale;
+  now?: number;
+}): PresentationStatusSummary {
+  const { events, locale, now = Date.now() } = args;
+  const tracked = events.filter((event) => eventAgeMs(event, now) <= STATUS_TRACKED_WINDOW_MS);
+  let significantCount = 0;
+  let hasRecentTsunami = false;
+  let hasRecentSevere = false;
+
+  for (const event of tracked) {
+    if (eventAgeMs(event, now) > HERO_PRIMARY_WINDOW_MS) continue;
+    const severity = computeSeverity(event);
+    if (JMA_RANK[severity] >= JMA_RANK['4']) significantCount += 1;
+    if (JMA_RANK[severity] >= JMA_RANK['6-']) hasRecentSevere = true;
+    const tsunami = deriveTsunamiAssessmentFromEvent(event);
+    if (tsunami.risk === 'high' || tsunami.risk === 'moderate') hasRecentTsunami = true;
+  }
+
+  return {
+    tone: hasRecentTsunami || hasRecentSevere ? 'alert' : significantCount > 0 ? 'watch' : 'calm',
+    headline: formatStatusHeadline(locale, significantCount),
+    detail: formatStatusDetail(locale, hasRecentTsunami, significantCount),
+    chips: [
+      formatStatusChip(locale, significantCount, 'significant', '24h'),
+      formatStatusChip(locale, tracked.length, 'tracked', '7d'),
+    ],
+  };
+}
+
 export function buildDetailSummary(args: {
   event: EarthquakeEvent;
   analysis?: unknown;
@@ -654,6 +833,69 @@ export function buildEvidenceSummary(args: {
   };
 }
 
+export function buildTrustSummary(args: {
+  event: EarthquakeEvent;
+  analysis?: unknown;
+  locale: PresentationLocale;
+  now?: number;
+  intensitySource?: IntensitySource;
+}): PresentationTrustSummary {
+  const { event, locale, now = Date.now(), intensitySource = 'none' } = args;
+  const analysis = asRecord(args.analysis);
+  const facts = asRecord(analysis?.facts);
+  const sourceFacts = asRecord(facts?.sources);
+  const maxIntensity = asRecord(facts?.max_intensity);
+  const eventSource = formatSourceLabel(sourceFacts?.event_source);
+  const analysisGeneratedAt = parseTimestamp(analysis?.generated_at);
+  const modelLabel = formatSourceLabel(analysis?.model);
+  const shakingSource = formatSourceLabel(
+    intensitySource !== 'none' ? intensitySource : maxIntensity?.source,
+  );
+
+  const chips = [
+    formatTrustChip(locale, 'event', formatRelativeTime(event.time, locale, now)),
+    analysisGeneratedAt !== null
+      ? formatTrustChip(locale, 'ai', formatRelativeTime(analysisGeneratedAt, locale, now))
+      : null,
+    shakingSource ? formatTrustChip(locale, 'shaking', shakingSource) : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const lines = [
+    eventSource ? formatTrustLine(locale, 'eventSource', eventSource) : null,
+    analysisGeneratedAt !== null
+      ? formatTrustLine(
+        locale,
+        'generated',
+        formatRelativeTime(analysisGeneratedAt, locale, now),
+        modelLabel,
+      )
+      : null,
+    shakingSource ? formatTrustLine(locale, 'shaking', shakingSource) : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    chips: [...new Set(chips)],
+    lines: [...new Set(lines)],
+  };
+}
+
+function buildFallbackBriefingBasis(args: {
+  event: EarthquakeEvent;
+  locale: PresentationLocale;
+  detail: PresentationDetailSummary;
+  tsunamiAssessment?: TsunamiAssessment | null;
+}): string {
+  const { event, locale, detail } = args;
+  const tsunami = buildTsunamiSummary(args.tsunamiAssessment, locale);
+  if (locale === 'ja') {
+    return `イベント事実ベース: M${event.magnitude.toFixed(1)}、${detail.depthLabel}、推定 JMA ${detail.intensityLabel}、${tsunami?.label ?? copy(locale, 'noTsunami')}`;
+  }
+  if (locale === 'ko') {
+    return `이벤트 사실 기반: M${event.magnitude.toFixed(1)}, ${detail.depthLabel}, 예상 JMA ${detail.intensityLabel}, ${tsunami?.label ?? copy(locale, 'noTsunami')}`;
+  }
+  return `fallback event facts: expected JMA ${detail.intensityLabel} shaking for a M${event.magnitude.toFixed(1)} earthquake at ${detail.depthLabel} with ${tsunami?.label ?? copy(locale, 'noTsunami')}`;
+}
+
 export function buildShareSummary(args: {
   event: EarthquakeEvent;
   analysis?: unknown;
@@ -661,15 +903,30 @@ export function buildShareSummary(args: {
   locale: PresentationLocale;
   now?: number;
 }): PresentationShareSummary {
+  const analysis = asRecord(args.analysis);
   const hero = buildHeroSummary({
     event: args.event,
-    analysis: args.analysis,
+    analysis,
     tsunamiAssessment: args.tsunamiAssessment,
     locale: args.locale,
     now: args.now,
   });
-  const why = readWhy(asRecord(args.analysis), args.locale);
-  const aftershock = readAftershock(asRecord(args.analysis), args.locale);
+  const why = readWhy(analysis, args.locale);
+  const aftershock = readAftershock(analysis, args.locale);
+  const detail = buildDetailSummary({
+    event: args.event,
+    analysis,
+    tsunamiAssessment: args.tsunamiAssessment,
+    locale: args.locale,
+    now: args.now,
+  });
+  const evidence = buildEvidenceSummary({
+    analysis,
+    event: args.event,
+    tsunamiAssessment: args.tsunamiAssessment,
+    locale: args.locale,
+    now: args.now,
+  });
   const lines = [why, aftershock].filter(Boolean);
   const shortParts = [
     hero.magnitudeLabel,
@@ -677,8 +934,29 @@ export function buildShareSummary(args: {
     hero.headline,
     hero.tsunami?.label ?? copy(args.locale, 'noTsunami'),
   ].filter(Boolean);
+  const expertLayer = readExpert(analysis);
+  const hasExpertBasis = Boolean(
+    loc(expertLayer?.tectonic_summary as LocalizedLike, args.locale)
+    || loc(expertLayer?.tectonic_context as LocalizedLike, args.locale),
+  );
+  const fallbackBasis = buildFallbackBriefingBasis({
+    event: args.event,
+    locale: args.locale,
+    detail,
+    tsunamiAssessment: args.tsunamiAssessment,
+  });
+  const basis = hasExpertBasis
+    ? (evidence.expertSummary || evidence.sourceNote || fallbackBasis)
+    : fallbackBasis;
+  const briefingLines = [
+    `${briefingLabel(args.locale, 'situation')}: ${hero.headline}. ${hero.message}`,
+    `${briefingLabel(args.locale, 'action')}: ${(detail.actionItems.length > 0 ? detail.actionItems : [detail.summary]).slice(0, 2).join(' | ')}`,
+    `${briefingLabel(args.locale, 'basis')}: ${basis}`,
+  ];
   return {
     shortText: [...new Set(shortParts)].join(' · '),
     lines,
+    briefingLines,
+    briefingText: briefingLines.join('\n'),
   };
 }

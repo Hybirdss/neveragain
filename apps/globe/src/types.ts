@@ -267,6 +267,13 @@ export interface PresentationHeroSummary {
   tsunami: PresentationTsunamiSummary | null;
 }
 
+export interface PresentationStatusSummary {
+  tone: 'calm' | 'watch' | 'alert';
+  headline: string;
+  detail: string;
+  chips: string[];
+}
+
 export interface PresentationLiveFeedSummary {
   place: string;
   relativeTime: string;
@@ -299,9 +306,16 @@ export interface PresentationEvidenceSummary {
   differences: string[];
 }
 
+export interface PresentationTrustSummary {
+  chips: string[];
+  lines: string[];
+}
+
 export interface PresentationShareSummary {
   shortText: string;
   lines: string[];
+  briefingLines: string[];
+  briefingText: string;
 }
 
 // ── App State ──────────────────────────────────────────────

@@ -1,9 +1,18 @@
 import { getLocale, onLocaleChange, t } from '../i18n/index';
 import { store } from '../store/appState';
 import { getJmaColor, type EarthquakeEvent } from '../types';
-import { buildHeroSummary, deriveTsunamiAssessmentFromEvent, pickHeroEvent } from './presentation';
+import {
+  buildHeroSummary,
+  buildStatusSummary,
+  deriveTsunamiAssessmentFromEvent,
+  pickHeroEvent,
+} from './presentation';
 
 let rootEl: HTMLButtonElement | null = null;
+let statusEl: HTMLElement | null = null;
+let statusHeadlineEl: HTMLElement | null = null;
+let statusDetailEl: HTMLElement | null = null;
+let statusChipsEl: HTMLElement | null = null;
 let headlineEl: HTMLElement | null = null;
 let messageEl: HTMLElement | null = null;
 let metaEl: HTMLElement | null = null;
@@ -40,11 +49,16 @@ function render(): void {
   const selected = store.get('selectedEvent');
   const ai = store.get('ai');
   const locale = getLocale();
+  const timeline = store.get('timeline');
 
   const isSelectedHero = !!heroEvent && selected?.id === heroEvent.id;
   const tsunamiAssessment = heroEvent
     ? (isSelectedHero ? store.get('tsunamiAssessment') : deriveTsunamiAssessmentFromEvent(heroEvent))
     : null;
+  const status = buildStatusSummary({
+    events: timeline.events,
+    locale,
+  });
 
   const summary = buildHeroSummary({
     event: heroEvent,
@@ -60,6 +74,17 @@ function render(): void {
   rootEl.style.borderLeftColor = summary.severity === 'none'
     ? 'var(--border-subtle)'
     : getJmaColor(summary.severity, store.get('colorblind'));
+  rootEl.dataset.statusTone = status.tone;
+
+  if (statusEl && statusHeadlineEl && statusDetailEl && statusChipsEl) {
+    statusEl.className = `hero-card__status hero-card__status--${status.tone}`;
+    statusHeadlineEl.textContent = status.headline;
+    statusDetailEl.textContent = status.detail;
+    statusChipsEl.innerHTML = '';
+    for (const chip of status.chips) {
+      statusChipsEl.appendChild(el('span', 'hero-card__status-chip', chip));
+    }
+  }
 
   headlineEl.textContent = summary.headline;
   messageEl.textContent = summary.message;
@@ -107,13 +132,18 @@ export function initHeroCard(container: HTMLElement): void {
   });
 
   const content = el('div', 'hero-card__content');
+  statusEl = el('div', 'hero-card__status');
+  statusHeadlineEl = el('div', 'hero-card__status-headline');
+  statusDetailEl = el('div', 'hero-card__status-detail');
+  statusChipsEl = el('div', 'hero-card__status-chips');
+  statusEl.append(statusHeadlineEl, statusDetailEl, statusChipsEl);
   headlineEl = el('div', 'hero-card__headline');
   messageEl = el('div', 'hero-card__message');
   tsunamiEl = el('div', 'hero-card__tsunami');
   metaEl = el('div', 'hero-card__meta');
   ctaEl = el('div', 'hero-card__cta');
 
-  content.append(headlineEl, messageEl, tsunamiEl, metaEl, ctaEl);
+  content.append(statusEl, headlineEl, messageEl, tsunamiEl, metaEl, ctaEl);
   rootEl.appendChild(content);
   container.appendChild(rootEl);
 
@@ -139,6 +169,10 @@ export function disposeHeroCard(): void {
   unsubLocale = null;
   rootEl?.remove();
   rootEl = null;
+  statusEl = null;
+  statusHeadlineEl = null;
+  statusDetailEl = null;
+  statusChipsEl = null;
   headlineEl = null;
   messageEl = null;
   metaEl = null;

@@ -7,6 +7,8 @@ import {
   buildHeroSummary,
   buildLiveFeedSummary,
   buildShareSummary,
+  buildStatusSummary,
+  buildTrustSummary,
   pickHeroEvent,
 } from '../presentation';
 
@@ -46,6 +48,8 @@ const TSUNAMI_WARNING: TsunamiAssessment = {
 };
 
 const ANALYSIS = {
+  generated_at: '2026-03-06T00:02:00.000Z',
+  model: 'opus',
   dashboard: {
     headline: {
       en: 'Strong shaking near Osaka',
@@ -56,6 +60,15 @@ const ANALYSIS = {
       en: 'Objects may fall indoors, but no tsunami is expected.',
       ja: '室内の落下物に注意してください。津波の心配はありません。',
       ko: '실내 낙하물에 주의하세요. 쓰나미 우려는 없습니다.',
+    },
+  },
+  facts: {
+    max_intensity: {
+      class: '5-',
+      source: 'shakemap',
+    },
+    sources: {
+      event_source: 'jma',
     },
   },
   public: {
@@ -274,6 +287,30 @@ describe('buildLiveFeedSummary', () => {
   });
 });
 
+describe('buildStatusSummary', () => {
+  it('summarizes the current nationwide state separately from the hero event', () => {
+    const status = buildStatusSummary({
+      events: [
+        EVENT,
+        {
+          ...EVENT,
+          id: 'eq-stale-low',
+          magnitude: 3.2,
+          time: NOW - (3 * 24 * 60 * 60 * 1000),
+        },
+      ],
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(status.tone).toBe('watch');
+    expect(status.headline).toBe('1 significant incident in the last 24h');
+    expect(status.detail).toBe('No active tsunami advisory from recent incidents.');
+    expect(status.chips).toContain('1 significant / 24h');
+    expect(status.chips).toContain('2 tracked / 7d');
+  });
+});
+
 describe('buildShareSummary', () => {
   it('builds a short expert-friendly summary for copying', () => {
     const summary = buildShareSummary({
@@ -289,6 +326,10 @@ describe('buildShareSummary', () => {
     expect(summary.shortText).toContain('Strong shaking near Osaka');
     expect(summary.shortText).toContain('No tsunami expected');
     expect(summary.lines).toContain('A shallow crustal fault moved beneath Osaka.');
+    expect(summary.briefingLines[0]).toContain('Situation:');
+    expect(summary.briefingLines[1]).toContain('Action:');
+    expect(summary.briefingLines[2]).toContain('Basis:');
+    expect(summary.briefingText.split('\n')).toHaveLength(3);
   });
 
   it('keeps a deduplicated short summary even without ai analysis', () => {
@@ -302,6 +343,7 @@ describe('buildShareSummary', () => {
 
     expect(summary.shortText).toBe('M5.8 · Near Osaka · TSUNAMI ADVISORY');
     expect(summary.lines).toEqual([]);
+    expect(summary.briefingLines[2]).toContain('fallback event facts');
   });
 });
 
@@ -394,5 +436,26 @@ describe('buildEvidenceSummary', () => {
     expect(summary.sourceNote).toBe('Using event magnitude, depth, computed intensity, and tsunami assessment until AI evidence is available.');
     expect(summary.similarities).toEqual([]);
     expect(summary.differences).toEqual([]);
+  });
+});
+
+describe('buildTrustSummary', () => {
+  it('formats freshness and source metadata for expert verification', () => {
+    const trust = buildTrustSummary({
+      event: EVENT,
+      analysis: ANALYSIS,
+      locale: 'en',
+      now: NOW,
+      intensitySource: 'shakemap',
+    });
+
+    expect(trust.chips).toEqual([
+      'Event 4 min ago',
+      'AI 2 min ago',
+      'Shaking ShakeMap',
+    ]);
+    expect(trust.lines).toContain('Event source: JMA');
+    expect(trust.lines).toContain('AI summary generated 2 min ago with Opus');
+    expect(trust.lines).toContain('Shaking estimate: ShakeMap');
   });
 });

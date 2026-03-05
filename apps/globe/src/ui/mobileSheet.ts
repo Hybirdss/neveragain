@@ -15,6 +15,7 @@ import { getLocale, t, onLocaleChange } from '../i18n/index';
 import { getLiveFeedEvents } from './liveFeed';
 import {
   buildHeroSummary,
+  buildStatusSummary,
   deriveTsunamiAssessmentFromEvent,
   pickHeroEvent,
 } from './presentation';
@@ -240,6 +241,10 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
     if (!heroEvent) return;
 
     const count = events.length;
+    const status = buildStatusSummary({
+      events,
+      locale,
+    });
     const summary = buildHeroSummary({
       event: heroEvent,
       analysis: null,
@@ -251,6 +256,13 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
     headerRow.appendChild(el('span', 'peek__title', peekTitle()));
     headerRow.appendChild(el('span', 'peek__chevron', '\u25B2'));
     peekEl.appendChild(headerRow);
+
+    const statusRow = el('div', `peek__status peek__status--${status.tone}`);
+    statusRow.appendChild(el('span', 'peek__status-headline', status.headline));
+    if (status.chips[0]) {
+      statusRow.appendChild(el('span', 'peek__status-chip', status.chips[0]));
+    }
+    peekEl.appendChild(statusRow);
 
     const summaryRow = el('div', 'peek__summary');
     summaryRow.appendChild(el('span', 'peek__mag', summary.magnitudeLabel));

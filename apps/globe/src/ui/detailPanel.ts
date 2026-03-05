@@ -4,11 +4,12 @@ import { store } from '../store/appState';
 import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
 import { buildAnalysisSection, disposeAnalysisPanel, updateAnalysis } from './analysisPanel';
 import { createHelpButton } from './intensityGuide';
-import { buildDetailSummary, deriveTsunamiAssessmentFromEvent } from './presentation';
+import { buildDetailSummary, buildTrustSummary, deriveTsunamiAssessmentFromEvent } from './presentation';
 
 let detailPanel: HTMLElement;
 let headlineEl: HTMLElement;
 let metaEl: HTMLElement;
+let trustChipsEl: HTMLElement;
 let summaryEl: HTMLElement;
 let intensityTitleEl: HTMLElement;
 let intensityValueEl: HTMLElement;
@@ -91,8 +92,9 @@ function buildDetailDOM(): HTMLElement {
   const summaryCard = el('div', 'detail-panel__summary-card');
   headlineEl = el('div', 'detail-panel__headline');
   metaEl = el('div', 'detail-panel__meta');
+  trustChipsEl = el('div', 'detail-panel__trust');
   summaryEl = el('div', 'detail-panel__summary');
-  summaryCard.append(headlineEl, metaEl, summaryEl);
+  summaryCard.append(headlineEl, metaEl, trustChipsEl, summaryEl);
   detailPanel.appendChild(summaryCard);
 
   const intensityCard = el('div', 'detail-card detail-card--intensity');
@@ -204,6 +206,17 @@ export function refreshDetail(
 
   headlineEl.textContent = summary.headline;
   metaEl.textContent = [summary.magnitudeLabel, summary.place, summary.relativeTime].join(' · ');
+  trustChipsEl.innerHTML = '';
+  const trust = buildTrustSummary({
+    event: selectedEvent,
+    analysis: ai.currentAnalysis,
+    locale: getLocale(),
+    intensitySource,
+  });
+  for (const chip of trust.chips) {
+    trustChipsEl.appendChild(el('span', 'detail-panel__trust-chip', chip));
+  }
+  trustChipsEl.style.display = trust.chips.length > 0 ? 'flex' : 'none';
   summaryEl.textContent = summary.summary;
 
   intensityTitleEl.textContent = uiText('intensity');
