@@ -8,7 +8,7 @@ import { fetchUsgsQuakes } from '../lib/usgs.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
-const CHUNK_SIZE = 5;
+const CHUNK_SIZE = 10;
 
 // Dedup: if an event within ±5min, ±0.3°, ±0.5M exists, skip it
 const DEDUP_TIME_MS = 5 * 60 * 1000;
@@ -51,11 +51,16 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     }
   }
 
-  // Batch upsert in chunks (Neon HTTP has parameter limits).
+  // Batch upsert in chunks.
+  // JMA feed can contain duplicate IDs (preliminary + final report).
+  // PostgreSQL rejects ON CONFLICT DO UPDATE when the same PK appears twice in one INSERT,
+  // so we deduplicate by ID first, keeping the last (most recent) entry.
+  const dedupedJma = [...new Map(jmaEvents.map(ev => [ev.id, ev])).values()];
+
   let ingested = 0;
   try {
     const now = new Date();
-    const values = jmaEvents.map(ev => ({
+    const values = dedupedJma.map(ev => ({
       id: ev.id,
       lat: ev.lat,
       lng: ev.lng,
@@ -79,9 +84,10 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
       updated_at: now,
     }));
 
-    for (const row of values) {
+    for (let i = 0; i < values.length; i += CHUNK_SIZE) {
+      const chunk = values.slice(i, i + CHUNK_SIZE);
       await db.insert(earthquakes)
-        .values(row)
+        .values(chunk)
         .onConflictDoUpdate({
           target: earthquakes.id,
           set: {
@@ -98,7 +104,7 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     }
 
     // Count genuinely new rows (not in existingMap before upsert)
-    ingested = jmaEvents.filter(ev => !existingMap.has(ev.id)).length;
+    ingested = dedupedJma.filter(ev => !existingMap.has(ev.id)).length;
   } catch (err) {
     console.error('[jma] batch upsert failed:', err);
   }

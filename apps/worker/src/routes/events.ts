@@ -67,7 +67,8 @@ interface BulkIngestBody {
  * Returns earthquakes matching filters.
  */
 // Edge cache TTL for event lists. Public, time-bounded data.
-const EVENTS_CACHE_TTL = 30; // seconds
+const EVENTS_CACHE_TTL = 30; // seconds (CF edge)
+const KV_EVENTS_TTL = 300; // seconds (KV second-tier, 5 min)
 
 /**
  * Normalize the request URL for cache keying:
@@ -105,6 +106,25 @@ eventsRoute.get('/', async (c) => {
         ...(cachedEtag ? { 'ETag': cachedEtag } : {}),
         'X-Cache': 'HIT',
       },
+    });
+  }
+
+  // ── KV second-tier cache (5 min) ─────────────────────────────────────
+  const kvKey = `ev:${new URL(c.req.url).search}`;
+  const kvCached = await c.env.RATE_LIMIT.get(kvKey);
+  if (kvCached) {
+    // Warm up CF edge cache from KV
+    c.executionCtx.waitUntil(
+      cache.put(cacheKey, new Response(kvCached, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,
+        },
+      })),
+    );
+    return new Response(kvCached, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'X-Cache': 'KV' },
     });
   }
 
@@ -193,10 +213,11 @@ eventsRoute.get('/', async (c) => {
     'ETag': etag,
   };
 
-  // Store in CF edge cache for subsequent requests from any IP.
-  c.executionCtx.waitUntil(
+  // Store in CF edge cache + KV second-tier cache.
+  c.executionCtx.waitUntil(Promise.all([
     cache.put(cacheKey, new Response(body, { headers: responseHeaders })),
-  );
+    c.env.RATE_LIMIT.put(kvKey, body, { expirationTtl: KV_EVENTS_TTL }),
+  ]));
 
   return new Response(body, { status: 200, headers: responseHeaders });
 });

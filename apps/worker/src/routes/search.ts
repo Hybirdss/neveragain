@@ -226,7 +226,10 @@ searchRoute.post('/', async (c) => {
     place: earthquakes.place,
     fault_type: earthquakes.fault_type,
     tsunami: earthquakes.tsunami,
-    analysis: analyses.analysis,
+    // Project only dashboard fields from analysis JSONB (~1KB vs ~300KB full blob)
+    headline: sql`${analyses.analysis}->'dashboard'->'headline'`,
+    one_liner: sql`${analyses.analysis}->'dashboard'->'one_liner'`,
+    tier: analyses.tier,
     search_tags: analyses.search_tags,
     search_region: analyses.search_region,
     has_analysis: sql<boolean>`${analyses.id} IS NOT NULL`,
