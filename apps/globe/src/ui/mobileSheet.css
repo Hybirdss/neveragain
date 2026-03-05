@@ -15,28 +15,25 @@
     right: 0;
     bottom: 0;
     height: 100dvh;
-    z-index: calc(var(--z-sidebar) + 1);
+    z-index: calc(var(--z-modal) + 1);
     pointer-events: none;
     will-change: transform;
   }
 
   .mobile-sheet__handle {
     flex-shrink: 0;
-    height: 28px;
+    height: 36px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: grab;
+    touch-action: none;
     pointer-events: auto;
     background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
     border-radius: 16px 16px 0 0;
     border-top: 1px solid var(--border-strong);
     backdrop-filter: blur(var(--blur-lg, 24px));
     -webkit-backdrop-filter: blur(var(--blur-lg, 24px));
-  }
-
-  .mobile-sheet__handle:active {
-    cursor: grabbing;
   }
 
   .mobile-sheet__handle-bar {
@@ -48,7 +45,7 @@
 
   .mobile-sheet__peek {
     flex-shrink: 0;
-    padding: 8px 16px 12px;
+    padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     pointer-events: auto;
     background: var(--surface-glass-heavy, rgba(12, 16, 23, 0.92));
     backdrop-filter: blur(var(--blur-lg, 24px));
@@ -71,6 +68,7 @@
     -webkit-overflow-scrolling: touch;
     pointer-events: auto;
     background: var(--surface-panel);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .peek__mag {

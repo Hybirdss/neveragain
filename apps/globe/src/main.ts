@@ -244,15 +244,21 @@ async function bootstrap(): Promise<void> {
   // 11. Dismiss loading screen — earthquake data likely already arrived
   updateLoading('Fetching earthquakes…', 90);
   const loadingScreen = document.getElementById('loading-screen');
-  firstPollDone.then(() => {
+
+  function dismissLoading(): void {
+    if (!loadingScreen || loadingScreen.classList.contains('exit')) return;
     updateLoading('Ready', 100);
     setTimeout(() => {
-      if (loadingScreen) {
-        loadingScreen.classList.add('exit');
-        setTimeout(() => loadingScreen.remove(), 700);
-      }
+      loadingScreen.classList.add('exit');
+      setTimeout(() => loadingScreen.remove(), 700);
     }, 200);
-  });
+  }
+
+  // Dismiss on first poll success OR failure (app is usable either way)
+  firstPollDone.then(dismissLoading, dismissLoading);
+
+  // Safety net: dismiss after 12s even if poll is still in-flight
+  setTimeout(dismissLoading, 12_000);
 
   // HMR cleanup
   if (import.meta.hot) {

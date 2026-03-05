@@ -3,6 +3,11 @@
   .intensity-legend {
     right: var(--space-4);
   }
+
+  /* Fluid panel width on tablet */
+  .dashboard {
+    grid-template-columns: clamp(280px, 30vw, 350px) 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -168,7 +173,7 @@
 
   .detail-panel {
     padding: 10px 14px 12px;
-    max-height: clamp(160px, 45vh, 360px);
+    max-height: clamp(160px, 40vh, 320px);
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -236,7 +241,8 @@
   }
 
   .search-dialog {
-    width: 100vw;
+    width: 100%;
+    max-width: 100vw;
     height: 100dvh;
     border-radius: 0;
     border-left: none;
@@ -244,7 +250,7 @@
   }
 
   .search-results {
-    max-height: calc(100dvh - 172px);
+    max-height: calc(100dvh - 172px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 
   .search-kbd,
@@ -285,5 +291,9 @@
 
   .intensity-legend {
     display: none;
+  }
+
+  .detail-panel {
+    max-height: clamp(120px, 35vh, 240px);
   }
 }

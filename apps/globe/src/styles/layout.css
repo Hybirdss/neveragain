@@ -7,7 +7,7 @@
     "panel globe"
     "timeline timeline";
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--bg-primary);
 }

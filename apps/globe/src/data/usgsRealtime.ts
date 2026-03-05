@@ -192,8 +192,8 @@ async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
     return await fetchFromUSGS();
   }
 
-  // Hedged fetch: start server API immediately; if it hasn't responded
-  // in HEDGE_DELAY_MS, start USGS fetch in parallel and race both.
+  // Hedged fetch: start server API immediately; after HEDGE_DELAY_MS,
+  // also start USGS in parallel. Promise.any() uses first to succeed.
   const HEDGE_DELAY_MS = 3_000;
   const serverPromise = fetchFromServer();
 
@@ -201,20 +201,20 @@ async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
     const timer = setTimeout(() => {
       fetchFromUSGS().then(resolve, reject);
     }, HEDGE_DELAY_MS);
-    // If server wins before hedge fires, cancel the timer
-    serverPromise.then(() => clearTimeout(timer), () => clearTimeout(timer));
+    // Only cancel hedge if server SUCCEEDS — on rejection, let USGS still fire
+    serverPromise.then(() => clearTimeout(timer));
   });
 
   try {
     return await Promise.any([serverPromise, hedgedUsgs]);
   } catch {
-    // Both failed — log and throw
+    // Both failed — try one more direct USGS attempt
     const now = Date.now();
     if (now - lastFallbackWarnAt > FALLBACK_WARN_COOLDOWN_MS) {
-      console.warn('[usgsRealtime] Both server and USGS feeds failed');
+      console.warn('[usgsRealtime] Hedged fetch failed, final USGS attempt');
       lastFallbackWarnAt = now;
     }
-    throw new Error('All earthquake data sources unavailable');
+    return await fetchFromUSGS();
   }
 }
 
