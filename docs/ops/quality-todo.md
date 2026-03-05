@@ -1,6 +1,6 @@
 # Enterprise Quality Uplift TODO
 
-Last updated: 2026-03-05  
+Last updated: 2026-03-06  
 Owner: `codex`  
 Execution branch: `codex-enterprise-quality`
 
@@ -32,11 +32,11 @@ Execution branch: `codex-enterprise-quality`
 
 ## Phase 3 (Day 61-90): Hotspot Refactor + Security + Release Governance
 
-- [ ] Task 8. Safe decomposition of high-risk hotspot files
+- [x] Task 8. Safe decomposition of high-risk hotspot files
 - [ ] Task 9. Dependency/security hygiene gate
 - [ ] Task 10. Release and rollback discipline
 
 ## Current Focus
 
-1. Start Phase 3 Task 8 hotspot-safe decomposition.
-2. Add characterization tests before refactoring large modules.
+1. Start Phase 3 Task 9 dependency/security gate rollout.
+2. Define rollback checklist + release evidence template for Task 10.

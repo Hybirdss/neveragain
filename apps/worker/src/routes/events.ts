@@ -12,14 +12,15 @@ import {
 } from '../lib/earthquakeValidation.ts';
 import {
   parseIngestEvent,
-  type EarthquakeInsert,
   type IngestEventInput,
 } from '../lib/eventsValidation.ts';
+import { authorizeInternal } from '../lib/eventsAuth.ts';
+import { parseBulkIngestEvents } from '../lib/eventsBulk.ts';
+import { upsertEvent, upsertEvents } from '../lib/eventsRepo.ts';
 
 export const eventsRoute = new Hono<{ Bindings: Env }>();
 
 const BULK_LIMIT = 500;
-const BULK_UPSERT_CONCURRENCY = 20;
 const MAX_SYNC_ANALYSIS_EVENTS = 25;
 
 interface IngestBody {
@@ -51,7 +52,7 @@ eventsRoute.get('/', async (c) => {
     return c.json({ error: 'limit must be an integer between 1 and 1000' }, 400);
   }
 
-    const db = createDb(c.env.DATABASE_URL);
+  const db = createDb(c.env.DATABASE_URL);
 
   const conditions = [];
   if (mag_min !== null && mag_min > 0) {
@@ -198,19 +199,7 @@ eventsRoute.post('/ingest/bulk', async (c) => {
   }
 
   const db = createDb(c.env.DATABASE_URL);
-  const accepted: string[] = [];
-  const acceptedEvents: EarthquakeInsert[] = [];
-  const rejected: Array<{ index: number; error: string }> = [];
-
-  for (let i = 0; i < body.events.length; i++) {
-    const parsed = parseIngestEvent(body.events[i]);
-    if ('error' in parsed) {
-      rejected.push({ index: i, error: parsed.error });
-      continue;
-    }
-    accepted.push(parsed.value.id);
-    acceptedEvents.push(parsed.value);
-  }
+  const { acceptedIds, acceptedEvents, rejected } = parseBulkIngestEvents(body.events);
 
   try {
     await upsertEvents(db, acceptedEvents);
@@ -222,10 +211,10 @@ eventsRoute.post('/ingest/bulk', async (c) => {
   const generateAnalysis = body.generate_analysis !== false;
   const waitForAnalysis = body.wait_for_analysis === true;
 
-  if (!generateAnalysis || accepted.length === 0) {
+  if (!generateAnalysis || acceptedIds.length === 0) {
     return c.json({
       status: 'stored',
-      accepted: accepted.length,
+      accepted: acceptedIds.length,
       rejected,
       analysis: {
         requested: false,
@@ -237,7 +226,7 @@ eventsRoute.post('/ingest/bulk', async (c) => {
   }
 
   if (waitForAnalysis) {
-    if (accepted.length > MAX_SYNC_ANALYSIS_EVENTS) {
+    if (acceptedIds.length > MAX_SYNC_ANALYSIS_EVENTS) {
       return c.json({
         error: `wait_for_analysis supports up to ${MAX_SYNC_ANALYSIS_EVENTS} events per request`,
       }, 400);
@@ -247,7 +236,7 @@ eventsRoute.post('/ingest/bulk', async (c) => {
     let cached = 0;
     let failed = 0;
 
-    for (const eventId of accepted) {
+    for (const eventId of acceptedIds) {
       try {
         const result = await generateAndStoreAnalysis(c.env, eventId);
         if (result.status === 'generated') generated += 1;
@@ -260,7 +249,7 @@ eventsRoute.post('/ingest/bulk', async (c) => {
 
     return c.json({
       status: 'stored',
-      accepted: accepted.length,
+      accepted: acceptedIds.length,
       rejected,
       analysis: {
         requested: true,
@@ -272,7 +261,7 @@ eventsRoute.post('/ingest/bulk', async (c) => {
   }
 
   c.executionCtx.waitUntil((async () => {
-    for (const eventId of accepted) {
+    for (const eventId of acceptedIds) {
       try {
         await generateAndStoreAnalysis(c.env, eventId);
       } catch (err) {
@@ -283,40 +272,11 @@ eventsRoute.post('/ingest/bulk', async (c) => {
 
   return c.json({
     status: 'accepted',
-    accepted: accepted.length,
+    accepted: acceptedIds.length,
     rejected,
     analysis: {
       requested: true,
-      queued: accepted.length,
+      queued: acceptedIds.length,
     },
   }, 202);
 });
-
-function authorizeInternal(expectedToken: string | undefined, requestToken: string | undefined): boolean {
-  if (!expectedToken) return true;
-  return requestToken === expectedToken;
-}
-
-async function upsertEvent(
-  db: ReturnType<typeof createDb>,
-  event: EarthquakeInsert,
-): Promise<void> {
-  const { id: _id, ...updateSet } = event;
-  await db.insert(earthquakes)
-    .values(event)
-    .onConflictDoUpdate({
-      target: earthquakes.id,
-      set: updateSet,
-    });
-}
-
-async function upsertEvents(
-  db: ReturnType<typeof createDb>,
-  events: EarthquakeInsert[],
-): Promise<void> {
-  if (events.length === 0) return;
-  for (let i = 0; i < events.length; i += BULK_UPSERT_CONCURRENCY) {
-    const chunk = events.slice(i, i + BULK_UPSERT_CONCURRENCY);
-    await Promise.all(chunk.map((event) => upsertEvent(db, event)));
-  }
-}
