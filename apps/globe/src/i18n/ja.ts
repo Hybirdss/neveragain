@@ -253,6 +253,8 @@ const ja: Record<string, string> = {
   // Mobile sheet
   'sheet.events': '{n}件',
   'sheet.noSelection': '地震をタップ',
+  'sheet.recentTitle': '最近の地震',
+  'sheet.countSuffix': '件',
 
   // Navigation
   'nav.returnToJapan': '日本に戻る',

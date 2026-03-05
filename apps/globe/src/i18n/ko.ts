@@ -254,6 +254,8 @@ const ko: Record<string, string> = {
   // Mobile sheet
   'sheet.events': '{n}건',
   'sheet.noSelection': '지진을 탭하세요',
+  'sheet.recentTitle': '최근 지진',
+  'sheet.countSuffix': '건',
 
   // Navigation
   'nav.returnToJapan': '일본으로 돌아가기',

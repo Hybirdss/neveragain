@@ -63,7 +63,7 @@ function formatTimeShort(ts: number): string {
   return `${h}:${m}:${s}`;
 }
 
-function formatRelativeTime(ts: number): string {
+export function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return t('time.justNow');

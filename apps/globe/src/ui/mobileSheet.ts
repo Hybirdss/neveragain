@@ -13,7 +13,7 @@ import type { EarthquakeEvent } from '../types';
 import { store } from '../store/appState';
 import { t, getLocale, onLocaleChange } from '../i18n/index';
 import { getJapanPlaceName } from '../utils/japanGeo';
-import { getLiveFeedEvents } from './liveFeed';
+import { getLiveFeedEvents, formatRelativeTime } from './liveFeed';
 
 // ── Constants ──
 
@@ -42,8 +42,11 @@ let startHeight = 0;
 let lastDelta = 0;
 let lastVelocity = 0;
 
+let sheetRevealed = false;
 let unsubSelected: (() => void) | null = null;
+let unsubTimeline: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
+let peekTimerId: ReturnType<typeof setInterval> | null = null;
 
 // ── Helpers ──
 
@@ -195,24 +198,38 @@ function onBodyTouchStart(e: TouchEvent): void {
 // ── Peek Summary ──
 
 function updatePeekSummary(event: EarthquakeEvent | null): void {
+  peekEl.innerHTML = '';
+
   if (event) {
-    peekEl.innerHTML = '';
-    peekEl.appendChild(el('span', 'peek__mag', event.magnitude.toFixed(1)));
-    peekEl.appendChild(el('span', 'peek__place', eventPlaceName(event)));
-    peekEl.appendChild(el('span', 'peek__meta', `${Math.round(event.depth_km)}km`));
+    // ── Detail mode ──
+    const headerRow = el('div', 'peek__header');
+    headerRow.appendChild(el('span', 'peek__mag', event.magnitude.toFixed(1)));
+    headerRow.appendChild(el('span', 'peek__place', eventPlaceName(event)));
+    headerRow.appendChild(el('span', 'peek__meta', `${Math.round(event.depth_km)}km`));
+    peekEl.appendChild(headerRow);
+
+    const metaRow = el('div', 'peek__meta-row');
+    metaRow.appendChild(el('span', 'peek__time', formatRelativeTime(event.time)));
+    peekEl.appendChild(metaRow);
   } else {
+    // ── List mode ──
     const events = getLiveFeedEvents();
     const latest = events[0];
+    if (!latest) return; // Sheet is hidden when no data
+
     const count = events.length;
-    peekEl.innerHTML = '';
-    if (latest) {
-      peekEl.appendChild(el('span', 'peek__mag', latest.magnitude.toFixed(1)));
-      peekEl.appendChild(el('span', 'peek__place', eventPlaceName(latest)));
-      peekEl.appendChild(el('span', 'peek__count',
-        `${count} ${t('sheet.events').replace('{n}', String(count))}`));
-    } else {
-      peekEl.appendChild(el('span', 'peek__empty', t('sidebar.loading')));
-    }
+
+    const headerRow = el('div', 'peek__header');
+    headerRow.appendChild(el('span', 'peek__title', t('sheet.recentTitle')));
+    headerRow.appendChild(el('span', 'peek__chevron', '\u25B2'));
+    peekEl.appendChild(headerRow);
+
+    const summaryRow = el('div', 'peek__summary');
+    summaryRow.appendChild(el('span', 'peek__mag', latest.magnitude.toFixed(1)));
+    summaryRow.appendChild(el('span', 'peek__place', eventPlaceName(latest)));
+    summaryRow.appendChild(el('span', 'peek__time', formatRelativeTime(latest.time)));
+    summaryRow.appendChild(el('span', 'peek__count', `${count}${t('sheet.countSuffix')}`));
+    peekEl.appendChild(summaryRow);
   }
 }
 
@@ -261,9 +278,8 @@ export function initMobileSheet(): SheetContainers {
 
   document.body.appendChild(sheetEl);
 
-  // Set initial position (peek)
-  setSheetPosition(PEEK_HEIGHT, false);
-  updatePeekSummary(null);
+  // Start hidden — reveal when data arrives
+  sheetEl.style.transform = 'translateY(100vh)';
 
   // Gesture handling on handle
   handleEl.addEventListener('pointerdown', onDragStart);
@@ -285,6 +301,21 @@ export function initMobileSheet(): SheetContainers {
     }
   });
 
+  // Reveal sheet when earthquake data arrives
+  unsubTimeline = store.subscribe('timeline', (tl) => {
+    if (!sheetRevealed && tl.events.length > 0) {
+      sheetRevealed = true;
+      sheetEl.style.transition = 'transform 500ms cubic-bezier(0.32, 0.72, 0, 1)';
+      setSheetPosition(PEEK_HEIGHT, true);
+      peekTimerId = setInterval(() => {
+        if (!store.get('selectedEvent')) updatePeekSummary(null);
+      }, 30_000);
+    }
+    if (sheetRevealed && !store.get('selectedEvent')) {
+      updatePeekSummary(null);
+    }
+  });
+
   // i18n refresh
   unsubLocale = onLocaleChange(() => {
     const selected = store.get('selectedEvent');
@@ -300,8 +331,12 @@ export function initMobileSheet(): SheetContainers {
 export function disposeMobileSheet(): void {
   unsubSelected?.();
   unsubSelected = null;
+  unsubTimeline?.();
+  unsubTimeline = null;
   unsubLocale?.();
   unsubLocale = null;
+  if (peekTimerId) { clearInterval(peekTimerId); peekTimerId = null; }
+  sheetRevealed = false;
   handleEl?.removeEventListener('pointerdown', onDragStart);
   sheetEl?.remove();
 }

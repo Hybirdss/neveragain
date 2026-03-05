@@ -278,6 +278,8 @@ const en: Record<string, string> = {
   // Mobile sheet
   'sheet.events': '{n} events',
   'sheet.noSelection': 'Tap an earthquake',
+  'sheet.recentTitle': 'Recent Quakes',
+  'sheet.countSuffix': ' events',
 };
 
 export default en;
