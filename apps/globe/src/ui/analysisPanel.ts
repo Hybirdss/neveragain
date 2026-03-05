@@ -10,6 +10,7 @@
 import type { AiTab } from '../types';
 import { store } from '../store/appState';
 import { t, getLocale, onLocaleChange } from '../i18n/index';
+import { assessTsunamiRisk, classifyLocation, inferFaultType } from '../../../../packages/db/geo.ts';
 
 // ── State ──
 
@@ -80,13 +81,24 @@ function switchTab(tab: AiTab): void {
 
 // ── Easy Tab (Public Briefing) ──
 
-function renderTsunamiCard(container: HTMLElement, a: any): void {
-  const tsunami = a.facts?.tsunami;
-  if (!tsunami) return;
-  const risk: string = tsunami.risk || 'none';
+function renderTsunamiCard(container: HTMLElement, _a: any): void {
+  // Always compute tsunami risk client-side from earthquake parameters
+  // This overrides potentially stale DB facts (e.g., old classifyLocation bugs)
+  const ev = store.get('selectedEvent');
+  if (!ev) return;
 
-  // Always show for offshore events; for inland "none", skip
-  const isOffshore = a.facts?.max_intensity?.is_offshore === true;
+  const placeText = ev.place?.text;
+  const loc = classifyLocation(ev.lat, ev.lng, placeText, undefined);
+  const faultType = ev.faultType || inferFaultType(ev.depth_km, ev.lat, ev.lng, placeText, undefined);
+  const isOffshore = loc.type !== 'inland';
+  const tsunami = assessTsunamiRisk(
+    ev.magnitude, ev.depth_km, faultType,
+    ev.lat, ev.lng, placeText, undefined,
+    ev.tsunami,
+  );
+  const risk = tsunami.risk;
+
+  // Skip for inland "none"
   if (risk === 'none' && !isOffshore) return;
 
   const card = el('div', `analysis__tsunami analysis__tsunami--${risk}`);
@@ -340,16 +352,22 @@ function renderDataPane(a: any): void {
       dataPane.appendChild(group);
     }
 
-    // Tsunami
-    if (facts.tsunami) {
-      dataPane.appendChild(el('div', 'analysis__section-header', t('detail.tsunami')));
-      const group = el('div', 'analysis__kv-group');
-      addKV(group, 'Risk', facts.tsunami.risk || '?');
-      addKV(group, 'Confidence', facts.tsunami.confidence || '?');
-      if (facts.tsunami.factors?.length) {
-        addKV(group, 'Factors', facts.tsunami.factors.join(', '));
+    // Tsunami — compute client-side for accuracy
+    {
+      const ev = store.get('selectedEvent');
+      if (ev) {
+        const pt = ev.place?.text;
+        const lc = classifyLocation(ev.lat, ev.lng, pt, undefined);
+        const ftx = ev.faultType || inferFaultType(ev.depth_km, ev.lat, ev.lng, pt, undefined);
+        const tr = assessTsunamiRisk(ev.magnitude, ev.depth_km, ftx, ev.lat, ev.lng, pt, undefined, ev.tsunami);
+        dataPane.appendChild(el('div', 'analysis__section-header', t('detail.tsunami')));
+        const group = el('div', 'analysis__kv-group');
+        addKV(group, 'Risk', tr.risk);
+        addKV(group, 'Location', `${lc.type} (${lc.reason.slice(0, 50)})`);
+        addKV(group, 'Confidence', tr.confidence);
+        addKV(group, 'Factors', tr.factors.join(', '));
+        dataPane.appendChild(group);
       }
-      dataPane.appendChild(group);
     }
 
     // Aftershock forecast

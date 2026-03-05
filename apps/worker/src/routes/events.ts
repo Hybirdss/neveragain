@@ -4,6 +4,7 @@ import { createDb } from '../lib/db.ts';
 import { earthquakes } from '@namazue/db';
 import { gte, lte, and, desc } from 'drizzle-orm';
 import { generateAndStoreAnalysis } from './analyze.ts';
+import { checkRateLimit } from '../lib/rateLimit.ts';
 import {
   EARTHQUAKE_LIMITS,
   parseFiniteNumber,
@@ -65,7 +66,56 @@ interface BulkIngestBody {
  * GET /api/events?mag_min=4&lat_min=24&lat_max=46&lng_min=122&lng_max=150&limit=100
  * Returns earthquakes matching filters.
  */
+// Edge cache TTL for event lists. Public, time-bounded data.
+const EVENTS_CACHE_TTL = 30; // seconds
+
+/**
+ * Normalize the request URL for cache keying:
+ * Sort query params so ?a=1&b=2 and ?b=2&a=1 share the same cache entry.
+ */
+function normalizeEventsCacheKey(req: Request): Request {
+  const url = new URL(req.url);
+  const sorted = new URLSearchParams(
+    [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b)),
+  );
+  url.search = sorted.toString();
+  return new Request(url.toString());
+}
+
 eventsRoute.get('/', async (c) => {
+  // ── CF Cache API check ──────────────────────────────────────────────────
+  // Workers run *before* CF's HTTP cache layer, so Cache-Control alone does
+  // nothing for Worker responses. We must use caches.default explicitly.
+  const cache = caches.default;
+  const cacheKey = normalizeEventsCacheKey(c.req.raw);
+
+  const cachedRes = await cache.match(cacheKey);
+  if (cachedRes) {
+    // ETag check: if client has the same version, return 304 (zero bandwidth).
+    const clientEtag = c.req.header('if-none-match');
+    const cachedEtag = cachedRes.headers.get('etag');
+    if (clientEtag && cachedEtag && clientEtag === cachedEtag) {
+      return new Response(null, { status: 304 });
+    }
+    return new Response(cachedRes.body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,
+        ...(cachedEtag ? { 'ETag': cachedEtag } : {}),
+        'X-Cache': 'HIT',
+      },
+    });
+  }
+
+  // ── Rate limit (only hits on cache MISS) ─────────────────────────────
+  const ip = c.req.header('cf-connecting-ip') ?? '0.0.0.0';
+  const rl = await checkRateLimit(c.env.RATE_LIMIT, ip, 'events');
+  if (!rl.allowed) {
+    return c.json({ error: 'Rate limit exceeded' }, 429);
+  }
+
+  // ── Validate params ───────────────────────────────────────────────────
   const mag_min = parseFiniteNumber(c.req.query('mag_min'));
   if (mag_min !== null) {
     const magErr = validateRange('mag_min', mag_min, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
@@ -78,13 +128,6 @@ eventsRoute.get('/', async (c) => {
     return c.json({ error: 'limit must be an integer between 1 and 1000' }, 400);
   }
 
-    const db = createDb(c.env.DATABASE_URL);
-
-  const conditions = [];
-  if (mag_min !== null && mag_min > 0) {
-    conditions.push(gte(earthquakes.magnitude, mag_min));
-  }
-
   const lat_min = parseFiniteNumber(c.req.query('lat_min'));
   const lat_max = parseFiniteNumber(c.req.query('lat_max'));
   const latMinErr = lat_min === null ? null : validateRange('lat_min', lat_min, EARTHQUAKE_LIMITS.lat.min, EARTHQUAKE_LIMITS.lat.max);
@@ -93,8 +136,6 @@ eventsRoute.get('/', async (c) => {
   if (latMinErr || latMaxErr || latPairErr) {
     return c.json({ error: latMinErr ?? latMaxErr ?? latPairErr }, 400);
   }
-  if (lat_min !== null) conditions.push(gte(earthquakes.lat, lat_min));
-  if (lat_max !== null) conditions.push(lte(earthquakes.lat, lat_max));
 
   const lng_min = parseFiniteNumber(c.req.query('lng_min'));
   const lng_max = parseFiniteNumber(c.req.query('lng_max'));
@@ -104,9 +145,16 @@ eventsRoute.get('/', async (c) => {
   if (lngMinErr || lngMaxErr || lngPairErr) {
     return c.json({ error: lngMinErr ?? lngMaxErr ?? lngPairErr }, 400);
   }
+
+  // ── DB query ──────────────────────────────────────────────────────────
+  const conditions = [];
+  if (mag_min !== null && mag_min > 0) conditions.push(gte(earthquakes.magnitude, mag_min));
+  if (lat_min !== null) conditions.push(gte(earthquakes.lat, lat_min));
+  if (lat_max !== null) conditions.push(lte(earthquakes.lat, lat_max));
   if (lng_min !== null) conditions.push(gte(earthquakes.lng, lng_min));
   if (lng_max !== null) conditions.push(lte(earthquakes.lng, lng_max));
 
+  const db = createDb(c.env.DATABASE_URL);
   const rows = await db.select({
     id: earthquakes.id,
     lat: earthquakes.lat,
@@ -125,7 +173,32 @@ eventsRoute.get('/', async (c) => {
     .orderBy(desc(earthquakes.time))
     .limit(limit);
 
-  return c.json({ events: rows, count: rows.length });
+  // ── Build response + ETag ─────────────────────────────────────────────
+  // ETag = latest event time + count (cheap surrogate for content hash).
+  // Clients that re-poll with If-None-Match get 304 if nothing changed.
+  const latestTime = rows[0]?.time instanceof Date
+    ? rows[0].time.getTime()
+    : (rows[0]?.time ?? 0);
+  const etag = `"${latestTime}-${rows.length}"`;
+
+  const clientEtag = c.req.header('if-none-match');
+  if (clientEtag === etag) {
+    return new Response(null, { status: 304 });
+  }
+
+  const body = JSON.stringify({ events: rows, count: rows.length });
+  const responseHeaders = {
+    'Content-Type': 'application/json',
+    'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,
+    'ETag': etag,
+  };
+
+  // Store in CF edge cache for subsequent requests from any IP.
+  c.executionCtx.waitUntil(
+    cache.put(cacheKey, new Response(body, { headers: responseHeaders })),
+  );
+
+  return new Response(body, { status: 200, headers: responseHeaders });
 });
 
 /**

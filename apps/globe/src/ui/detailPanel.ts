@@ -14,6 +14,7 @@ import { MMI_COLORS } from '../utils/colorScale';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { buildAnalysisSection, updateAnalysis, disposeAnalysisPanel } from './analysisPanel';
 import { createHelpButton } from './intensityGuide';
+import { assessTsunamiRisk, classifyLocation, inferFaultType } from '../../../../packages/db/geo.ts';
 
 // ── DOM refs ──
 
@@ -175,6 +176,8 @@ export function refreshDetail(
 
   if (selectedEvent) {
     detailPanel.classList.remove('detail-panel--hidden');
+    // Scroll pane to top so detail panel is visible
+    detailPanel.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
 
     detailMagEl.textContent = `M${selectedEvent.magnitude.toFixed(1)}`;
     detailPlaceEl.textContent = eventPlaceName(selectedEvent);
@@ -192,19 +195,24 @@ export function refreshDetail(
       `${Math.abs(selectedEvent.lat).toFixed(3)}\u00B0${selectedEvent.lat >= 0 ? 'N' : 'S'}`));
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lng).toFixed(3)}\u00B0${selectedEvent.lng >= 0 ? 'E' : 'W'}`));
-    // Tsunami badge: prefer analysis-based risk, fallback to USGS flag
+    // Tsunami badge: compute client-side (overrides stale DB facts)
     const ai = store.get('ai');
-    const analysis = ai.currentAnalysis as any;
-    const tsunamiRisk = analysis?.facts?.tsunami?.risk;
+    const placeText = selectedEvent.place?.text;
+    const loc = classifyLocation(selectedEvent.lat, selectedEvent.lng, placeText, undefined);
+    const ft = selectedEvent.faultType || inferFaultType(selectedEvent.depth_km, selectedEvent.lat, selectedEvent.lng, placeText, undefined);
+    const tsunamiResult = assessTsunamiRisk(
+      selectedEvent.magnitude, selectedEvent.depth_km, ft,
+      selectedEvent.lat, selectedEvent.lng, placeText, undefined,
+      selectedEvent.tsunami,
+    );
+    const tsunamiRisk = tsunamiResult.risk;
+    const isOffshore = loc.type !== 'inland';
     if (tsunamiRisk === 'high' || tsunamiRisk === 'moderate') {
       detailMetaEl.appendChild(el('span', 'feed-item__tsunami feed-item__tsunami--warn',
         t(`tsunami.label.${tsunamiRisk}`)));
-    } else if (tsunamiRisk === 'low' || tsunamiRisk === 'none') {
-      const isOffshore = analysis?.facts?.max_intensity?.is_offshore === true;
-      if (isOffshore) {
-        detailMetaEl.appendChild(el('span', 'feed-item__tsunami--safe',
-          t(`tsunami.label.${tsunamiRisk}`)));
-      }
+    } else if ((tsunamiRisk === 'low' || tsunamiRisk === 'none') && isOffshore) {
+      detailMetaEl.appendChild(el('span', 'feed-item__tsunami--safe',
+        t(`tsunami.label.${tsunamiRisk}`)));
     } else if (selectedEvent.tsunami) {
       detailMetaEl.appendChild(el('span', 'feed-item__tsunami', '津波注意'));
     }
@@ -249,7 +257,7 @@ export function refreshDetail(
 // ── Public API ──
 
 export function initDetailPanel(container: HTMLElement): void {
-  container.appendChild(buildDetailDOM());
+  container.prepend(buildDetailDOM());
 
   unsubSelected = store.subscribe('selectedEvent', () => {
     const selected = store.get('selectedEvent');

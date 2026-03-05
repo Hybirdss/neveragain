@@ -4,6 +4,10 @@
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./geo": "./geo.ts"
+  },
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",

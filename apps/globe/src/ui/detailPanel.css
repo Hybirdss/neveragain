@@ -2,11 +2,13 @@
 .detail-panel {
   background: var(--surface-panel);
   border: none;
-  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
   border-radius: 0;
   padding: var(--space-3) var(--spacing-panel-x);
   animation: slide-in var(--duration-panel) var(--ease-panel);
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   overflow-y: auto;
   transition: opacity var(--duration-fade-out) ease, max-height var(--duration-fade-out) ease;
   opacity: 1;
@@ -30,7 +32,7 @@
   opacity: 0;
   max-height: 0;
   padding: 0 var(--spacing-panel-x);
-  border-top: none;
+  border-bottom: none;
   pointer-events: none;
 }
 

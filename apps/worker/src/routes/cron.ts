@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, isNull, sql } from 'drizzle-orm';
 import { analyses, earthquakes } from '@namazue/db';
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
@@ -38,52 +38,59 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     .where(sql`${earthquakes.id} = ANY(${jmaIds})`);
   const existingMap = new Map(existing.map(r => [r.id, r]));
 
-  let ingested = 0;
+  // Determine new/revised events before upserting
   const toAnalyze: string[] = [];
   const toReanalyze: Array<{ id: string; reason: string }> = [];
-
   for (const ev of jmaEvents) {
-    try {
-      const prev = existingMap.get(ev.id);
+    const prev = existingMap.get(ev.id);
+    if (!prev) {
+      if (ev.magnitude >= 4) toAnalyze.push(ev.id);
+    } else if (Math.abs(ev.magnitude - prev.magnitude) >= MAG_REVISION_THRESHOLD && ev.magnitude >= 4) {
+      toReanalyze.push({ id: ev.id, reason: 'mag_revision' });
+    }
+  }
 
-      await db.insert(earthquakes).values({
-        id: ev.id,
-        lat: ev.lat,
-        lng: ev.lng,
-        depth_km: ev.depth_km,
-        magnitude: ev.magnitude,
-        time: new Date(ev.time),
-        place: ev.place,
-        place_ja: ev.place_ja,
-        source: ev.source,
-        mag_type: ev.mag_type,
-        maxi: ev.maxi,
-        fault_type: null,
-        tsunami: false,
-        updated_at: new Date(),
-      }).onConflictDoUpdate({
+  // Batch upsert: single round-trip to DB regardless of event count.
+  let ingested = 0;
+  try {
+    const now = new Date();
+    const values = jmaEvents.map(ev => ({
+      id: ev.id,
+      lat: ev.lat,
+      lng: ev.lng,
+      depth_km: ev.depth_km,
+      magnitude: ev.magnitude,
+      time: new Date(ev.time),
+      place: ev.place,
+      place_ja: ev.place_ja,
+      source: ev.source,
+      mag_type: ev.mag_type,
+      maxi: ev.maxi,
+      fault_type: null as null,
+      tsunami: false,
+      updated_at: now,
+    }));
+
+    await db.insert(earthquakes)
+      .values(values)
+      .onConflictDoUpdate({
         target: earthquakes.id,
         set: {
-          lat: ev.lat,
-          lng: ev.lng,
-          depth_km: ev.depth_km,
-          magnitude: ev.magnitude,
-          place: ev.place,
-          place_ja: ev.place_ja,
-          maxi: ev.maxi,
-          updated_at: new Date(),
+          lat: sql`excluded.lat`,
+          lng: sql`excluded.lng`,
+          depth_km: sql`excluded.depth_km`,
+          magnitude: sql`excluded.magnitude`,
+          place: sql`excluded.place`,
+          place_ja: sql`excluded.place_ja`,
+          maxi: sql`excluded.maxi`,
+          updated_at: sql`excluded.updated_at`,
         },
       });
 
-      if (!prev) {
-        ingested++;
-        if (ev.magnitude >= 4) toAnalyze.push(ev.id);
-      } else if (Math.abs(ev.magnitude - prev.magnitude) >= MAG_REVISION_THRESHOLD && ev.magnitude >= 4) {
-        toReanalyze.push({ id: ev.id, reason: 'mag_revision' });
-      }
-    } catch (err) {
-      console.error(`[jma] upsert failed ${ev.id}:`, err);
-    }
+    // Count genuinely new rows (not in existingMap before upsert)
+    ingested = jmaEvents.filter(ev => !existingMap.has(ev.id)).length;
+  } catch (err) {
+    console.error('[jma] batch upsert failed:', err);
   }
 
   // Generate analysis for new M4+ events
@@ -138,6 +145,13 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
   const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   let recentDb: Array<{ id: string; lat: number; lng: number; magnitude: number; time: Date }> = [];
   if (candidates.length > 0) {
+    // Compute bbox of all candidates to avoid loading the entire 7-day dataset.
+    // DEDUP_DEG buffer ensures we catch cross-boundary duplicates.
+    const minLat = Math.min(...candidates.map(e => e.lat)) - DEDUP_DEG;
+    const maxLat = Math.max(...candidates.map(e => e.lat)) + DEDUP_DEG;
+    const minLng = Math.min(...candidates.map(e => e.lng)) - DEDUP_DEG;
+    const maxLng = Math.max(...candidates.map(e => e.lng)) + DEDUP_DEG;
+
     recentDb = await db.select({
       id: earthquakes.id,
       lat: earthquakes.lat,
@@ -146,7 +160,13 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
       time: earthquakes.time,
     })
       .from(earthquakes)
-      .where(gte(earthquakes.time, recentCutoff));
+      .where(and(
+        gte(earthquakes.time, recentCutoff),
+        gte(earthquakes.lat, minLat),
+        lte(earthquakes.lat, maxLat),
+        gte(earthquakes.lng, minLng),
+        lte(earthquakes.lng, maxLng),
+      ));
   }
 
   function isDuplicate(ev: typeof candidates[0]): boolean {
@@ -165,56 +185,84 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
     return false;
   }
 
-  let ingested = 0;
   const toAnalyze: string[] = [];
   const toReanalyze: Array<{ id: string; reason: string }> = [];
 
-  // Upsert new events (deduped against JMA)
-  for (const ev of candidates) {
-    if (isDuplicate(ev)) continue;
-    try {
-      await db.insert(earthquakes).values({
-        id: ev.id,
-        lat: ev.lat,
-        lng: ev.lng,
-        depth_km: ev.depth_km,
-        magnitude: ev.magnitude,
-        time: new Date(ev.time),
-        place: ev.place,
-        source: ev.source,
-        mag_type: ev.mag_type,
-        fault_type: null,
-        tsunami: ev.tsunami,
-        data_status: ev.data_status,
-        updated_at: new Date(),
-      }).onConflictDoNothing();
-      ingested++;
-      if (ev.magnitude >= 4) toAnalyze.push(ev.id);
-    } catch (err) {
-      console.error(`[usgs] ingest failed ${ev.id}:`, err);
+  // Filter out JMA duplicates from candidates
+  const newEvents = candidates.filter(ev => !isDuplicate(ev));
+  for (const ev of newEvents) {
+    if (ev.magnitude >= 4) toAnalyze.push(ev.id);
+  }
+
+  // Determine magnitude revisions in existing USGS events
+  for (const ev of usgsEvents) {
+    const prev = existingMap.get(ev.id);
+    if (prev && Math.abs(ev.magnitude - prev.magnitude) >= MAG_REVISION_THRESHOLD && ev.magnitude >= 4) {
+      toReanalyze.push({ id: ev.id, reason: 'mag_revision' });
     }
   }
 
-  // Update existing USGS events (status, magnitude revisions)
-  for (const ev of usgsEvents) {
-    const prev = existingMap.get(ev.id);
-    if (!prev) continue; // already handled above as new
-    try {
-      await db.update(earthquakes)
-        .set({
-          magnitude: ev.magnitude,
-          depth_km: ev.depth_km,
-          data_status: ev.data_status,
-          tsunami: ev.tsunami,
-          updated_at: new Date(),
-        })
-        .where(eq(earthquakes.id, ev.id));
+  let ingested = 0;
+  const now = new Date();
 
-      if (Math.abs(ev.magnitude - prev.magnitude) >= MAG_REVISION_THRESHOLD && ev.magnitude >= 4) {
-        toReanalyze.push({ id: ev.id, reason: 'mag_revision' });
-      }
+  // Batch insert new events (single round-trip)
+  if (newEvents.length > 0) {
+    try {
+      await db.insert(earthquakes)
+        .values(newEvents.map(ev => ({
+          id: ev.id,
+          lat: ev.lat,
+          lng: ev.lng,
+          depth_km: ev.depth_km,
+          magnitude: ev.magnitude,
+          time: new Date(ev.time),
+          place: ev.place,
+          source: ev.source,
+          mag_type: ev.mag_type,
+          fault_type: null as null,
+          tsunami: ev.tsunami,
+          data_status: ev.data_status,
+          updated_at: now,
+        })))
+        .onConflictDoNothing();
+      ingested = newEvents.length;
     } catch (err) {
-      console.error(`[usgs] update failed ${ev.id}:`, err);
+      console.error('[usgs] batch insert failed:', err);
+    }
+  }
+
+  // Batch update existing USGS events via single upsert (magnitude/status revisions)
+  const toUpdate = usgsEvents.filter(ev => existingMap.has(ev.id));
+  if (toUpdate.length > 0) {
+    try {
+      await db.insert(earthquakes)
+        .values(toUpdate.map(ev => ({
+          id: ev.id,
+          lat: ev.lat,
+          lng: ev.lng,
+          depth_km: ev.depth_km,
+          magnitude: ev.magnitude,
+          time: new Date(ev.time),
+          place: ev.place,
+          source: ev.source,
+          mag_type: ev.mag_type,
+          fault_type: null as null,
+          tsunami: ev.tsunami,
+          data_status: ev.data_status,
+          updated_at: now,
+        })))
+        .onConflictDoUpdate({
+          target: earthquakes.id,
+          set: {
+            magnitude: sql`excluded.magnitude`,
+            depth_km: sql`excluded.depth_km`,
+            data_status: sql`excluded.data_status`,
+            tsunami: sql`excluded.tsunami`,
+            updated_at: sql`excluded.updated_at`,
+          },
+        });
+    } catch (err) {
+      console.error('[usgs] batch update failed:', err);
     }
   }
 

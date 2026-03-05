@@ -40,6 +40,11 @@ export const earthquakes = pgTable('earthquakes', {
   index('idx_earthquakes_time').on(t.time),
   index('idx_earthquakes_magnitude').on(t.magnitude),
   index('idx_earthquakes_source').on(t.source),
+  // Composite: main events feed (WHERE magnitude >= ? ORDER BY time DESC)
+  index('idx_earthquakes_mag_time').on(t.magnitude, t.time),
+  // Composite: spatial bbox queries (spatialStats, USGS dedup)
+  index('idx_earthquakes_time_lat_lng').on(t.time, t.lat, t.lng),
+  index('idx_earthquakes_lat_lng').on(t.lat, t.lng),
   // GiST index on geom created via raw SQL migration
 ]);
 
@@ -70,6 +75,8 @@ export const analyses = pgTable('analyses', {
 }, (t) => [
   index('idx_analyses_event').on(t.event_id),
   index('idx_analyses_latest').on(t.event_id, t.is_latest),
+  // Partial index (WHERE is_latest = true) created via raw SQL migration (001_performance_indexes.sql)
+  // — Drizzle schema doesn't support partial indexes; use idx_analyses_event_latest from migration.
   // GIN index on search_tags created via raw SQL migration
 ]);
 

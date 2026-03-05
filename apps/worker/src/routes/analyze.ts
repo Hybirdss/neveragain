@@ -16,6 +16,7 @@ import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
 import { callGrok } from '../lib/grok.ts';
 import { buildContext } from '../context/builder.ts';
+import { checkRateLimit } from '../lib/rateLimit.ts';
 import {
   analyses, earthquakes, classifyLocation,
   inferFaultType as inferFaultTypeGeo,
@@ -199,6 +200,9 @@ export async function generateAndStoreAnalysis(
   const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
   const thirtyYearsAgo = new Date(eventTime.getTime() - 30 * 365.25 * 24 * 3600 * 1000);
 
+  // 200km radius ÷ 111 km/° ≈ 1.8°. Bbox pre-filter uses indexed lat/lng columns,
+  // then the Cartesian distance check refines to the actual circle.
+  const degRadius = 1.8;
   const spatialStats = await db.select({
     total: sql<number>`count(*)::int`,
     m4: sql<number>`count(*) filter (where magnitude >= 4 and magnitude < 5)::int`,
@@ -214,6 +218,10 @@ export async function generateAndStoreAnalysis(
     .where(and(
       gte(earthquakes.time, thirtyYearsAgo),
       lte(earthquakes.time, eventTime),
+      gte(earthquakes.lat, event.lat - degRadius),
+      lte(earthquakes.lat, event.lat + degRadius),
+      gte(earthquakes.lng, event.lng - degRadius),
+      lte(earthquakes.lng, event.lng + degRadius),
       sql`sqrt(power(lat - ${event.lat}, 2) + power(lng - ${event.lng}, 2)) * 111 < 200`,
     ));
 
@@ -442,16 +450,54 @@ export async function generateAndStoreAnalysis(
   }
 }
 
+// Analysis cache TTL: 1 hour. Analyses are immutable once generated.
+const ANALYSIS_CACHE_TTL = 3600;
+
+function analysisCacheKey(eventId: string): Request {
+  return new Request(`https://cache.internal/api/analyze/${eventId}`);
+}
+
 // Client route: cached fetch or synchronous generation
 analyzeRoute.post('/', async (c) => {
+  // Rate limit before any work. analyze=10/hr guards against LLM cost abuse.
+  const ip = c.req.header('cf-connecting-ip') ?? '0.0.0.0';
+  const rl = await checkRateLimit(c.env.RATE_LIMIT, ip, 'analyze');
+  if (!rl.allowed) {
+    return c.json({ error: 'Rate limit exceeded' }, 429);
+  }
+
   const { event_id } = await c.req.json<{ event_id: string }>().catch(() => ({ event_id: '' }));
   if (!event_id) {
     return c.json({ error: 'event_id required' }, 400);
   }
 
+  // Check Cloudflare edge cache first — avoids DB hit for repeated analysis requests.
+  const cache = caches.default;
+  const cacheKey = analysisCacheKey(event_id);
+  const cachedResponse = await cache.match(cacheKey);
+  if (cachedResponse) {
+    return new Response(cachedResponse.body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Cache': 'HIT',
+      },
+    });
+  }
+
   const db = createDb(c.env.DATABASE_URL);
   const cached = await getLatestAnalysis(db, event_id);
   if (cached) {
+    // Store in edge cache for subsequent requests.
+    const body = JSON.stringify(cached.analysis);
+    c.executionCtx.waitUntil(
+      cache.put(cacheKey, new Response(body, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': `public, max-age=${ANALYSIS_CACHE_TTL}`,
+        },
+      })),
+    );
     return c.json(cached.analysis);
   }
 
@@ -477,6 +523,16 @@ analyzeRoute.post('/', async (c) => {
   // Generate synchronously for M4+ Japan events
   try {
     const result = await generateAndStoreAnalysis(c.env, event_id);
+    // Cache the freshly generated analysis at edge.
+    const body = JSON.stringify(result.analysis);
+    c.executionCtx.waitUntil(
+      cache.put(cacheKey, new Response(body, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': `public, max-age=${ANALYSIS_CACHE_TTL}`,
+        },
+      })),
+    );
     return c.json(result.analysis);
   } catch (err) {
     console.error(`[analyze] realtime generation failed for ${event_id}:`, err);
