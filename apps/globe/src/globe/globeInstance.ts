@@ -4,11 +4,12 @@
  * Satellite imagery architecture:
  *   - Single URL: tiles.seismicjapan.com/satellite/{z}/{x}/{y}.jpg
  *   - CF Workers routes internally:
- *       z0-z13 anywhere     → MapTiler satellite-v2 (cached 30d)
- *       z14-z18 Japan only  → GSI seamlessphoto (cached 30d, free)
- *       z14+ outside Japan  → 204 (blocked, CesiumJS shows z13 upscaled)
+ *       z0-z3 anywhere      → MapTiler satellite-v2 (85 tiles, pre-cached)
+ *       z4-z18 Japan only   → GSI seamlessphoto (free unlimited)
+ *       z4+ outside Japan   → 204 (CesiumJS shows z3 upscaled)
  *   - Dev mode: Vite proxy for CORS-free MapTiler access
- *   - Fallback: Esri World Imagery when proxy unavailable
+ *   - Fallback: GSI pale + seamlessphoto when proxy unavailable
+ *   - Labels: custom LabelCollection (no CARTO overlay)
  *
  * Terrain: MapTiler Quantized Mesh via proxy or direct.
  * No Cesium Ion dependency.
@@ -206,16 +207,7 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
     console.log('[globe] Imagery: GSI fallback (pale + seamlessphoto, free)');
   }
 
-  // ── Label overlay on top of satellite ──────────────────────
-  // CartoDB dark_only_labels: transparent PNG with white text labels only.
-  const labelLayer = viewer.imageryLayers.addImageryProvider(
-    new Cesium.UrlTemplateImageryProvider({
-      url: 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png',
-      maximumLevel: 18,
-      credit: new Cesium.Credit('Labels: © OpenStreetMap © CARTO', false),
-    }),
-  );
-  labelLayer.alpha = 0.85;
+  // Labels: handled by custom LabelCollection in labels.ts (no tile overlay)
 
   // ── Atmosphere & sky ────────────────────────────────────────
   if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.show = true;

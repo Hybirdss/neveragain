@@ -3,16 +3,16 @@
  *
  * Routes:
  *   /satellite/{z}/{x}/{y}.jpg  → Satellite imagery (smart routing)
- *       z0-z13 anywhere         → MapTiler satellite-v2
- *       z14-z18 Japan only      → GSI seamlessphoto (国土地理院, free)
- *       z14+ outside Japan      → 204 (CesiumJS shows z13 upscaled)
+ *       z0-z3 anywhere          → MapTiler satellite-v2 (only 85 tiles, pre-cached)
+ *       z4-z18 Japan only       → GSI seamlessphoto (国土地理院, free unlimited)
+ *       z4+ outside Japan       → 204 (CesiumJS shows z3 upscaled)
  *   /terrain/*                  → MapTiler terrain quantized-mesh
  *   /plateau/*                  → PLATEAU 3D Tiles (国土交通省, 90-day cache)
  *   /warm                       → Pre-warm satellite tiles (manual/cron)
  *   /health                     → Health check
  *
  * Cache: CF edge, 30-day TTL (90d for PLATEAU).
- * Pre-warm: global z0-z5 + seismic zones z6-z8 ≈ 6,400 tiles (6% of free quota).
+ * Pre-warm: global z0-z3 = 85 tiles (nearly zero MapTiler quota usage).
  * Cron: daily 03:00 UTC.
  *
  * Credits: © MapTiler © OSM contributors | 航空写真: 国土地理院 | 3D都市: PLATEAU
@@ -40,37 +40,8 @@ function isJapan(lon: number, lat: number): boolean {
          lat >= JAPAN.minLat && lat <= JAPAN.maxLat;
 }
 
-// ── Seismic zones for pre-warming z6-z8 ─────────────────────────
-
-interface BBox {
-  id: string;
-  minLon: number; maxLon: number;
-  minLat: number; maxLat: number;
-}
-
-const SEISMIC_ZONES: BBox[] = [
-  // Pacific Ring of Fire
-  { id: 'japan',       minLon: 122, maxLon: 154, minLat: 24,  maxLat: 46 },
-  { id: 'philippines', minLon: 117, maxLon: 127, minLat: 5,   maxLat: 20 },
-  { id: 'indonesia',   minLon: 95,  maxLon: 141, minLat: -11, maxLat: 6 },
-  { id: 'nz',          minLon: 165, maxLon: 179, minLat: -48, maxLat: -34 },
-  { id: 'alaska',      minLon: -170,maxLon: -140,minLat: 51,  maxLat: 65 },
-  { id: 'cascadia',    minLon: -130,maxLon: -120,minLat: 40,  maxLat: 50 },
-  { id: 'california',  minLon: -125,maxLon: -114,minLat: 32,  maxLat: 42 },
-  { id: 'mexico',      minLon: -106,maxLon: -93, minLat: 14,  maxLat: 20 },
-  { id: 'chile',       minLon: -76, maxLon: -66, minLat: -45, maxLat: -18 },
-  { id: 'peru',        minLon: -82, maxLon: -68, minLat: -18, maxLat: 0 },
-  // Alpine-Himalayan belt
-  { id: 'turkey',      minLon: 26,  maxLon: 45,  minLat: 36,  maxLat: 42 },
-  { id: 'iran',        minLon: 44,  maxLon: 63,  minLat: 25,  maxLat: 40 },
-  { id: 'nepal',       minLon: 80,  maxLon: 89,  minLat: 26,  maxLat: 31 },
-  { id: 'italy',       minLon: 6,   maxLon: 19,  minLat: 36,  maxLat: 47 },
-  { id: 'greece',      minLon: 19,  maxLon: 30,  minLat: 34,  maxLat: 42 },
-  // Other active
-  { id: 'taiwan',      minLon: 119, maxLon: 123, minLat: 21,  maxLat: 26 },
-  { id: 'iceland',     minLon: -25, maxLon: -13, minLat: 63,  maxLat: 67 },
-  { id: 'caribbean',   minLon: -75, maxLon: -60, minLat: 10,  maxLat: 20 },
-];
+// ── Tile coordinate helpers ─────────────────────────────────────
+// (bboxTiles / seismic zones removed — z0-z3 global warm only)
 
 // ── Cache-first tile fetch ──────────────────────────────────────
 
@@ -109,29 +80,6 @@ async function fetchTileCached(
   return response;
 }
 
-// ── Tile coordinate helpers ─────────────────────────────────────
-
-function latLngToTile(lat: number, lng: number, z: number): [number, number] {
-  const n = 1 << z;
-  const x = Math.floor(((lng + 180) / 360) * n);
-  const latRad = (lat * Math.PI) / 180;
-  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
-  return [Math.min(x, n - 1), Math.min(y, n - 1)];
-}
-
-function bboxTiles(bbox: BBox, z: number): Array<{ z: number; x: number; y: number }> {
-  const maxIdx = (1 << z) - 1;
-  const [xMin, yMax] = latLngToTile(bbox.minLat, bbox.minLon, z);
-  const [xMax, yMin] = latLngToTile(bbox.maxLat, bbox.maxLon, z);
-  const tiles: Array<{ z: number; x: number; y: number }> = [];
-  for (let x = Math.max(0, xMin); x <= Math.min(maxIdx, xMax); x++) {
-    for (let y = Math.max(0, yMin); y <= Math.min(maxIdx, yMax); y++) {
-      tiles.push({ z, x, y });
-    }
-  }
-  return tiles;
-}
-
 function globalTiles(z: number): Array<{ z: number; x: number; y: number }> {
   const n = 1 << z;
   const tiles: Array<{ z: number; x: number; y: number }> = [];
@@ -146,28 +94,14 @@ function globalTiles(z: number): Array<{ z: number; x: number; y: number }> {
 // ── Warming ─────────────────────────────────────────────────────
 
 /**
- * Budget-friendly warm list:
- *   Global z0-z5       ≈ 1,365 tiles
- *   Seismic zones z6-z8 ≈ 5,000 tiles (deduplicated)
- *   Total              ≈ 6,400 tiles (6% of MapTiler Flex free quota)
+ * Minimal warm list — only z0-z3 globally (MapTiler).
+ * z4+ uses GSI (free unlimited) so no warming needed.
+ *   z0: 1 tile, z1: 4, z2: 16, z3: 64 = 85 tiles total
  */
 function buildWarmList(): Array<{ z: number; x: number; y: number }> {
   const tiles: Array<{ z: number; x: number; y: number }> = [];
-  for (let z = 0; z <= 5; z++) {
+  for (let z = 0; z <= 3; z++) {
     tiles.push(...globalTiles(z));
-  }
-
-  const seen = new Set(tiles.map((t) => `${t.z}/${t.x}/${t.y}`));
-  for (const zone of SEISMIC_ZONES) {
-    for (let z = 6; z <= 8; z++) {
-      for (const tile of bboxTiles(zone, z)) {
-        const key = `${tile.z}/${tile.x}/${tile.y}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          tiles.push(tile);
-        }
-      }
-    }
   }
   return tiles;
 }
@@ -194,7 +128,7 @@ async function warmTiles(
           return;
         }
 
-        // All warm tiles are z0-z8, always MapTiler
+        // All warm tiles are z0-z3, always MapTiler
         const upstreamUrl = `https://api.maptiler.com/tiles/satellite-v2/${tile.z}/${tile.x}/${tile.y}.jpg?key=${key}`;
         const resp = await fetch(upstreamUrl);
         if (resp.ok) {
@@ -256,17 +190,15 @@ export default {
       const { lon, lat } = tileToLonLat(z, x, y);
       const japan = isJapan(lon, lat);
 
-      // z14+ outside Japan → blocked
-      if (!japan && z > 13) {
-        return new Response(null, { status: 204 });
-      }
-
-      // z14+ Japan → GSI seamlessphoto (free, no API key)
+      // z0-z3: MapTiler satellite globally (only 85 tiles, all pre-cached)
+      // z4+: GSI seamlessphoto for Japan only, 204 for outside Japan
       let originUrl: string;
-      if (z >= 14 && japan) {
+      if (z <= 3) {
+        originUrl = `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${env.MAPTILER_KEY}`;
+      } else if (japan) {
         originUrl = `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/${z}/${x}/${y}.jpg`;
       } else {
-        originUrl = `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${env.MAPTILER_KEY}`;
+        return new Response(null, { status: 204 });
       }
 
       return fetchTileCached(request.url, originUrl, ttl);
@@ -307,7 +239,7 @@ export default {
       const tiles = buildWarmList();
       const result = await warmTiles(tiles, baseUrl, env.MAPTILER_KEY, ttl);
       return Response.json(
-        { ...result, zones: SEISMIC_ZONES.map((z) => z.id) },
+        { ...result, strategy: 'z0-z3 global MapTiler' },
         { headers: { 'Access-Control-Allow-Origin': '*' } },
       );
     }
