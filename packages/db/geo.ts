@@ -84,16 +84,60 @@ const COAST_REFS: CoastRef[] = [
   { lat: 33.5, lng: 132.0, seaLat: -0.5, seaLng: 0.5, name: 'Bungo-Channel' },
   { lat: 34.3, lng: 135.0, seaLat: -0.5, seaLng: 0, name: 'Kii-Channel' },
 
-  // ── Okinawa/Ryukyu (sea = all around) ──
-  { lat: 26.5, lng: 128.0, seaLat: 0, seaLng: 1, name: 'Okinawa' },
-  { lat: 24.5, lng: 124.0, seaLat: 0, seaLng: -1, name: 'Miyako' },
+  // ── Okinawa/Ryukyu (islands — sea in all directions) ──
+  // For islands, seaLat/seaLng are less meaningful; the island zone check handles these.
+  // Multiple refs per island help distance estimation.
+  { lat: 26.5, lng: 128.0, seaLat: 0, seaLng: 1, name: 'Okinawa-E' },
+  { lat: 26.3, lng: 127.5, seaLat: 0, seaLng: -1, name: 'Okinawa-W' },
+  { lat: 26.7, lng: 127.8, seaLat: 1, seaLng: 0, name: 'Okinawa-N' },
+  { lat: 24.8, lng: 125.3, seaLat: 0, seaLng: 1, name: 'Miyako-E' },
+  { lat: 24.8, lng: 125.1, seaLat: 0, seaLng: -1, name: 'Miyako-W' },
+  { lat: 24.3, lng: 124.2, seaLat: -1, seaLng: 0, name: 'Yaeyama-S' },
+  { lat: 24.5, lng: 124.0, seaLat: 0, seaLng: -1, name: 'Yaeyama-W' },
+  { lat: 24.5, lng: 124.4, seaLat: 0, seaLng: 1, name: 'Yaeyama-E' },
+  { lat: 28.4, lng: 129.5, seaLat: 0, seaLng: 1, name: 'Amami-E' },
+  { lat: 28.3, lng: 129.3, seaLat: 0, seaLng: -1, name: 'Amami-W' },
+  { lat: 30.4, lng: 130.5, seaLat: 0, seaLng: 1, name: 'Yakushima-E' },
+  { lat: 30.3, lng: 130.4, seaLat: 0, seaLng: -1, name: 'Yakushima-W' },
 ];
 
 // ── Place Text Parsing ──
 
 const OFFSHORE_PATTERN = /\boffshore\b|off\s+(the\s+)?(east|west|south|north|se|sw|ne|nw)?\s*coast|沖(?!縄)|海溝/i;
 const NEAR_COAST_PATTERN = /near\s+(the\s+)?(\w+\s+)?coast|近海|水道|channel|strait|海峡|灘|湾|sea\s+of\s+japan|日本海|east\s+china\s+sea|東シナ海|半島/i;
+// USGS directional place text: "south of X", "47 km SSE of Nago", "79 km E of Naze"
+// All 16 compass points (uppercase, USGS convention) + full cardinal names (case-insensitive)
+const USGS_DIRECTIONAL_PATTERN = /(?:\d+\s*km\s+)?(?:[Ss]outh|[Nn]orth|[Ee]ast|[Ww]est|NNE|NE|ENE|ESE|SE|SSE|SSW|SW|WSW|WNW|NW|NNW|[NSEW])\s+of\s+/;
 const INLAND_PATTERN = /県[北南東西中]部|県.+地方|地方$|市$|区$|町$|村$/i;
+
+// ── Island / Archipelago Zones ──
+// These zones are small islands surrounded by ocean. "inland" is impossible.
+// Any epicenter in these bounding boxes defaults to near_coast/offshore.
+
+interface IslandZone {
+  name: string;
+  latMin: number; latMax: number;
+  lngMin: number; lngMax: number;
+}
+
+const ISLAND_ZONES: IslandZone[] = [
+  // Ryukyu chain: Okinawa, Miyako, Yaeyama, Amami
+  { name: 'Ryukyu', latMin: 23.0, latMax: 30.0, lngMin: 122.0, lngMax: 132.0 },
+  // Ogasawara (Bonin) islands
+  { name: 'Ogasawara', latMin: 24.0, latMax: 28.0, lngMin: 140.0, lngMax: 143.0 },
+  // Izu islands (south of Tokyo)
+  { name: 'Izu-Islands', latMin: 30.0, latMax: 34.5, lngMin: 138.5, lngMax: 141.0 },
+];
+
+function isInIslandZone(lat: number, lng: number): IslandZone | null {
+  for (const zone of ISLAND_ZONES) {
+    if (lat >= zone.latMin && lat <= zone.latMax &&
+        lng >= zone.lngMin && lng <= zone.lngMax) {
+      return zone;
+    }
+  }
+  return null;
+}
 
 /**
  * Classify earthquake epicenter as offshore, near-coast, or inland.
@@ -131,8 +175,32 @@ export function classifyLocation(
       };
     }
 
-    // Inland only if NO sea-related keywords
+    // USGS directional text like "south of Miyakojima" or "47 km SSE of Nago"
+    // These indicate the epicenter is relative to a place, likely offshore or near-coast
+    if (USGS_DIRECTIONAL_PATTERN.test(text)) {
+      const dist = estimateCoastDistance(lat, lng);
+      const type = dist > 50 ? 'offshore' : 'near_coast';
+      return {
+        type,
+        confidence: 'medium',
+        coastDistanceKm: dist,
+        reason: `USGS directional place text (${type}): "${text.slice(0, 60)}"`,
+      };
+    }
+
+    // Inland only if NO sea-related keywords AND not in an island zone
     if (INLAND_PATTERN.test(text) && !OFFSHORE_PATTERN.test(text) && !NEAR_COAST_PATTERN.test(text)) {
+      // Island zones can never be "inland"
+      const island = isInIslandZone(lat, lng);
+      if (island) {
+        const dist = estimateCoastDistance(lat, lng);
+        return {
+          type: 'near_coast',
+          confidence: 'medium',
+          coastDistanceKm: dist,
+          reason: `Island zone (${island.name}) — cannot be inland: "${text.slice(0, 60)}"`,
+        };
+      }
       const dist = estimateCoastDistance(lat, lng);
       return {
         type: 'inland',
@@ -143,7 +211,20 @@ export function classifyLocation(
     }
   }
 
-  // 2. Geometric fallback
+  // 2. Island zone check before geometric fallback
+  const island = isInIslandZone(lat, lng);
+  if (island) {
+    const dist = estimateCoastDistance(lat, lng);
+    const type = dist > 50 ? 'offshore' : 'near_coast';
+    return {
+      type,
+      confidence: 'medium',
+      coastDistanceKm: dist,
+      reason: `Island zone (${island.name}), ~${dist}km from nearest coast ref`,
+    };
+  }
+
+  // 3. Geometric fallback
   return classifyByGeometry(lat, lng);
 }
 
