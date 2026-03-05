@@ -71,6 +71,13 @@ function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
 }
 
+function peekTitle(): string {
+  const locale = getLocale();
+  if (locale === 'ja') return '今すぐ確認する地震';
+  if (locale === 'ko') return '지금 확인할 지진';
+  return 'What Matters Now';
+}
+
 function getSnapHeight(snap: SnapPoint): number {
   switch (snap) {
     case 'peek': return PEEK_HEIGHT;
@@ -91,11 +98,17 @@ function setSheetPosition(height: number, animate = true): void {
     ? 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)' : 'none';
   sheetEl.style.transform = `translateY(${translateY}px)`;
   sheetHeight = height;
+  syncBodyVisibility(height);
 }
 
 function snapTo(snap: SnapPoint): void {
   currentSnap = snap;
   setSheetPosition(getSnapHeight(snap), true);
+}
+
+function syncBodyVisibility(height: number): void {
+  const visiblePeekThreshold = getSnapHeight('peek') + 24;
+  sheetEl.dataset.sheetMode = height <= visiblePeekThreshold ? 'peek' : 'expanded';
 }
 
 /** Determine snap target based on current position and velocity. */
@@ -235,7 +248,7 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
     });
 
     const headerRow = el('div', 'peek__header');
-    headerRow.appendChild(el('span', 'peek__title', t('sheet.recentTitle')));
+    headerRow.appendChild(el('span', 'peek__title', peekTitle()));
     headerRow.appendChild(el('span', 'peek__chevron', '\u25B2'));
     peekEl.appendChild(headerRow);
 
@@ -298,6 +311,7 @@ export function initMobileSheet(): SheetContainers {
   sheetEl.appendChild(bodyEl);
 
   document.body.appendChild(sheetEl);
+  sheetEl.dataset.sheetMode = 'peek';
 
   // Start hidden — reveal when data arrives
   sheetEl.style.transform = 'translateY(100vh)';

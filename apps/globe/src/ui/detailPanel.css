@@ -171,6 +171,37 @@
   margin-top: 12px;
 }
 
+.detail-tools {
+  margin-top: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  background: var(--surface-card);
+}
+
+.detail-tools__summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-disabled);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.detail-tools__summary::-webkit-details-marker {
+  display: none;
+}
+
+.detail-tools[open] .detail-tools__summary {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-tools .detail-actions {
+  margin-top: 0;
+  padding: 12px 14px 14px;
+}
+
 .detail-action-btn {
   flex: 1;
   padding: 7px 0;

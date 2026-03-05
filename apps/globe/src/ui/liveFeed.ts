@@ -33,6 +33,8 @@ let currentClusters: Map<string, ClusteredEvent> = new Map();
 let expandedClusters: Set<string> = new Set();
 let hasReceivedData = false;
 
+const ALERT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // ── Helpers ──
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -343,7 +345,11 @@ export function updateLiveFeed(
   if (!headerCountEl) return;
 
   headerCountEl.textContent = formatEventCount(events.length);
-  const hasM5 = events.some(e => e.magnitude >= 5.0);
+  const now = Date.now();
+  const hasM5 = events.some((event) =>
+    event.magnitude >= 5.0
+    && (now - event.time) <= ALERT_WINDOW_MS,
+  );
   alertBadgeEl.style.display = hasM5 ? 'block' : 'none';
 
   refreshStatusBar();

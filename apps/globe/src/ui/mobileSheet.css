@@ -69,6 +69,13 @@
     pointer-events: auto;
     background: var(--surface-panel);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    opacity: 1;
+    transition: opacity 180ms ease;
+  }
+
+  .mobile-sheet[data-sheet-mode='peek'] .mobile-sheet__body {
+    opacity: 0;
+    pointer-events: none;
   }
 
   .peek__mag {

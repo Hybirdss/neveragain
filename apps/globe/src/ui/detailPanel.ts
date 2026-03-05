@@ -19,6 +19,8 @@ let tsunamiDetailEl: HTMLElement;
 let actionListEl: HTMLElement;
 let factsGridEl: HTMLElement;
 let detailSourceTag: HTMLElement;
+let advancedToolsEl: HTMLDetailsElement;
+let advancedToolsSummaryEl: HTMLElement;
 let crossSectionBtn: HTMLElement;
 
 let lastRenderedEventId: string | null = null;
@@ -38,13 +40,16 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function uiText(key: 'intensity' | 'actions' | 'facts'): string {
+function uiText(key: 'intensity' | 'actions' | 'facts' | 'tools'): string {
   const locale = getLocale();
   if (key === 'intensity') {
     return locale === 'ja' ? '推定震度' : locale === 'ko' ? '예상 진도' : 'Expected intensity';
   }
   if (key === 'actions') {
     return locale === 'ja' ? '今すぐ確認したいこと' : locale === 'ko' ? '지금 확인할 것' : 'What to do now';
+  }
+  if (key === 'tools') {
+    return locale === 'ja' ? '専門ツール' : locale === 'ko' ? '전문 도구' : 'Advanced tools';
   }
   return locale === 'ja' ? '事実データ' : locale === 'ko' ? '사실 데이터' : 'Event facts';
 }
@@ -121,11 +126,14 @@ function buildDetailDOM(): HTMLElement {
 
   detailPanel.appendChild(buildAnalysisSection());
 
+  advancedToolsEl = el('details', 'detail-tools') as HTMLDetailsElement;
+  advancedToolsSummaryEl = el('summary', 'detail-tools__summary', uiText('tools'));
   const actions = el('div', 'detail-actions');
   crossSectionBtn = el('button', 'detail-action-btn', t('detail.crossSection'));
   crossSectionBtn.addEventListener('click', () => store.set('viewPreset', 'crossSection'));
   actions.appendChild(crossSectionBtn);
-  detailPanel.appendChild(actions);
+  advancedToolsEl.append(advancedToolsSummaryEl, actions);
+  detailPanel.appendChild(advancedToolsEl);
 
   return detailPanel;
 }
@@ -181,6 +189,7 @@ export function refreshDetail(
   if (lastRenderedEventId !== selectedEvent.id) {
     detailPanel.parentElement?.scrollTo({ top: 0, behavior: 'smooth' });
     lastRenderedEventId = selectedEvent.id;
+    advancedToolsEl.open = false;
   }
 
   const ai = store.get('ai');
@@ -217,6 +226,7 @@ export function refreshDetail(
   updateSourceTag(intensitySource);
 
   updateAnalysis(ai.currentAnalysis, ai.analysisLoading, ai.analysisError);
+  advancedToolsEl.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';
   crossSectionBtn.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';
 }
 
@@ -236,6 +246,7 @@ export function initDetailPanel(container: HTMLElement): void {
   });
   unsubLocale = onLocaleChange(() => {
     crossSectionBtn.textContent = t('detail.crossSection');
+    advancedToolsSummaryEl.textContent = uiText('tools');
     const selected = store.get('selectedEvent');
     if (selected) refreshDetail(selected, store.get('intensitySource'));
   });

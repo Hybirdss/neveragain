@@ -70,6 +70,10 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
     fallbackModerate: 'Noticeable shaking is likely. Watch for falling objects.',
     fallbackStrong: 'Strong shaking is possible. Protect yourself and secure loose items.',
     fallbackSevere: 'Strong shaking is likely. Protect yourself immediately and expect damage.',
+    staleLight: 'Light shaking was reported. Stay aware of local updates.',
+    staleModerate: 'Noticeable shaking was reported. Check for minor damage and local updates.',
+    staleStrong: 'Strong shaking was reported. Check buildings, transport, and aftershock updates.',
+    staleSevere: 'Severe shaking was reported. Be cautious around damaged buildings and infrastructure.',
     noTsunami: 'No tsunami expected',
   },
   ja: {
@@ -81,6 +85,10 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
     fallbackModerate: 'はっきりした揺れが想定されます。落下物に注意してください。',
     fallbackStrong: '強い揺れの可能性があります。身を守り、落下物に注意してください。',
     fallbackSevere: '強い揺れが予想されます。直ちに身の安全を確保してください。',
+    staleLight: '弱い揺れが報告されています。地域の最新情報を確認してください。',
+    staleModerate: 'はっきりした揺れが報告されています。軽微な被害や最新情報を確認してください。',
+    staleStrong: '強い揺れが報告されています。建物や交通、余震情報を確認してください。',
+    staleSevere: '激しい揺れが報告されています。損傷した建物やインフラに注意してください。',
     noTsunami: '津波の心配はありません',
   },
   ko: {
@@ -92,6 +100,10 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
     fallbackModerate: '분명한 흔들림이 예상됩니다. 낙하물에 주의하세요.',
     fallbackStrong: '강한 흔들림 가능성이 있습니다. 몸을 보호하고 주변 물건을 확인하세요.',
     fallbackSevere: '강한 흔들림이 예상됩니다. 즉시 몸을 보호하고 피해에 대비하세요.',
+    staleLight: '약한 흔들림이 보고되었습니다. 지역 최신 정보를 확인하세요.',
+    staleModerate: '분명한 흔들림이 보고되었습니다. 경미한 피해와 최신 정보를 확인하세요.',
+    staleStrong: '강한 흔들림이 보고되었습니다. 건물, 교통, 여진 정보를 확인하세요.',
+    staleSevere: '심한 흔들림이 보고되었습니다. 손상된 건물과 기반시설에 주의하세요.',
     noTsunami: '쓰나미 우려는 없습니다',
   },
 };
@@ -99,23 +111,32 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
 const ACTION_COPY: Record<PresentationLocale, Record<string, string>> = {
   en: {
     tsunamiMove: 'Move away from the coast and follow official tsunami updates.',
+    tsunamiReview: 'Review official tsunami bulletins before returning to coastal areas.',
     protectStrong: 'Protect your head and stay away from glass or falling objects.',
     protectModerate: 'Check shelves, lights, and loose objects around you.',
     protectLight: 'Stay alert for shaking and secure unstable items nearby.',
+    inspectDamage: 'If you felt shaking, inspect glass, shelves, and utilities for damage.',
+    reviewOfficial: 'Review official updates on transport, utilities, and local advisories.',
     aftershock: 'Expect aftershocks and re-check official guidance before moving.',
   },
   ja: {
     tsunamiMove: '海岸から離れ、津波の公式情報を確認してください。',
+    tsunamiReview: '海岸へ戻る前に、津波の公式発表を確認してください。',
     protectStrong: '頭を守り、ガラスや落下物から離れてください。',
     protectModerate: '棚や照明、落下しやすい物を確認してください。',
     protectLight: '揺れに注意し、倒れやすい物を確認してください。',
+    inspectDamage: '揺れを感じた場合は、ガラスや棚、ライフラインの被害を確認してください。',
+    reviewOfficial: '交通、ライフライン、地域の注意情報を公式発表で確認してください。',
     aftershock: '余震に備え、移動前に公式情報を再確認してください。',
   },
   ko: {
     tsunamiMove: '해안에서 멀어지고 쓰나미 공식 정보를 계속 확인하세요.',
+    tsunamiReview: '해안으로 돌아가기 전 쓰나미 공식 발표를 다시 확인하세요.',
     protectStrong: '머리를 보호하고 유리나 낙하물에서 떨어지세요.',
     protectModerate: '선반, 조명, 떨어질 수 있는 물건을 확인하세요.',
     protectLight: '추가 흔들림에 대비하고 주변의 불안정한 물건을 살피세요.',
+    inspectDamage: '흔들림을 느꼈다면 유리, 선반, 설비 피해를 점검하세요.',
+    reviewOfficial: '교통, 설비, 지역 주의사항 관련 공식 업데이트를 확인하세요.',
     aftershock: '여진에 대비하고 이동 전 공식 안내를 다시 확인하세요.',
   },
 };
@@ -144,6 +165,10 @@ const JMA_RANK: Record<JmaClass, number> = {
   '6+': 8,
   '7': 9,
 };
+
+const HERO_PRIMARY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const HERO_SECONDARY_WINDOW_MS = 72 * 60 * 60 * 1000;
+const IMMEDIATE_ALERT_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 type LocalizedLike = string | { en?: string; ja?: string; ko?: string } | null | undefined;
 type AnalysisLike = Record<string, unknown> | null | undefined;
@@ -228,18 +253,29 @@ function fallbackMessage(
   event: EarthquakeEvent,
   tsunami: TsunamiAssessment | null | undefined,
   locale: PresentationLocale,
+  now: number,
 ): string {
   const jma = computeSeverity(event);
-  let base = copy(locale, 'fallbackLight');
-  if (JMA_RANK[jma] >= JMA_RANK['6-']) base = copy(locale, 'fallbackSevere');
-  else if (JMA_RANK[jma] >= JMA_RANK['5-']) base = copy(locale, 'fallbackStrong');
-  else if (JMA_RANK[jma] >= JMA_RANK['4']) base = copy(locale, 'fallbackModerate');
+  const immediate = isImmediateAlertTone(event, now);
 
-  if (tsunami && (tsunami.risk === 'high' || tsunami.risk === 'moderate')) {
+  let base = copy(locale, immediate ? 'fallbackLight' : 'staleLight');
+  if (JMA_RANK[jma] >= JMA_RANK['6-']) {
+    base = copy(locale, immediate ? 'fallbackSevere' : 'staleSevere');
+  } else if (JMA_RANK[jma] >= JMA_RANK['5-']) {
+    base = copy(locale, immediate ? 'fallbackStrong' : 'staleStrong');
+  } else if (JMA_RANK[jma] >= JMA_RANK['4']) {
+    base = copy(locale, immediate ? 'fallbackModerate' : 'staleModerate');
+  }
+
+  if (immediate && tsunami && (tsunami.risk === 'high' || tsunami.risk === 'moderate')) {
     base = copy(locale, 'fallbackStrong');
   }
 
-  const tsunamiDetail = buildTsunamiSummary(tsunami, locale)?.detail;
+  if (!immediate && tsunami && (tsunami.risk === 'high' || tsunami.risk === 'moderate')) {
+    return `${base} ${actionCopy(locale, 'tsunamiReview')}`;
+  }
+
+  const tsunamiDetail = immediate ? buildTsunamiSummary(tsunami, locale)?.detail : '';
   return tsunamiDetail ? `${base} ${tsunamiDetail}` : base;
 }
 
@@ -307,7 +343,19 @@ function fallbackActionItems(
   event: EarthquakeEvent,
   tsunami: TsunamiAssessment | null | undefined,
   locale: PresentationLocale,
+  now: number,
 ): string[] {
+  if (!isImmediateAlertTone(event, now)) {
+    const items: string[] = [];
+    if (tsunami && (tsunami.risk === 'high' || tsunami.risk === 'moderate')) {
+      items.push(actionCopy(locale, 'tsunamiReview'));
+    }
+    items.push(actionCopy(locale, 'inspectDamage'));
+    items.push(actionCopy(locale, 'reviewOfficial'));
+    items.push(actionCopy(locale, 'aftershock'));
+    return [...new Set(items)].slice(0, 3);
+  }
+
   const severity = computeSeverity(event);
   const items: string[] = [];
 
@@ -326,6 +374,43 @@ function fallbackActionItems(
   items.push(actionCopy(locale, 'aftershock'));
 
   return [...new Set(items)].slice(0, 3);
+}
+
+function eventAgeMs(event: EarthquakeEvent, now: number): number {
+  return Math.max(0, now - event.time);
+}
+
+function isImmediateAlertTone(event: EarthquakeEvent, now: number): boolean {
+  return eventAgeMs(event, now) <= IMMEDIATE_ALERT_WINDOW_MS;
+}
+
+function heroRankingScore(event: EarthquakeEvent, now: number): number {
+  const severity = computeSeverity(event);
+  const ageHours = eventAgeMs(event, now) / 3_600_000;
+  return (JMA_RANK[severity] * 10) + (event.magnitude * 2) + (event.tsunami ? 6 : 0) - (ageHours * 0.6);
+}
+
+function heroCandidates(events: EarthquakeEvent[], now: number): EarthquakeEvent[] {
+  const primary = events.filter((event) => eventAgeMs(event, now) <= HERO_PRIMARY_WINDOW_MS);
+  if (primary.length > 0) return primary;
+
+  const secondary = events.filter((event) => eventAgeMs(event, now) <= HERO_SECONDARY_WINDOW_MS);
+  if (secondary.length > 0) return secondary;
+
+  return events;
+}
+
+function buildPrimaryMessage(args: {
+  analysis: AnalysisLike;
+  event: EarthquakeEvent;
+  tsunamiAssessment: TsunamiAssessment | null | undefined;
+  locale: PresentationLocale;
+  now: number;
+}): string {
+  const { analysis, event, tsunamiAssessment, locale, now } = args;
+  const aiMessage = readOneLiner(analysis, locale);
+  if (aiMessage && isImmediateAlertTone(event, now)) return aiMessage;
+  return fallbackMessage(event, tsunamiAssessment, locale, now);
 }
 
 function readHistoricalComparison(
@@ -403,9 +488,13 @@ export function deriveTsunamiAssessmentFromEvent(event: EarthquakeEvent): Tsunam
   };
 }
 
-export function pickHeroEvent(events: EarthquakeEvent[]): EarthquakeEvent | null {
+export function pickHeroEvent(events: EarthquakeEvent[], now: number = Date.now()): EarthquakeEvent | null {
   if (events.length === 0) return null;
-  return [...events].sort((a, b) => b.magnitude - a.magnitude || b.time - a.time)[0] ?? null;
+  return [...heroCandidates(events, now)].sort((a, b) =>
+    heroRankingScore(b, now) - heroRankingScore(a, now)
+    || b.time - a.time
+    || b.magnitude - a.magnitude,
+  )[0] ?? null;
 }
 
 export function buildHeroSummary(args: {
@@ -441,7 +530,13 @@ export function buildHeroSummary(args: {
   return {
     state: isLoading ? 'loading' : 'ready',
     headline,
-    message: readOneLiner(analysis, locale) || fallbackMessage(event, args.tsunamiAssessment, locale),
+    message: buildPrimaryMessage({
+      analysis,
+      event,
+      tsunamiAssessment: args.tsunamiAssessment,
+      locale,
+      now,
+    }),
     place,
     relativeTime: formatRelativeTime(event.time, locale, now),
     magnitudeLabel: `M${event.magnitude.toFixed(1)}`,
@@ -464,7 +559,13 @@ export function buildLiveFeedSummary(args: {
     place: getEventPlace(event, locale),
     relativeTime: formatRelativeTime(event.time, locale, now),
     magnitudeLabel: `M${event.magnitude.toFixed(1)}`,
-    meaning: readOneLiner(analysis, locale) || fallbackMessage(event, args.tsunamiAssessment, locale),
+    meaning: buildPrimaryMessage({
+      analysis,
+      event,
+      tsunamiAssessment: args.tsunamiAssessment,
+      locale,
+      now,
+    }),
     severity: computeSeverity(event),
     tsunamiLabel: buildTsunamiSummary(args.tsunamiAssessment, locale)?.label ?? null,
   };
@@ -483,7 +584,13 @@ export function buildDetailSummary(args: {
   const actionItems = readActionItems(analysis, locale);
   return {
     headline: readHeadline(analysis, locale) || getEventPlace(event, locale),
-    summary: readOneLiner(analysis, locale) || fallbackMessage(event, args.tsunamiAssessment, locale),
+    summary: buildPrimaryMessage({
+      analysis,
+      event,
+      tsunamiAssessment: args.tsunamiAssessment,
+      locale,
+      now,
+    }),
     place: getEventPlace(event, locale),
     relativeTime: formatRelativeTime(event.time, locale, now),
     magnitudeLabel: `M${event.magnitude.toFixed(1)}`,
@@ -494,7 +601,7 @@ export function buildDetailSummary(args: {
     tsunami: buildTsunamiSummary(args.tsunamiAssessment, locale),
     actionItems: actionItems.length > 0
       ? actionItems
-      : fallbackActionItems(event, args.tsunamiAssessment, locale),
+      : fallbackActionItems(event, args.tsunamiAssessment, locale, now),
     rawFacts: [
       { label: locale === 'ja' ? '規模' : locale === 'ko' ? '규모' : 'Magnitude', value: `M${event.magnitude.toFixed(1)}` },
       { label: locale === 'ja' ? '深さ' : locale === 'ko' ? '깊이' : 'Depth', value: formatDepth(event, locale) },

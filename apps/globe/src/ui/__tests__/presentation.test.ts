@@ -138,21 +138,21 @@ const SHARED_STYLE_ANALYSIS = {
 };
 
 describe('pickHeroEvent', () => {
-  it('prefers the strongest recent event', () => {
-    const weaker = {
+  it('favors fresher high-signal incidents over stale larger earthquakes', () => {
+    const fresherModerate = {
       ...EVENT,
-      id: 'eq-weak',
-      magnitude: 4.9,
-      time: EVENT.time + 60_000,
+      id: 'eq-fresh',
+      magnitude: 4.7,
+      time: NOW - (10 * 60 * 60 * 1000),
     };
-    const strongerOlder = {
+    const strongerStale = {
       ...EVENT,
-      id: 'eq-strong',
+      id: 'eq-stale',
       magnitude: 6.2,
-      time: EVENT.time - 60_000,
+      time: NOW - (3 * 24 * 60 * 60 * 1000),
     };
 
-    expect(pickHeroEvent([weaker, strongerOlder])?.id).toBe('eq-strong');
+    expect(pickHeroEvent([fresherModerate, strongerStale], NOW)?.id).toBe('eq-fresh');
   });
 });
 
@@ -207,6 +207,37 @@ describe('buildHeroSummary', () => {
     expect(summary.message).toContain('Strong shaking');
     expect(summary.message.toLowerCase()).toContain('tsunami');
     expect(summary.tsunami?.risk).toBe('moderate');
+  });
+
+  it('downgrades stale incidents to past-tense safety copy even if ai text is urgent', () => {
+    const staleEvent = {
+      ...EVENT,
+      id: 'eq-stale',
+      magnitude: 6.1,
+      time: NOW - (3 * 24 * 60 * 60 * 1000),
+    };
+    const urgentAnalysis = {
+      dashboard: {
+        headline: {
+          en: 'Severe shaking near Osaka',
+        },
+        one_liner: {
+          en: 'Protect yourself immediately and brace for severe shaking.',
+        },
+      },
+    };
+
+    const summary = buildHeroSummary({
+      event: staleEvent,
+      analysis: urgentAnalysis,
+      tsunamiAssessment: TSUNAMI_NONE,
+      locale: 'en',
+      now: NOW,
+      isLoading: false,
+    });
+
+    expect(summary.message).toContain('was reported');
+    expect(summary.message).not.toContain('Protect yourself immediately');
   });
 
   it('returns an empty hero state when no event is available', () => {
@@ -307,6 +338,28 @@ describe('buildDetailSummary', () => {
       'Expect aftershocks and re-check official guidance before moving.',
     ]);
     expect(summary.actionItems).not.toContain(summary.summary);
+  });
+
+  it('uses follow-up actions instead of immediate shelter actions for stale incidents', () => {
+    const summary = buildDetailSummary({
+      event: {
+        ...EVENT,
+        id: 'eq-stale-actions',
+        magnitude: 6.0,
+        time: NOW - (3 * 24 * 60 * 60 * 1000),
+      },
+      analysis: null,
+      tsunamiAssessment: TSUNAMI_NONE,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary.summary).toContain('was reported');
+    expect(summary.actionItems).toEqual([
+      'If you felt shaking, inspect glass, shelves, and utilities for damage.',
+      'Review official updates on transport, utilities, and local advisories.',
+      'Expect aftershocks and re-check official guidance before moving.',
+    ]);
   });
 });
 
