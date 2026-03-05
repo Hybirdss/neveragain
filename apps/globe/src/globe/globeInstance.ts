@@ -107,23 +107,41 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
     ? `/maptiler-proxy/tiles/terrain-quantized-mesh-v2/?key=${mapTilerKey}`
     : `${tileProxyUrl}/terrain/`;
 
+  // ── Parallel probes: terrain + tile ──────────────────────────
+  // Run both network probes in parallel to shave ~100-200ms off init.
+  const probeTerrainUrl = terrainUrl
+    ? (terrainUrl.endsWith('/') ? `${terrainUrl}layer.json` : `${terrainUrl}/layer.json`)
+    : '';
+
+  const tileProbeUrl = useProxy
+    ? (() => {
+        const url = satelliteUrl.replace('{z}', '0').replace('{x}', '0').replace('{y}', '0');
+        return url.startsWith('http') ? url : `${window.location.origin}${url}`;
+      })()
+    : '';
+
+  const [terrainProbeOk, tileProbeOk] = await Promise.all([
+    probeTerrainUrl
+      ? fetch(probeTerrainUrl, { method: 'GET' }).then(r => r.ok).catch(() => false)
+      : Promise.resolve(false),
+    tileProbeUrl
+      ? fetch(tileProbeUrl, { method: 'HEAD' }).then(r => r.ok).catch(() => false)
+      : Promise.resolve(false),
+  ]);
+
+  if (!terrainProbeOk && probeTerrainUrl) {
+    console.warn('[globe] Terrain probe failed — using ellipsoid');
+  }
+  if (!tileProbeOk && tileProbeUrl) {
+    console.warn('[globe] Tile probe failed — using free tiles');
+  }
+
   // ── Terrain provider ────────────────────────────────────────
-  // Probe terrain availability before committing — avoids persistent 503 errors
-  // that prevent the globe from rendering properly.
   let terrainProvider: Cesium.TerrainProvider | undefined;
-  if (terrainUrl) {
+  if (terrainProbeOk) {
     try {
-      // Quick probe: fetch layer.json to verify the server is actually up
-      const probeTerrainUrl = terrainUrl.endsWith('/')
-        ? `${terrainUrl}layer.json`
-        : `${terrainUrl}/layer.json`;
-      const terrainProbe = await fetch(probeTerrainUrl, { method: 'GET' });
-      if (!terrainProbe.ok) {
-        console.warn(`[globe] Terrain probe returned ${terrainProbe.status} — using ellipsoid`);
-      } else {
-        terrainProvider = await Cesium.CesiumTerrainProvider.fromUrl(terrainUrl);
-        console.log('[globe] Terrain loaded');
-      }
+      terrainProvider = await Cesium.CesiumTerrainProvider.fromUrl(terrainUrl);
+      console.log('[globe] Terrain loaded');
     } catch (err) {
       console.warn('[globe] Failed to load terrain, using ellipsoid:', err);
     }
@@ -151,32 +169,16 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
   console.log('[globe] Viewer created');
 
   // ── Tile loading tuning ─────────────────────────────────────
-  // Aggressive settings for sharp imagery on first load.
   viewer.scene.globe.tileCacheSize = 500;
-  viewer.scene.globe.maximumScreenSpaceError = 1.5;  // lower = sharper (default 2)
-  viewer.scene.globe.preloadSiblings = true;          // preload neighbors for snappy panning
-  viewer.scene.globe.loadingDescendantLimit = 8;      // allow deeper tile tree traversal
+  viewer.scene.globe.maximumScreenSpaceError = 1.5;
+  viewer.scene.globe.preloadSiblings = true;
+  viewer.scene.globe.loadingDescendantLimit = 8;
 
   Cesium.RequestScheduler.maximumRequests = 24;
   Cesium.RequestScheduler.maximumRequestsPerServer = 12;
 
   // ── Imagery layer ───────────────────────────────────────────
-  // Priority: CF Workers proxy (default) > MapTiler direct > GSI fallback
-  let proxyOk = false;
-  if (useProxy) {
-    try {
-      const probeUrl = satelliteUrl
-        .replace('{z}', '0').replace('{x}', '0').replace('{y}', '0');
-      const probeTarget = probeUrl.startsWith('http') ? probeUrl : `${window.location.origin}${probeUrl}`;
-      const resp = await fetch(probeTarget, { method: 'HEAD' });
-      proxyOk = resp.ok;
-      if (!resp.ok) {
-        console.warn(`[globe] Tile probe returned ${resp.status} — using free tiles`);
-      }
-    } catch {
-      console.warn('[globe] Tile source unreachable — using free tiles');
-    }
-  }
+  const proxyOk = tileProbeOk;
 
   // Base layer: dark map that covers z0+ so globe is never black when zoomed out
   viewer.imageryLayers.addImageryProvider(

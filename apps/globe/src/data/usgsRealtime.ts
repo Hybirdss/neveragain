@@ -192,15 +192,29 @@ async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
     return await fetchFromUSGS();
   }
 
+  // Hedged fetch: start server API immediately; if it hasn't responded
+  // in HEDGE_DELAY_MS, start USGS fetch in parallel and race both.
+  const HEDGE_DELAY_MS = 3_000;
+  const serverPromise = fetchFromServer();
+
+  const hedgedUsgs = new Promise<EarthquakeEvent[]>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      fetchFromUSGS().then(resolve, reject);
+    }, HEDGE_DELAY_MS);
+    // If server wins before hedge fires, cancel the timer
+    serverPromise.then(() => clearTimeout(timer), () => clearTimeout(timer));
+  });
+
   try {
-    return await fetchFromServer();
-  } catch (serverErr) {
+    return await Promise.any([serverPromise, hedgedUsgs]);
+  } catch {
+    // Both failed — log and throw
     const now = Date.now();
     if (now - lastFallbackWarnAt > FALLBACK_WARN_COOLDOWN_MS) {
-      console.warn('[usgsRealtime] Server events API unavailable, falling back to USGS feed:', serverErr);
+      console.warn('[usgsRealtime] Both server and USGS feeds failed');
       lastFallbackWarnAt = now;
     }
-    return await fetchFromUSGS();
+    throw new Error('All earthquake data sources unavailable');
   }
 }
 

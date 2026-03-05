@@ -12,7 +12,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 // Bootstrap
 import { createLayout } from './bootstrap/layout';
 import { setupGlobe } from './bootstrap/globeSetup';
-import { loadAllDataGrids } from './bootstrap/dataGridLoader';
+import { loadAllDataGrids, getVs30Grid } from './bootstrap/dataGridLoader';
 
 // Store & State
 import { store } from './store/appState';
@@ -34,7 +34,6 @@ import * as Cesium from 'cesium';
 import { getEventFromPoint } from './globe/layers/seismicPoints';
 import { initActiveFaults, disposeActiveFaults } from './globe/features/activeFaults';
 import { tryPickFault } from './globe/features/activeFaults';
-import { disableCrossSectionDrawing } from './globe/features/crossSectionLine';
 import { initGeocoder, disposeGeocoder } from './globe/geocoder';
 import { HISTORICAL_PRESETS } from './engine/presets';
 
@@ -149,7 +148,18 @@ async function bootstrap(): Promise<void> {
   ]);
   updateLoading('Globe ready', 60);
 
-  // 6. Remaining UI (needs globe reference)
+  // 6. Orchestrators FIRST — wire data pipeline before UI mounts
+  //    so any data arriving during UI creation flows through immediately.
+  updateLoading('Wiring engine…', 70);
+  const gmpe = createGmpeOrchestrator(getVs30Grid);
+  const disposeSelection = initSelectionOrchestrator(globe, gmpe);
+  const disposeLayers = initLayerOrchestrator(globe, dataGrids);
+  const disposeViewPreset = initViewPresetOrchestrator(globe);
+  const disposeTimeline2 = initTimelineOrchestrator(globe);
+  const disposeKeyboard = initKeyboardShortcuts();
+  const scenario = initScenarioOrchestrator(globe);
+
+  // 7. Remaining UI (needs globe reference)
   initImpactPanel(layout.sidebarContainer);
   initTimeline(layout.timelineContainer, createTimelineCallbacks());
   initIntensityLegend(layout.legendContainer);
@@ -159,7 +169,7 @@ async function bootstrap(): Promise<void> {
   initLocaleSwitcher(layout.globeArea);
   initDepthScale(layout.globeArea);
   initSearchBar();
-  initCrossSection(layout.globeArea);
+  initCrossSection(layout.globeArea, globe);
   initHomeButton(layout.globeArea, globe);
   const toolbarSlot = getToolbarSlot();
   if (toolbarSlot) {
@@ -183,7 +193,7 @@ async function bootstrap(): Promise<void> {
   syncTimelineVisibility(store.get('mode'));
   const unsubTimelineMode = store.subscribe('mode', syncTimelineVisibility);
 
-  // 7. Active faults (uses dataGrids result)
+  // 8. Active faults (uses dataGrids result)
   if (dataGrids.activeFaults.length > 0) {
     initActiveFaults(globe, dataGrids.activeFaults, (event, fault) => {
       store.set('mode', 'scenario');
@@ -200,16 +210,6 @@ async function bootstrap(): Promise<void> {
       store.set('selectedEvent', event);
     });
   }
-
-  // 8. Orchestrators
-  updateLoading('Wiring engine…', 80);
-  const gmpe = createGmpeOrchestrator(dataGrids.vs30Grid);
-  const disposeSelection = initSelectionOrchestrator(globe, gmpe);
-  const disposeLayers = initLayerOrchestrator(globe, dataGrids);
-  const disposeViewPreset = initViewPresetOrchestrator(globe);
-  const disposeTimeline2 = initTimelineOrchestrator(globe);
-  const disposeKeyboard = initKeyboardShortcuts();
-  const scenario = initScenarioOrchestrator(globe);
 
   // Scenario picker
   initScenarioPicker(
@@ -273,7 +273,6 @@ async function bootstrap(): Promise<void> {
       disposeLayerToggles();
       disposeLocaleSwitcher();
       disposeDepthScale();
-      disableCrossSectionDrawing(globe);
       disposeCrossSection();
       disposeActiveFaults(globe);
       disposeImpactPanel();

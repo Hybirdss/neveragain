@@ -10,9 +10,12 @@ export interface GmpeOrchestrator {
   dispose(): void;
 }
 
-export function createGmpeOrchestrator(vs30Grid: Vs30Grid | null): GmpeOrchestrator {
+export function createGmpeOrchestrator(
+  getVs30: () => Promise<Vs30Grid | null>,
+): GmpeOrchestrator {
   let requestSequence = 0;
   let activeRequestId: string | null = null;
+  let vs30Sent = false;
 
   const worker = new Worker(
     new URL('../engine/gmpe.worker.ts', import.meta.url),
@@ -33,21 +36,27 @@ export function createGmpeOrchestrator(vs30Grid: Vs30Grid | null): GmpeOrchestra
     console.error('[gmpe] Worker error:', err);
   };
 
+  async function sendVs30(): Promise<void> {
+    if (vs30Sent) return;
+    const vs30Grid = await getVs30();
+    if (!vs30Grid) return;
+    vs30Sent = true;
+    const bufferCopy = vs30Grid.data.buffer.slice(0) as ArrayBuffer;
+    const vs30Transfer: Vs30GridTransfer = {
+      data: bufferCopy,
+      cols: vs30Grid.cols,
+      rows: vs30Grid.rows,
+      latMin: vs30Grid.latMin,
+      lngMin: vs30Grid.lngMin,
+      step: vs30Grid.step,
+    };
+    const syncRequest: GmpeWorkerRequest = { type: 'SET_VS30_GRID', vs30Grid: vs30Transfer };
+    worker.postMessage(syncRequest, [vs30Transfer.data]);
+  }
+
   function requestComputation(event: EarthquakeEvent): string {
-    // Sync Vs30 grid to Worker cache
-    if (vs30Grid) {
-      const bufferCopy = vs30Grid.data.buffer.slice(0) as ArrayBuffer;
-      const vs30Transfer: Vs30GridTransfer = {
-        data: bufferCopy,
-        cols: vs30Grid.cols,
-        rows: vs30Grid.rows,
-        latMin: vs30Grid.latMin,
-        lngMin: vs30Grid.lngMin,
-        step: vs30Grid.step,
-      };
-      const syncRequest: GmpeWorkerRequest = { type: 'SET_VS30_GRID', vs30Grid: vs30Transfer };
-      worker.postMessage(syncRequest, [vs30Transfer.data]);
-    }
+    // Lazy-load vs30 grid on first computation (non-blocking)
+    sendVs30();
 
     const requestId = `${event.id}:${event.time}:${++requestSequence}`;
     activeRequestId = requestId;
