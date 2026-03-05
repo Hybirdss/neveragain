@@ -12,7 +12,7 @@ import { updateTimeline } from '../ui/timeline';
 export function initTimelineOrchestrator(globe: GlobeInstance): () => void {
   let prevTimelineRef: TimelineState | null = null;
 
-  const unsub = store.subscribe('timeline', (timeline: TimelineState) => {
+  function handleTimeline(timeline: TimelineState): void {
     // Update timeline UI (always — handles play/pause, speed, progress bar)
     updateTimeline(timeline);
 
@@ -39,7 +39,13 @@ export function initTimelineOrchestrator(globe: GlobeInstance): () => void {
       updateLiveFeed(visibleEvents, selected, store.get('intensitySource'));
     }
     updateSeismicPoints(globe, visibleEvents);
-  });
+  }
+
+  const unsub = store.subscribe('timeline', handleTimeline);
+
+  // Hydrate with current state — data may have arrived during globe loading
+  // before this subscription was set up (race condition fix)
+  handleTimeline(store.get('timeline'));
 
   return unsub;
 }
