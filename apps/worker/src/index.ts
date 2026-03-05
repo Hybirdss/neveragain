@@ -6,6 +6,7 @@ import { reportsRoute } from './routes/reports.ts';
 import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
 import { handleCron } from './routes/cron.ts';
+import { createOriginPolicy, isOriginAllowed } from './lib/cors.ts';
 
 export interface Env {
   DATABASE_URL: string;
@@ -24,19 +25,16 @@ const MAX_AGE = '86400';
 // CORS — explicit origin allow-list from env.ALLOWED_ORIGINS (comma-separated).
 app.use('/api/*', async (c, next) => {
   const requestOrigin = c.req.header('origin');
-  const allowedOrigins = parseAllowedOrigins(c.env.ALLOWED_ORIGINS);
-  const allowAllOrigins = allowedOrigins.size === 0;
-  const isAllowedOrigin = requestOrigin
-    ? allowAllOrigins || allowedOrigins.has(requestOrigin)
-    : false;
+  const originPolicy = createOriginPolicy(c.env.ALLOWED_ORIGINS);
+  const allowedOrigin = isOriginAllowed(requestOrigin, originPolicy);
 
   if (c.req.method === 'OPTIONS') {
-    if (requestOrigin && !isAllowedOrigin) {
+    if (requestOrigin && !allowedOrigin) {
       return c.json({ error: 'Origin not allowed' }, 403);
     }
 
     const res = new Response(null, { status: 204 });
-    if (requestOrigin && isAllowedOrigin) {
+    if (requestOrigin && allowedOrigin) {
       res.headers.set('Access-Control-Allow-Origin', requestOrigin);
       res.headers.set('Vary', 'Origin');
     }
@@ -48,7 +46,7 @@ app.use('/api/*', async (c, next) => {
 
   await next();
 
-  if (requestOrigin && isAllowedOrigin) {
+  if (requestOrigin && allowedOrigin) {
     c.header('Access-Control-Allow-Origin', requestOrigin);
     c.header('Vary', 'Origin');
     c.header('Access-Control-Allow-Methods', ALLOW_METHODS);
@@ -81,12 +79,3 @@ export default {
     ctx.waitUntil(handleCron(event, env));
   },
 };
-
-function parseAllowedOrigins(value: string | undefined): Set<string> {
-  return new Set(
-    (value ?? '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter((origin) => origin.length > 0),
-  );
-}

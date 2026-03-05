@@ -5,6 +5,7 @@ import { createDb } from '../lib/db.ts';
 import { generateAndStoreAnalysis } from './analyze.ts';
 import { fetchJmaQuakes } from '../lib/jma.ts';
 import { fetchUsgsQuakes } from '../lib/usgs.ts';
+import { runCronStep } from '../lib/cronStep.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
@@ -375,31 +376,31 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
   }
 
   // Every minute: JMA poll
-  try {
-    const { ingested, analyzed, revised } = await pollJma(env);
-    if (ingested > 0 || revised > 0) {
-      console.log(`[cron] jma: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+  {
+    const result = await runCronStep('jma poll', () => pollJma(env));
+    if (result) {
+      const { ingested, analyzed, revised } = result;
+      if (ingested > 0 || revised > 0) {
+        console.log(`[cron] jma: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+      }
     }
-  } catch (err) {
-    console.error('[cron] jma poll failed:', err);
   }
 
   // Every 5 minutes: USGS poll (supplements JMA with global source)
   if (minute % 5 === 0) {
-    try {
-      const { ingested, analyzed, revised } = await pollUsgs(env);
+    const result = await runCronStep('usgs poll', () => pollUsgs(env));
+    if (result) {
+      const { ingested, analyzed, revised } = result;
       if (ingested > 0 || revised > 0) {
         console.log(`[cron] usgs: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
       }
-    } catch (err) {
-      console.error('[cron] usgs poll failed:', err);
     }
   }
 
   // Every 10 minutes: backfill missed analyses
   if (minute % 10 === 0) {
-    const backfill = await backfillAnalyses(env);
-    if (backfill > 0) {
+    const backfill = await runCronStep('analysis backfill', () => backfillAnalyses(env));
+    if (backfill !== null && backfill > 0) {
       console.log(`[cron] backfill=${backfill}`);
     }
   }

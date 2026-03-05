@@ -6,6 +6,10 @@ import { gte, lte, and, desc } from 'drizzle-orm';
 import { generateAndStoreAnalysis } from './analyze.ts';
 import { checkRateLimit } from '../lib/rateLimit.ts';
 import {
+  buildEventsKvKey,
+  normalizeEventsCacheKey,
+} from '../lib/eventsCache.ts';
+import {
   EARTHQUAKE_LIMITS,
   parseFiniteNumber,
   parseString,
@@ -68,19 +72,7 @@ interface BulkIngestBody {
  */
 // Edge cache TTL for event lists. Public, time-bounded data.
 const EVENTS_CACHE_TTL = 30; // seconds
-
-/**
- * Normalize the request URL for cache keying:
- * Sort query params so ?a=1&b=2 and ?b=2&a=1 share the same cache entry.
- */
-function normalizeEventsCacheKey(req: Request): Request {
-  const url = new URL(req.url);
-  const sorted = new URLSearchParams(
-    [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b)),
-  );
-  url.search = sorted.toString();
-  return new Request(url.toString());
-}
+const KV_EVENTS_TTL = 300; // seconds
 
 eventsRoute.get('/', async (c) => {
   // ── CF Cache API check ──────────────────────────────────────────────────
@@ -104,6 +96,28 @@ eventsRoute.get('/', async (c) => {
         'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,
         ...(cachedEtag ? { 'ETag': cachedEtag } : {}),
         'X-Cache': 'HIT',
+      },
+    });
+  }
+
+  const kvKey = buildEventsKvKey(c.req.raw);
+  const kvCached = await c.env.RATE_LIMIT.get(kvKey);
+  if (kvCached) {
+    c.executionCtx.waitUntil(
+      cache.put(cacheKey, new Response(kvCached, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,
+        },
+      })),
+    );
+
+    return new Response(kvCached, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,
+        'X-Cache': 'KV',
       },
     });
   }
@@ -193,10 +207,11 @@ eventsRoute.get('/', async (c) => {
     'ETag': etag,
   };
 
-  // Store in CF edge cache for subsequent requests from any IP.
-  c.executionCtx.waitUntil(
+  // Store in CF edge cache and KV second-tier cache to reduce repeat Neon reads.
+  c.executionCtx.waitUntil(Promise.all([
     cache.put(cacheKey, new Response(body, { headers: responseHeaders })),
-  );
+    c.env.RATE_LIMIT.put(kvKey, body, { expirationTtl: KV_EVENTS_TTL }),
+  ]));
 
   return new Response(body, { status: 200, headers: responseHeaders });
 });
