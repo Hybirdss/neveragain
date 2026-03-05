@@ -20,6 +20,8 @@ let inputEl: HTMLInputElement | null = null;
 let resultsEl: HTMLElement | null = null;
 let abortCtrl: AbortController | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let docKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
+let docClickHandler: ((e: MouseEvent) => void) | null = null;
 
 /**
  * Initialize the geocoder search UI overlay.
@@ -55,7 +57,7 @@ export function initGeocoder(viewer: GlobeInstance, container: HTMLElement): voi
   });
 
   // Keyboard shortcut: "/" to focus search
-  document.addEventListener('keydown', (e) => {
+  docKeydownHandler = (e: KeyboardEvent) => {
     if (e.key === '/' && document.activeElement !== inputEl) {
       e.preventDefault();
       inputEl!.focus();
@@ -65,7 +67,8 @@ export function initGeocoder(viewer: GlobeInstance, container: HTMLElement): voi
       inputEl!.blur();
       clearResults();
     }
-  });
+  };
+  document.addEventListener('keydown', docKeydownHandler);
 
   // Enter key selects first result
   inputEl.addEventListener('keydown', (e) => {
@@ -77,11 +80,12 @@ export function initGeocoder(viewer: GlobeInstance, container: HTMLElement): voi
   });
 
   // Close results on outside click
-  document.addEventListener('click', (e) => {
+  docClickHandler = (e: MouseEvent) => {
     if (searchEl && !searchEl.contains(e.target as Node)) {
       clearResults();
     }
-  });
+  };
+  document.addEventListener('click', docClickHandler);
 }
 
 /**
@@ -196,6 +200,22 @@ function clearResults(): void {
  * Dispose the geocoder UI.
  */
 export function disposeGeocoder(): void {
+  if (docKeydownHandler) {
+    document.removeEventListener('keydown', docKeydownHandler);
+    docKeydownHandler = null;
+  }
+  if (docClickHandler) {
+    document.removeEventListener('click', docClickHandler);
+    docClickHandler = null;
+  }
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  if (abortCtrl) {
+    abortCtrl.abort();
+    abortCtrl = null;
+  }
   if (searchEl && searchEl.parentElement) {
     searchEl.parentElement.removeChild(searchEl);
   }

@@ -319,6 +319,14 @@ function handleEsc(e: KeyboardEvent): void {
   }
 }
 
+export function disposeIntensityGuide(): void {
+  document.removeEventListener('keydown', handleEsc);
+  if (overlayEl) {
+    overlayEl.remove();
+    overlayEl = null;
+  }
+}
+
 /**
  * Create a small "?" button that opens the intensity guide.
  * Attach this next to JMA intensity displays.

@@ -26,6 +26,7 @@ import { fetchAnalysis } from '../ai/client';
 import { shouldFetchOnClick } from '../ai/tierRouter';
 import { HISTORICAL_PRESETS } from '../engine/presets';
 import { startWaveAnimation, stopWaveAnimation } from './waveOrchestrator';
+import { hideTooltip } from '../ui/tooltip';
 
 let skipNextFlyTo = false;
 
@@ -59,6 +60,9 @@ export function initSelectionOrchestrator(
   let selectedEventVersion = 0;
   unsubs.push(store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
     const myVersion = ++selectedEventVersion;
+
+    // Always hide tooltip (may have been shown by globe click for a different event)
+    hideTooltip();
 
     if (!event) {
       abortShakeMapFetch();

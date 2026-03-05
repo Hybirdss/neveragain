@@ -31,7 +31,7 @@ import { disposeWaveOrchestrator } from './orchestration/waveOrchestrator';
 
 // Globe features
 import * as Cesium from 'cesium';
-import { getEventFromPoint } from './globe/layers/seismicPoints';
+import { getEventFromPoint, disposeSeismicPoints } from './globe/layers/seismicPoints';
 import { initActiveFaults, disposeActiveFaults } from './globe/features/activeFaults';
 import { tryPickFault } from './globe/features/activeFaults';
 import { initGeocoder, disposeGeocoder } from './globe/geocoder';
@@ -43,6 +43,7 @@ import { initLiveFeed } from './ui/liveFeed';
 import { initDetailPanel, disposeDetailPanel } from './ui/detailPanel';
 import { initTimeline, updateTimeline, disposeTimeline } from './ui/timeline';
 import { initIntensityLegend, disposeIntensityLegend } from './ui/intensityLegend';
+import { disposeIntensityGuide } from './ui/intensityGuide';
 import { initScenarioPicker, disposeScenarioPicker } from './ui/scenarioPicker';
 import { showTooltip, hideTooltip } from './ui/tooltip';
 import { initAlertBar } from './ui/alertBar';
@@ -117,7 +118,7 @@ async function bootstrap(): Promise<void> {
 
   // 2. State machine (needed before any store subscriptions)
   initStateMachine();
-  store.subscribe('selectedEvent', (event) => {
+  const unsubSelectedDispatch = store.subscribe('selectedEvent', (event) => {
     if (event) dispatch({ type: 'SELECT_EARTHQUAKE', id: event.id });
     else dispatch({ type: 'DESELECT' });
   });
@@ -290,6 +291,9 @@ async function bootstrap(): Promise<void> {
       disposeGeocoder();
       disposeModeSwitcher();
       disposeIntensityLegend();
+      disposeIntensityGuide();
+      disposeSeismicPoints();
+      unsubSelectedDispatch();
       unsubTimelineMode();
       layout.disposeLayout();
     });

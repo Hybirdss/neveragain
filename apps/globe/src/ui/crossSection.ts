@@ -84,6 +84,7 @@ let pulsePhase = 0;
 let resizeObserver: ResizeObserver | null = null;
 let mouseLeaveHandler: (() => void) | null = null;
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+let showVersion = 0;
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -161,11 +162,11 @@ export function initCrossSection(container: HTMLElement, globe: GlobeInstance): 
   };
   canvasEl.addEventListener('mouseleave', mouseLeaveHandler);
 
-  // Keyboard: Escape to close
+  // Keyboard: Escape to close (document-level so it works regardless of focus)
   keydownHandler = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') store.set('viewPreset', 'default');
+    if (e.key === 'Escape' && isOpen) store.set('viewPreset', 'default');
   };
-  overlayEl.addEventListener('keydown', keydownHandler);
+  document.addEventListener('keydown', keydownHandler);
 
   // Resize observer for responsive canvas
   resizeObserver = new ResizeObserver(() => {
@@ -216,14 +217,15 @@ export function showCrossSection(
   selectedEventId = earthquake.id;
   currentRenderArgs = { config, earthquakes: events, totalDistKm: totalDist, slabProfile, earthquake };
 
-  // Camera close-up, then show overlay
+  // Camera close-up, then show overlay (versioned to cancel stale callbacks)
+  const myVersion = ++showVersion;
   flyToForCrossSection(globeRef, earthquake.lat, earthquake.lng, () => {
+    if (myVersion !== showVersion) return;
     setTimeout(() => {
+      if (myVersion !== showVersion) return;
       isOpen = true;
       overlayEl!.classList.add('cross-section-overlay--open');
-      // Start pulse animation for selected earthquake
       startPulseAnimation();
-      // Render after overlay transition starts (canvas gets its final size)
       requestAnimationFrame(() => {
         setTimeout(() => renderCanvas(), 100);
       });
@@ -233,6 +235,7 @@ export function showCrossSection(
 
 export function hideCrossSection(): void {
   if (!overlayEl) return;
+  ++showVersion; // Cancel any in-flight showCrossSection async chain
   isOpen = false;
   overlayEl.classList.remove('cross-section-overlay--open');
   stopPulseAnimation();
@@ -262,13 +265,15 @@ export function disposeCrossSection(): void {
     canvasEl.removeEventListener('mousemove', handleCanvasHover);
     if (mouseLeaveHandler) canvasEl.removeEventListener('mouseleave', mouseLeaveHandler);
   }
+  if (keydownHandler) {
+    document.removeEventListener('keydown', keydownHandler);
+    keydownHandler = null;
+  }
   if (overlayEl) {
-    if (keydownHandler) overlayEl.removeEventListener('keydown', keydownHandler);
     overlayEl.remove();
     overlayEl = null;
   }
   mouseLeaveHandler = null;
-  keydownHandler = null;
   canvasEl = null;
   headerInfoEl = null;
   footerEl = null;
