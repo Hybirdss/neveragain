@@ -152,6 +152,10 @@ function getEventPlace(event: EarthquakeEvent, locale: PresentationLocale): stri
   return getPlaceText(event.place) || 'Unknown';
 }
 
+function isMetadataHeadline(text: string): boolean {
+  return /(?:^|\s)M\s?\d(?:\.\d+)?|깊이\s*\d+\s*km|depth\s*\d+\s*km|深さ\s*\d+\s*km|\d+\s*km/i.test(text);
+}
+
 export function formatRelativeTime(
   time: number,
   locale: PresentationLocale,
@@ -211,13 +215,22 @@ function readExpert(root: AnalysisLike): Record<string, unknown> | null {
   return getPathRecord(root, 'expert');
 }
 
-function readHeadline(analysis: AnalysisLike, locale: PresentationLocale): string {
+function readHeadline(
+  analysis: AnalysisLike,
+  locale: PresentationLocale,
+  event?: EarthquakeEvent,
+): string {
   const dashboard = readDashboard(analysis);
   const publicLayer = readPublic(analysis);
-  return (
+  const headline = (
     loc(dashboard?.headline as LocalizedLike, locale)
     || loc(publicLayer?.headline as LocalizedLike, locale)
   );
+  if (!headline) return '';
+  if (event && isMetadataHeadline(headline)) {
+    return getEventPlace(event, locale);
+  }
+  return headline;
 }
 
 function readOneLiner(analysis: AnalysisLike, locale: PresentationLocale): string {
@@ -308,6 +321,12 @@ function formatDepth(event: EarthquakeEvent, locale: PresentationLocale): string
   return `깊이 ${depth}km`;
 }
 
+function formatDepthFact(event: EarthquakeEvent, locale: PresentationLocale): string {
+  const depth = Math.round(event.depth_km);
+  if (locale === 'en') return `${depth} km`;
+  return `${depth}km`;
+}
+
 export function deriveTsunamiAssessmentFromEvent(event: EarthquakeEvent): TsunamiAssessment {
   const placeText = event.place?.text;
   const location = classifyLocation(event.lat, event.lng, placeText, undefined);
@@ -366,7 +385,7 @@ export function buildHeroSummary(args: {
   }
 
   const place = getEventPlace(event, locale);
-  const headline = readHeadline(analysis, locale) || place;
+  const headline = readHeadline(analysis, locale, event) || place;
   const severity = computeSeverity(event);
 
   return {
@@ -414,7 +433,7 @@ export function buildDetailSummary(args: {
   const analysis = asRecord(args.analysis);
   const severity = computeSeverity(event);
   return {
-    headline: readHeadline(analysis, locale) || getEventPlace(event, locale),
+    headline: readHeadline(analysis, locale, event) || getEventPlace(event, locale),
     summary: readOneLiner(analysis, locale) || fallbackMessage(event, args.tsunamiAssessment, locale),
     place: getEventPlace(event, locale),
     relativeTime: formatRelativeTime(event.time, locale, now),
@@ -427,7 +446,7 @@ export function buildDetailSummary(args: {
     actionItems: readActionItems(analysis, locale),
     rawFacts: [
       { label: locale === 'ja' ? '規模' : locale === 'ko' ? '규모' : 'Magnitude', value: `M${event.magnitude.toFixed(1)}` },
-      { label: locale === 'ja' ? '深さ' : locale === 'ko' ? '깊이' : 'Depth', value: formatDepth(event, locale) },
+      { label: locale === 'ja' ? '深さ' : locale === 'ko' ? '깊이' : 'Depth', value: formatDepthFact(event, locale) },
       { label: locale === 'ja' ? '発生' : locale === 'ko' ? '발생' : 'Occurred', value: formatRelativeTime(event.time, locale, now) },
       { label: locale === 'ja' ? '座標' : locale === 'ko' ? '좌표' : 'Coordinates', value: `${event.lat.toFixed(3)}, ${event.lng.toFixed(3)}` },
     ],

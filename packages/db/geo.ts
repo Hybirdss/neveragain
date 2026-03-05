@@ -37,6 +37,13 @@ interface CoastRef {
   name: string;
 }
 
+interface TrenchSystem {
+  name: string;
+  dipAngleDeg: number;
+  dipDirection: { lat: number; lng: number };
+  points: Array<{ lat: number; lng: number }>;
+}
+
 const COAST_REFS: CoastRef[] = [
   // ── Hokkaido ──
   { lat: 42.5, lng: 145.0, name: 'Hokkaido-E' },
@@ -104,6 +111,76 @@ const COAST_REFS: CoastRef[] = [
   { lat: 28.3, lng: 129.3, name: 'Amami-W' },
   { lat: 30.4, lng: 130.5, name: 'Yakushima-E' },
   { lat: 30.3, lng: 130.4, name: 'Yakushima-W' },
+];
+
+const TRENCH_SYSTEMS: TrenchSystem[] = [
+  {
+    name: 'Japan Trench',
+    dipAngleDeg: 30,
+    dipDirection: { lat: 0.2, lng: -1.0 }, // westward to WSW
+    points: [
+      { lat: 36.0, lng: 142.0 },
+      { lat: 37.0, lng: 142.5 },
+      { lat: 38.0, lng: 143.0 },
+      { lat: 39.0, lng: 143.5 },
+      { lat: 40.0, lng: 143.8 },
+      { lat: 42.5, lng: 144.5 },
+      { lat: 43.0, lng: 145.0 },
+      { lat: 44.0, lng: 146.0 },
+    ],
+  },
+  {
+    name: 'Sagami Trough',
+    dipAngleDeg: 25,
+    dipDirection: { lat: 0.4, lng: -1.0 }, // NW beneath Kanto
+    points: [
+      { lat: 34.5, lng: 139.0 },
+      { lat: 34.8, lng: 139.5 },
+      { lat: 35.0, lng: 140.0 },
+      { lat: 35.2, lng: 140.5 },
+    ],
+  },
+  {
+    name: 'Nankai Trough',
+    dipAngleDeg: 15,
+    dipDirection: { lat: 0.5, lng: -1.0 }, // NW toward SW Japan
+    points: [
+      { lat: 31.5, lng: 131.5 },
+      { lat: 32.5, lng: 133.0 },
+      { lat: 33.0, lng: 134.5 },
+      { lat: 33.5, lng: 136.0 },
+      { lat: 34.0, lng: 137.5 },
+      { lat: 34.5, lng: 138.5 },
+    ],
+  },
+  {
+    name: 'Ryukyu Trench',
+    dipAngleDeg: 40,
+    dipDirection: { lat: 0.5, lng: -0.7 }, // NW beneath the arc
+    points: [
+      { lat: 24.0, lng: 126.5 },
+      { lat: 25.0, lng: 127.0 },
+      { lat: 26.0, lng: 127.5 },
+      { lat: 27.0, lng: 128.0 },
+      { lat: 28.0, lng: 128.8 },
+      { lat: 29.0, lng: 129.5 },
+      { lat: 30.0, lng: 130.5 },
+      { lat: 31.0, lng: 131.5 },
+    ],
+  },
+  {
+    name: 'Izu-Bonin Trench',
+    dipAngleDeg: 45,
+    dipDirection: { lat: 0.4, lng: -0.9 }, // WNW toward the arc
+    points: [
+      { lat: 36.0, lng: 141.0 },
+      { lat: 34.0, lng: 141.5 },
+      { lat: 32.0, lng: 142.0 },
+      { lat: 30.0, lng: 142.5 },
+      { lat: 28.0, lng: 143.0 },
+      { lat: 26.0, lng: 143.5 },
+    ],
+  },
 ];
 
 // ── Japan Land Polygons (simplified, ~15-20km accuracy) ──
@@ -400,6 +477,89 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function approxKmVector(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+): { x: number; y: number } {
+  const meanLatRad = ((fromLat + toLat) / 2) * Math.PI / 180;
+  return {
+    x: (toLng - fromLng) * 111 * Math.cos(meanLatRad),
+    y: (toLat - fromLat) * 111,
+  };
+}
+
+function normalizeVector(vec: { x: number; y: number }): { x: number; y: number } {
+  const mag = Math.hypot(vec.x, vec.y);
+  if (mag === 0) return { x: 0, y: 0 };
+  return { x: vec.x / mag, y: vec.y / mag };
+}
+
+function projectPointToSegment(
+  pointLat: number,
+  pointLng: number,
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number,
+) {
+  const point = approxKmVector(startLat, startLng, pointLat, pointLng);
+  const segment = approxKmVector(startLat, startLng, endLat, endLng);
+  const denom = segment.x ** 2 + segment.y ** 2;
+  const tRaw = denom === 0 ? 0 : ((point.x * segment.x) + (point.y * segment.y)) / denom;
+  const t = Math.max(0, Math.min(1, tRaw));
+  const projected = {
+    x: segment.x * t,
+    y: segment.y * t,
+  };
+  const residual = {
+    x: point.x - projected.x,
+    y: point.y - projected.y,
+  };
+
+  return {
+    distanceKm: Math.hypot(residual.x, residual.y),
+    trenchPoint: {
+      lat: startLat + (endLat - startLat) * t,
+      lng: startLng + (endLng - startLng) * t,
+    },
+    residual,
+  };
+}
+
+function nearestTrenchContext(lat: number, lng: number) {
+  let best: {
+    trench: TrenchSystem;
+    distanceKm: number;
+    landwardDistanceKm: number;
+  } | null = null;
+
+  for (const trench of TRENCH_SYSTEMS) {
+    const dipDirection = normalizeVector({
+      x: trench.dipDirection.lng,
+      y: trench.dipDirection.lat,
+    });
+
+    for (let i = 0; i < trench.points.length - 1; i += 1) {
+      const start = trench.points[i];
+      const end = trench.points[i + 1];
+      const projection = projectPointToSegment(lat, lng, start.lat, start.lng, end.lat, end.lng);
+      const landwardDistanceKm = (projection.residual.x * dipDirection.x) + (projection.residual.y * dipDirection.y);
+
+      if (!best || projection.distanceKm < best.distanceKm) {
+        best = {
+          trench,
+          distanceKm: projection.distanceKm,
+          landwardDistanceKm,
+        };
+      }
+    }
+  }
+
+  return best;
+}
+
 /**
  * Geometric classification using land polygons + coast distance.
  *
@@ -476,10 +636,32 @@ export function inferFaultType(
 ): string {
   const loc = classifyLocation(lat, lng, place, place_ja);
   const isOffshore = loc.type === 'offshore' || loc.type === 'near_coast';
+  const trench = nearestTrenchContext(lat, lng);
 
-  if (isOffshore) {
-    if (depth_km < 60) return 'interface';
-    if (depth_km >= 60 && depth_km < 200) return 'intraslab';
+  if (isOffshore && trench) {
+    const dipRad = (trench.trench.dipAngleDeg * Math.PI) / 180;
+    const interfaceLandwardKm = Math.min(220, Math.max(120, (depth_km / Math.tan(dipRad)) + 60));
+    const interfaceSeawardKm = 120;
+    const isInterfaceCorridor =
+      depth_km < 60 &&
+      trench.landwardDistanceKm >= -interfaceSeawardKm &&
+      trench.landwardDistanceKm <= interfaceLandwardKm &&
+      trench.distanceKm <= 180;
+
+    if (isInterfaceCorridor) return 'interface';
+
+    const intraslabMinKm = Math.max(15, (depth_km / Math.tan(dipRad)) - 40);
+    const intraslabMaxKm = Math.min(320, (depth_km / Math.tan(dipRad)) + 120);
+    const isIntraslabCorridor =
+      depth_km >= 60 &&
+      depth_km < 300 &&
+      trench.landwardDistanceKm >= intraslabMinKm &&
+      trench.landwardDistanceKm <= intraslabMaxKm &&
+      trench.distanceKm <= 180;
+
+    if (isIntraslabCorridor) return 'intraslab';
+
+    if (depth_km < 30) return 'crustal';
   }
   if (depth_km < 30) return 'crustal';
   if (depth_km >= 60 && depth_km < 300) return 'intraslab';

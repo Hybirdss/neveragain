@@ -21,6 +21,7 @@ import {
   assessTsunamiRisk as assessTsunamiRiskShared,
   computeMaxIntensity as computeMaxIntensityShared,
   computeOmori as computeOmoriShared,
+  normalizeAnalysisNarrative,
 } from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
@@ -273,6 +274,8 @@ For each earthquake, produce analysis that enables genuine understanding — not
 - Numbers IN facts → freely quote
 - Numbers NOT in facts (casualties, damage costs, population, city-specific intensity) → NEVER generate. Qualitative descriptions OK.
 - Past earthquake years/names/approximate magnitudes → OK as general seismological knowledge
+- Do NOT invent slip rates, slab dip angles, trench distances, recurrence cycles, or city-specific shaking unless explicitly present in facts.
+- If facts do not firmly support a plate-boundary interpretation, use cautious wording and say the exact fault geometry remains uncertain.
 
 ## 3-Layer Architecture: fact → interpretation → explanation
 
@@ -299,6 +302,7 @@ Layer 3: explanation (you generate human-readable text)
 refs types: facts:{path}, seismology:{topic}, pending:{reason}
 
 ## public section
+- headline: short meaning-first title. Do NOT repeat magnitude, depth, relative location string, or other raw metadata already shown elsewhere.
 - why: 3-5 sentences on why it happened (I18n)
 - aftershock_note: 2-3 sentences, explain what the probability means, MUST include "this is a statistical model estimate, not a definitive prediction" (I18n)
 - do_now: 2-4 context-specific action items (NOT templates). Tailor to earthquake characteristics. (I18n action + urgency)
@@ -311,12 +315,12 @@ refs types: facts:{path}, seismology:{topic}, pending:{reason}
 - coulomb_note: 2-3 sentences on Coulomb stress transfer. Null if too uncertain. (I18n)
 - sequence: classification + reasoning (I18n)
 - seismic_gap: is_gap boolean + note (I18n)
-- historical_comparison: primary + narrative 3-5 sentences (I18n)
+- historical_comparison: primary + narrative 3-5 sentences (I18n). Return null if you cannot make a conservative comparison without stretching facts.
 - notable_features: 3+ (5+ for major). Each: feature, claim, because, because_refs, implication (all I18n except because_refs)
 
 ## Output JSON
 {
-  "headline": { "ja": "M{mag} {場所名} 深さ{depth}km", "ko": "...", "en": "..." },
+  "headline": { "ja": "今回の地震の意味を短く示す見出し", "ko": "...", "en": "..." },
   "one_liner": { "ja": "...", "ko": "...", "en": "..." },
 
   "interpretations": [
@@ -618,7 +622,17 @@ async function collectAndStore(
       const raw = completion?.choices?.[0]?.message?.content;
       if (!raw) throw new Error('No content in response');
       const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      const analysis = mergeAnalysis(entry.facts, narrative, entry.tier);
+      const analysis = normalizeAnalysisNarrative(
+        mergeAnalysis(entry.facts, narrative, entry.tier),
+        {
+          magnitude: entry.facts.event.mag,
+          depth_km: entry.facts.event.depth_km,
+          lat: entry.facts.event.lat,
+          lng: entry.facts.event.lon,
+          place: entry.facts.event.place_en,
+          place_ja: entry.facts.event.place_ja,
+        },
+      );
 
       await sql`
         INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest)
@@ -706,7 +720,14 @@ async function main() {
         const facts = buildFacts(event, faults, spatialStats);
         const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
         const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        const analysis = mergeAnalysis(facts, narrative, tier);
+        const analysis = normalizeAnalysisNarrative(mergeAnalysis(facts, narrative, tier), {
+          magnitude: facts.event.mag,
+          depth_km: facts.event.depth_km,
+          lat: facts.event.lat,
+          lng: facts.event.lon,
+          place: facts.event.place_en,
+          place_ja: facts.event.place_ja,
+        });
 
         await sql`INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest) VALUES (${eventId}, 1, ${tier}, 'grok-4.1-fast-reasoning-batch', 'v4.0.0', ${JSON.stringify(facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb, ${analysis.search_index?.tags ?? []}, ${analysis.search_index?.region ?? null}, true)`;
         stored++;

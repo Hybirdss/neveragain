@@ -34,6 +34,8 @@ For each earthquake, produce analysis that enables genuine understanding — not
 - Numbers IN facts → freely quote
 - Numbers NOT in facts (casualties, damage costs, population, city-specific intensity) → NEVER generate. Qualitative descriptions OK.
 - Past earthquake years/names/approximate magnitudes → OK as general seismological knowledge
+- Do NOT invent slip rates, slab dip angles, trench distances, recurrence cycles, or city-specific shaking unless explicitly present in facts.
+- If facts do not firmly support a plate-boundary interpretation, use cautious wording and say the exact fault geometry remains uncertain.
 
 ## 3-Layer Architecture: fact → interpretation → explanation
 
@@ -60,6 +62,7 @@ Layer 3: explanation (you generate human-readable text)
 refs types: facts:{path}, seismology:{topic}, pending:{reason}
 
 ## public section
+- headline: short meaning-first title. Do NOT repeat magnitude, depth, relative location string, or other raw metadata already shown elsewhere.
 - why: 3-5 sentences on why it happened (I18n)
 - aftershock_note: 2-3 sentences, explain what the probability means, MUST include "this is a statistical model estimate, not a definitive prediction" (I18n)
 - do_now: 2-4 context-specific action items (NOT templates). Tailor to earthquake characteristics. (I18n action + urgency)
@@ -72,12 +75,12 @@ refs types: facts:{path}, seismology:{topic}, pending:{reason}
 - coulomb_note: 2-3 sentences on Coulomb stress transfer. Null if too uncertain. (I18n)
 - sequence: classification + reasoning (I18n)
 - seismic_gap: is_gap boolean + note (I18n)
-- historical_comparison: primary + narrative 3-5 sentences (I18n)
+- historical_comparison: primary + narrative 3-5 sentences (I18n). Return null if you cannot make a conservative comparison without stretching facts.
 - notable_features: 3+ (5+ for major). Each: feature, claim, because, because_refs, implication (all I18n except because_refs)
 
 ## Output JSON
 {
-  "headline": { "ja": "M{mag} {場所名} 深さ{depth}km", "ko": "...", "en": "..." },
+  "headline": { "ja": "今回の地震の意味を短く示す見出し", "ko": "...", "en": "..." },
   "one_liner": { "ja": "...", "ko": "...", "en": "..." },
 
   "interpretations": [

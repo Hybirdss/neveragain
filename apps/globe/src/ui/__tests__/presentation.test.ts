@@ -137,6 +137,45 @@ const SHARED_STYLE_ANALYSIS = {
   },
 };
 
+const HIRARA_EVENT: EarthquakeEvent = {
+  id: 'eq-hirara',
+  lat: 25.234,
+  lng: 125.029,
+  depth_km: 10,
+  magnitude: 5.2,
+  time: Date.UTC(2026, 2, 6, 0, 0, 0),
+  faultType: 'crustal',
+  tsunami: false,
+  place: {
+    text: '55 km NNW of Hirara, Japan',
+    lang: 'en',
+  },
+};
+
+const TSUNAMI_LOW: TsunamiAssessment = {
+  risk: 'low',
+  confidence: 'medium',
+  factors: ['near-coast shallow earthquake'],
+  locationType: 'near_coast',
+  coastDistanceKm: 38,
+  faultType: 'crustal',
+};
+
+const METADATA_STYLE_ANALYSIS = {
+  dashboard: {
+    headline: {
+      en: 'M5.2 55 km NNW of Hirara, Japan, depth 10 km',
+      ja: 'M5.2 平良の北北西55km 深さ10km',
+      ko: 'M5.2 일본 히라라 북북서 55km, 깊이 10km',
+    },
+    one_liner: {
+      en: 'Shallow shaking is expected near Miyakojima.',
+      ja: '宮古島周辺で浅い揺れが見込まれます。',
+      ko: '미야코지마 주변에서 얕은 흔들림이 예상됩니다.',
+    },
+  },
+};
+
 describe('pickHeroEvent', () => {
   it('prefers the strongest recent event', () => {
     const weaker = {
@@ -223,6 +262,20 @@ describe('buildHeroSummary', () => {
     expect(summary.headline).toBe('Quiet for now');
     expect(summary.message).toBe('No recent earthquakes require attention.');
   });
+
+  it('falls back to a place headline when AI headline is raw event metadata', () => {
+    const summary = buildHeroSummary({
+      event: HIRARA_EVENT,
+      analysis: METADATA_STYLE_ANALYSIS,
+      tsunamiAssessment: TSUNAMI_LOW,
+      locale: 'ko',
+      now: NOW,
+      isLoading: false,
+    });
+
+    expect(summary.headline).toBe('미야코지마 근해');
+    expect(summary.message).toBe('미야코지마 주변에서 얕은 흔들림이 예상됩니다.');
+  });
 });
 
 describe('buildLiveFeedSummary', () => {
@@ -275,7 +328,19 @@ describe('buildDetailSummary', () => {
     expect(summary.intensityMeaning.length).toBeGreaterThan(0);
     expect(summary.actionItems[0]).toBe('Check shelves and glass around you.');
     expect(summary.rawFacts[0]).toEqual({ label: 'Magnitude', value: 'M5.8' });
-    expect(summary.rawFacts[1]).toEqual({ label: 'Depth', value: '12 km deep' });
+    expect(summary.rawFacts[1]).toEqual({ label: 'Depth', value: '12 km' });
+  });
+
+  it('does not duplicate the depth label inside raw fact values', () => {
+    const summary = buildDetailSummary({
+      event: HIRARA_EVENT,
+      analysis: METADATA_STYLE_ANALYSIS,
+      tsunamiAssessment: TSUNAMI_LOW,
+      locale: 'ko',
+      now: NOW,
+    });
+
+    expect(summary.rawFacts[1]).toEqual({ label: '깊이', value: '10km' });
   });
 });
 

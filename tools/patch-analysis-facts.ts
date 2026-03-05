@@ -1,22 +1,13 @@
 /**
- * Patch Analysis Facts — Re-compute all code-generated facts in existing analyses.
+ * Patch Analysis Facts + Narrative — Re-compute code-generated facts and
+ * normalize user-facing narrative in existing analyses.
  *
- * This is the FUNDAMENTAL fix for tsunami/intensity/tectonic misclassifications.
- * Instead of invalidating + regenerating (expensive, requires AI API),
- * this directly patches the `facts` portion of each analysis JSON using
- * the corrected geo.ts functions.
- *
- * What gets patched:
- *   - facts.tsunami (risk, factors, confidence)
- *   - facts.max_intensity (value, class, is_offshore, coast_distance_km)
- *   - facts.tectonic.boundary_type, depth_class
- *   - facts.mechanism (no change, just preserved)
- *   - search_index.categories.tsunami_generated
- *
- * What does NOT change:
- *   - AI narrative text (public.why, expert.tectonic_summary, etc.)
- *   - interpretations (AI-generated)
- *   - search_tags, search_region
+ * This is the low-cost recovery path after hallucinated or contradictory
+ * earthquake prose was saved to the DB. Instead of invalidating analyses and
+ * paying for re-generation, this script:
+ *   1. Recomputes factual layers from corrected geo.ts rules
+ *   2. Rewrites the most error-prone narrative fields from facts using
+ *      deterministic templates
  *
  * Usage:
  *   DATABASE_URL=... npx tsx tools/patch-analysis-facts.ts [--dry-run]
@@ -28,6 +19,7 @@ import {
   inferFaultType,
   assessTsunamiRisk,
   computeMaxIntensity,
+  normalizeAnalysisNarrative,
 } from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -43,6 +35,7 @@ interface PatchStats {
   intensityChanged: number;
   offshoreFlipped: number;
   faultTypeChanged: number;
+  narrativeChanged: number;
   skipped: number;
   errors: number;
 }
@@ -72,6 +65,7 @@ async function main() {
     intensityChanged: 0,
     offshoreFlipped: 0,
     faultTypeChanged: 0,
+    narrativeChanged: 0,
     skipped: 0,
     errors: 0,
   };
@@ -144,8 +138,6 @@ async function main() {
         const boundaryDiff = diff('boundary_type', oldFacts.tectonic?.boundary_type, newBoundaryType);
         if (boundaryDiff) { changes.push(boundaryDiff); stats.faultTypeChanged++; }
 
-        if (changes.length === 0) { stats.skipped++; continue; }
-
         // Build patched facts
         const patchedFacts = {
           ...oldFacts,
@@ -169,6 +161,34 @@ async function main() {
           patchedAnalysis.search_index.categories.depth_class = newDepthClass;
         }
 
+        const normalizedAnalysis = normalizeAnalysisNarrative(patchedAnalysis, {
+          magnitude: r.magnitude,
+          depth_km: r.depth_km,
+          lat: r.lat,
+          lng: r.lng,
+          place: r.place,
+          place_ja: r.place_ja,
+        });
+
+        const narrativeChanged = JSON.stringify({
+          dashboard: patchedAnalysis.dashboard,
+          public: patchedAnalysis.public,
+          expert: patchedAnalysis.expert,
+          interpretations: patchedAnalysis.interpretations,
+        }) !== JSON.stringify({
+          dashboard: normalizedAnalysis.dashboard,
+          public: normalizedAnalysis.public,
+          expert: normalizedAnalysis.expert,
+          interpretations: normalizedAnalysis.interpretations,
+        });
+
+        if (narrativeChanged) {
+          changes.push('narrative normalized');
+          stats.narrativeChanged++;
+        }
+
+        if (changes.length === 0) { stats.skipped++; continue; }
+
         // Log sample
         if (sampleChanges.length < 20) {
           const place = (r.place ?? r.place_ja ?? '').slice(0, 40);
@@ -181,7 +201,7 @@ async function main() {
         if (!DRY_RUN) {
           await sql`
             UPDATE analyses
-            SET analysis = ${JSON.stringify(patchedAnalysis)}::jsonb
+            SET analysis = ${JSON.stringify(normalizedAnalysis)}::jsonb
             WHERE id = ${r.analysis_id}
           `;
         }
@@ -215,6 +235,7 @@ async function main() {
   console.log(`  Intensity changed:       ${stats.intensityChanged}`);
   console.log(`  Offshore flag flipped:   ${stats.offshoreFlipped}`);
   console.log(`  Fault type changed:      ${stats.faultTypeChanged}`);
+  console.log(`  Narrative normalized:    ${stats.narrativeChanged}`);
 
   if (sampleChanges.length > 0) {
     console.log('\nSample changes:');

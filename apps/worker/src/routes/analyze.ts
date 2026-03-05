@@ -21,6 +21,7 @@ import {
   analyses, earthquakes, classifyLocation,
   inferFaultType as inferFaultTypeGeo,
   computeMaxIntensity as computeMaxIntensityShared,
+  normalizeAnalysisNarrative,
 } from '@namazue/db';
 import type { AnalysisTier, BuilderInput } from '@namazue/db';
 import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
@@ -323,7 +324,7 @@ export async function generateAndStoreAnalysis(
   const exp = grok.expert ?? {};
   const si = grok.search_index ?? {};
 
-  const mergedAnalysis = {
+  const mergedAnalysis = normalizeAnalysisNarrative({
     event_id: event.id,
     tier,
     version: 4,
@@ -416,7 +417,14 @@ export async function generateAndStoreAnalysis(
       },
       region_keywords: si.region_keywords ?? { ja: [], ko: [], en: [] },
     },
-  };
+  }, {
+    magnitude: event.magnitude,
+    depth_km: event.depth_km,
+    lat: event.lat,
+    lng: event.lng,
+    place: event.place ?? undefined,
+    place_ja: event.place_ja ?? undefined,
+  });
 
   await db.update(analyses)
     .set({ is_latest: false })
