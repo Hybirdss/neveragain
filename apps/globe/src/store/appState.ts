@@ -55,8 +55,17 @@ class Store<T extends Record<string, any>> {
       this.state[key] = value;
       const subs = this.listeners.get(key);
       if (subs) {
-        subs.forEach((fn) => fn(value, prev));
+        subs.forEach((fn) => this.safeFire(fn, key, value, prev));
       }
+    }
+  }
+
+  /** Fire a subscriber, catching errors so other subscribers keep running. */
+  private safeFire<K extends keyof T>(fn: Listener<T[K]>, key: K, value: T[K], prev: T[K]): void {
+    try {
+      fn(value, prev);
+    } catch (error) {
+      console.error(`[Store] Subscriber error for "${String(key)}":`, error);
     }
   }
 
@@ -84,7 +93,7 @@ class Store<T extends Record<string, any>> {
 
         const subs = this.listeners.get(key);
         if (subs) {
-          subs.forEach((fn) => fn(value, prev));
+          subs.forEach((fn) => this.safeFire(fn, key, value, prev));
         }
       });
     }

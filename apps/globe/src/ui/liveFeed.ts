@@ -342,6 +342,9 @@ export function updateLiveFeed(
   hasReceivedData = true;
   currentClusters = clusterEvents(events);
 
+  // Guard: DOM not yet created (orchestrator may fire before initLiveFeed)
+  if (!headerCountEl) return;
+
   headerCountEl.textContent = formatEventCount(events.length);
   const hasM5 = events.some(e => e.magnitude >= 5.0);
   alertBadgeEl.style.display = hasM5 ? 'block' : 'none';

@@ -82,6 +82,8 @@ let currentRenderArgs: {
 let pulseAnimId: number | null = null;
 let pulsePhase = 0;
 let resizeObserver: ResizeObserver | null = null;
+let mouseLeaveHandler: (() => void) | null = null;
+let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -150,18 +152,20 @@ export function initCrossSection(container: HTMLElement, globe: GlobeInstance): 
 
   // Hover
   canvasEl.addEventListener('mousemove', handleCanvasHover);
-  canvasEl.addEventListener('mouseleave', () => {
+  mouseLeaveHandler = () => {
     if (hoveredIndex !== -1) {
       hoveredIndex = -1;
       rerender();
       canvasEl!.dispatchEvent(new CustomEvent('crosssection-hover', { detail: null, bubbles: true }));
     }
-  });
+  };
+  canvasEl.addEventListener('mouseleave', mouseLeaveHandler);
 
   // Keyboard: Escape to close
-  overlayEl.addEventListener('keydown', (e) => {
+  keydownHandler = (e: KeyboardEvent) => {
     if (e.key === 'Escape') store.set('viewPreset', 'default');
-  });
+  };
+  overlayEl.addEventListener('keydown', keydownHandler);
 
   // Resize observer for responsive canvas
   resizeObserver = new ResizeObserver(() => {
@@ -256,11 +260,15 @@ export function disposeCrossSection(): void {
   }
   if (canvasEl) {
     canvasEl.removeEventListener('mousemove', handleCanvasHover);
+    if (mouseLeaveHandler) canvasEl.removeEventListener('mouseleave', mouseLeaveHandler);
   }
   if (overlayEl) {
+    if (keydownHandler) overlayEl.removeEventListener('keydown', keydownHandler);
     overlayEl.remove();
     overlayEl = null;
   }
+  mouseLeaveHandler = null;
+  keydownHandler = null;
   canvasEl = null;
   headerInfoEl = null;
   footerEl = null;
@@ -472,6 +480,7 @@ function renderCanvas(): void {
   const plotW = w - MARGIN.left - MARGIN.right;
   const plotH = h - MARGIN.top - MARGIN.bottom;
   const maxDepth = config.maxDepthKm;
+  if (totalDistKm < 1 || maxDepth < 1) return;
 
   const xScale = (km: number) => MARGIN.left + (km / totalDistKm) * plotW;
   const yScale = (depth: number) => MARGIN.top + (depth / maxDepth) * plotH;
@@ -651,7 +660,9 @@ function interpolateSlabDepth(profile: SlabProfilePoint[], km: number): number |
 
   for (let i = 0; i < profile.length - 1; i++) {
     if (km >= profile[i].distanceKm && km <= profile[i + 1].distanceKm) {
-      const t = (km - profile[i].distanceKm) / (profile[i + 1].distanceKm - profile[i].distanceKm);
+      const span = profile[i + 1].distanceKm - profile[i].distanceKm;
+      if (span < 1e-6) return profile[i].depthKm;
+      const t = (km - profile[i].distanceKm) / span;
       return profile[i].depthKm + t * (profile[i + 1].depthKm - profile[i].depthKm);
     }
   }

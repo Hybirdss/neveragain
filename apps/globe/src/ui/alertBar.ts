@@ -43,6 +43,7 @@ export function initAlertBar(container: HTMLElement): void {
  * Auto-hides after 10 seconds.
  */
 export function showAlert(event: EarthquakeEvent): void {
+  if (!alertBarEl) return;
   if (event.magnitude < 7.0) return;
 
   // Clear any pending hide timer
@@ -67,5 +68,5 @@ export function hideAlert(): void {
     clearTimeout(hideTimerId);
     hideTimerId = null;
   }
-  alertBarEl.style.display = 'none';
+  if (alertBarEl) alertBarEl.style.display = 'none';
 }

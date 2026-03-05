@@ -170,6 +170,9 @@ export function refreshDetail(
   selectedEvent: EarthquakeEvent | null,
   intensitySource: IntensitySource,
 ): void {
+  // Guard: DOM not yet created (store subscription may fire before initDetailPanel)
+  if (!detailPanel) return;
+
   if (selectedEvent) {
     detailPanel.classList.remove('detail-panel--hidden');
 
