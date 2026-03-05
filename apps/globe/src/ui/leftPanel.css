@@ -82,6 +82,11 @@
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-height: 0;
+}
+
+.panel-hero-slot {
+  flex-shrink: 0;
 }
 
 .panel-pane {

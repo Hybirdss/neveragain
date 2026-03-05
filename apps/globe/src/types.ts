@@ -245,6 +245,64 @@ export interface AiState {
   searchLoading: boolean;
 }
 
+// ── Presentation View Models ────────────────────────────────────
+
+export type PresentationLocale = 'en' | 'ko' | 'ja';
+
+export interface PresentationTsunamiSummary {
+  risk: TsunamiAssessment['risk'];
+  label: string;
+  detail: string;
+}
+
+export interface PresentationHeroSummary {
+  state: 'empty' | 'loading' | 'ready';
+  headline: string;
+  message: string;
+  place: string;
+  relativeTime: string;
+  magnitudeLabel: string;
+  depthLabel: string;
+  severity: JmaClass | 'none';
+  tsunami: PresentationTsunamiSummary | null;
+}
+
+export interface PresentationLiveFeedSummary {
+  place: string;
+  relativeTime: string;
+  magnitudeLabel: string;
+  meaning: string;
+  severity: JmaClass;
+  tsunamiLabel: string | null;
+}
+
+export interface PresentationDetailSummary {
+  headline: string;
+  summary: string;
+  place: string;
+  relativeTime: string;
+  magnitudeLabel: string;
+  depthLabel: string;
+  severity: JmaClass;
+  intensityLabel: string;
+  intensityMeaning: string;
+  tsunami: PresentationTsunamiSummary | null;
+  actionItems: string[];
+  rawFacts: Array<{ label: string; value: string }>;
+}
+
+export interface PresentationEvidenceSummary {
+  expertSummary: string | null;
+  comparisonNarrative: string | null;
+  similarities: string[];
+  differences: string[];
+}
+
+export interface PresentationShareSummary {
+  shortText: string;
+  lines: string[];
+}
+
 // ── App State ──────────────────────────────────────────────
 
 export interface AppState {

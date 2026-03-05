@@ -10,10 +10,10 @@ import type { EarthquakeEvent, IntensitySource } from '../types';
 import { store } from '../store/appState';
 import { t, onLocaleChange, getLocale } from '../i18n/index';
 import { depthToColor } from '../utils/colorScale';
-import { getJapanPlaceName } from '../utils/japanGeo';
 import { clusterEvents, getDisplayEvents, type ClusteredEvent } from '../utils/aftershockCluster';
 import { getTabPane } from './leftPanel';
 import { getLastUpdatedAt } from '../data/usgsRealtime';
+import { buildLiveFeedSummary, deriveTsunamiAssessmentFromEvent, formatRelativeTime as formatPresentationRelativeTime } from './presentation';
 
 // ── DOM refs ──
 
@@ -32,15 +32,6 @@ let currentEvents: EarthquakeEvent[] = [];
 let currentClusters: Map<string, ClusteredEvent> = new Map();
 let expandedClusters: Set<string> = new Set();
 let hasReceivedData = false;
-
-/** Get locale-aware place name, falling back to USGS text for non-Japan events. */
-function eventPlaceName(event: EarthquakeEvent): string {
-  const place = getJapanPlaceName(event.lat, event.lng);
-  if (!place) return event.place?.text || 'Unknown';
-  const locale = getLocale();
-  if (locale === 'ko') return place.ko;
-  return locale === 'ja' ? place.ja : place.en;
-}
 
 // ── Helpers ──
 
@@ -64,14 +55,7 @@ function formatTimeShort(ts: number): string {
 }
 
 export function formatRelativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return t('time.justNow');
-  if (mins < 60) return `${mins}${t('time.minAgo')}`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}${t('time.hrAgo')}`;
-  const days = Math.floor(hours / 24);
-  return `${days}${t('time.dayAgo')}`;
+  return formatPresentationRelativeTime(ts, getLocale());
 }
 
 function magColorClass(mag: number): string {
@@ -178,36 +162,49 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean, cluster?: Cl
   item.dataset.eventId = event.id;
   if (isActive) item.style.borderLeftColor = depthToColor(event.depth_km);
 
+  const selected = store.get('selectedEvent');
+  const ai = store.get('ai');
+  const tsunamiAssessment = selected?.id === event.id
+    ? store.get('tsunamiAssessment')
+    : (event.tsunami || event.magnitude >= 5.0 ? deriveTsunamiAssessmentFromEvent(event) : null);
+  const summary = buildLiveFeedSummary({
+    event,
+    analysis: selected?.id === event.id ? ai.currentAnalysis : null,
+    tsunamiAssessment,
+    locale: getLocale(),
+    now: Date.now(),
+  });
+
   const top = el('div', 'feed-item__top');
   const left = el('div', 'feed-item__left');
   const mag = el('span', `feed-item__mag ${magColorClass(event.magnitude)}`);
   mag.textContent = event.magnitude.toFixed(1);
   left.appendChild(mag);
-  left.appendChild(el('span', 'feed-item__location', eventPlaceName(event)));
+  left.appendChild(el('span', 'feed-item__location', summary.place));
   top.appendChild(left);
   const timeWrap = el('div', 'feed-item__time-wrap');
-  timeWrap.appendChild(el('span', 'feed-item__relative', formatRelativeTime(event.time)));
+  timeWrap.appendChild(el('span', 'feed-item__relative', summary.relativeTime));
   timeWrap.appendChild(el('span', 'feed-item__time', formatTimeShort(event.time)));
   top.appendChild(timeWrap);
   item.appendChild(top);
 
+  item.appendChild(el('div', 'feed-item__meaning', summary.meaning));
+
   const meta = el('div', 'feed-item__meta');
   meta.appendChild(el('span', 'feed-item__depth', `${Math.round(event.depth_km)}km`));
-  const dot = el('div', 'feed-item__depth-dot');
-  dot.style.background = depthToColor(event.depth_km);
-  meta.appendChild(dot);
-  const coords = el('span', 'feed-item__coords');
-  const latDir = event.lat >= 0 ? 'N' : 'S';
-  const lngDir = event.lng >= 0 ? 'E' : 'W';
-  coords.textContent = `${Math.abs(event.lat).toFixed(2)}\u00B0${latDir} ${Math.abs(event.lng).toFixed(2)}\u00B0${lngDir}`;
-  meta.appendChild(coords);
 
   const sourceTag = getListSourceTag(event.magnitude);
   if (sourceTag) {
     meta.appendChild(el('span', `source-tag ${sourceTag.className}`, sourceTag.label));
   }
-  if (event.tsunami) {
-    meta.appendChild(el('span', 'feed-item__tsunami', t('tsunami.label.low')));
+  if (summary.tsunamiLabel) {
+    meta.appendChild(el(
+      'span',
+      summary.tsunamiLabel === t('tsunami.label.high') || summary.tsunamiLabel === t('tsunami.label.moderate')
+        ? 'feed-item__tsunami feed-item__tsunami--warn'
+        : 'feed-item__tsunami',
+      summary.tsunamiLabel,
+    ));
   }
 
   // Aftershock badge for mainshock events

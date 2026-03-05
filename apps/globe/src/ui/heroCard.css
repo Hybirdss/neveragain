@@ -1,0 +1,97 @@
+.hero-card {
+  width: 100%;
+  display: block;
+  border: 0;
+  border-left: 4px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    var(--surface-panel);
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hero-card:hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    var(--surface-panel);
+}
+
+.hero-card__content {
+  display: grid;
+  gap: 8px;
+  padding: 14px var(--space-3) 15px;
+}
+
+.hero-card__headline {
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.hero-card__message {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.hero-card__tsunami {
+  width: fit-content;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.hero-card__tsunami--high,
+.hero-card__tsunami--moderate {
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--accent-danger);
+}
+
+.hero-card__tsunami--low {
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  color: var(--accent-warning);
+}
+
+.hero-card__tsunami--none {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: var(--accent-positive, #4ade80);
+}
+
+.hero-card__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-disabled);
+  letter-spacing: 0.3px;
+}
+
+.hero-card__cta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.hero-card--loading .hero-card__headline,
+.hero-card--loading .hero-card__message {
+  opacity: 0.88;
+}
+
+.hero-card--empty {
+  cursor: default;
+  border-left-color: var(--border-subtle);
+}
+
+.hero-card--empty:hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    var(--surface-panel);
+}

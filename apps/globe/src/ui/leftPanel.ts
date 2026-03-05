@@ -10,6 +10,7 @@
 import { t, onLocaleChange } from '../i18n/index';
 import { store } from '../store/appState';
 import { openSearch } from './searchBar';
+import { initHeroCard, disposeHeroCard } from './heroCard';
 
 // ── DOM refs ──
 
@@ -20,6 +21,7 @@ let contentEl: HTMLElement | null = null;
 let livePaneEl: HTMLElement | null = null;
 let titleEl: HTMLElement | null = null;
 let searchHintEl: HTMLElement | null = null;
+let heroSlotEl: HTMLElement | null = null;
 let unsubLocale: (() => void) | null = null;
 let unsubMode: (() => void) | null = null;
 
@@ -80,6 +82,11 @@ export function initLeftPanel(container: HTMLElement): void {
   toolbarEl.appendChild(searchRow);
   panelEl.appendChild(toolbarEl);
 
+  heroSlotEl = document.createElement('div');
+  heroSlotEl.className = 'panel-hero-slot';
+  panelEl.appendChild(heroSlotEl);
+  initHeroCard(heroSlotEl);
+
   // Single content pane
   contentEl = document.createElement('div');
   contentEl.className = 'panel-content';
@@ -127,6 +134,8 @@ export function disposeLeftPanel(): void {
   modeSwitcherSlotEl = null;
   titleEl = null;
   searchHintEl = null;
+  heroSlotEl = null;
+  disposeHeroCard();
   panelEl?.remove();
   panelEl = null;
 }

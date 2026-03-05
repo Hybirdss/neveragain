@@ -13,6 +13,7 @@
 /* Components */
 @import './ui/alertBar.css';
 @import './ui/leftPanel.css';
+@import './ui/heroCard.css';
 @import './ui/liveFeed.css';
 @import './ui/detailPanel.css';
 @import './ui/timeline.css';
