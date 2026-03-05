@@ -27,6 +27,7 @@ if (!DATABASE_URL) throw new Error('DATABASE_URL required');
 const sql = neon(DATABASE_URL);
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const START_OFFSET = process.env.START_OFFSET ? parseInt(process.env.START_OFFSET, 10) : 0;
 
 interface PatchStats {
   total: number;
@@ -50,6 +51,7 @@ function diff(label: string, oldVal: any, newVal: any): string | null {
 async function main() {
   console.log('=== Patch Analysis Facts ===');
   console.log('Re-computing tsunami/intensity/tectonic facts with corrected geo.ts\n');
+  if (START_OFFSET > 0) console.log(`Starting from offset ${START_OFFSET}\n`);
   if (DRY_RUN) console.log('** DRY RUN — no DB changes **\n');
 
   // Count
@@ -73,7 +75,7 @@ async function main() {
   const BATCH_SIZE = 50;
   const sampleChanges: string[] = [];
 
-  for (let offset = 0; offset < count; offset += BATCH_SIZE) {
+  for (let offset = START_OFFSET; offset < count; offset += BATCH_SIZE) {
     const rows: any[] = await sql`
       SELECT
         a.id as analysis_id,
