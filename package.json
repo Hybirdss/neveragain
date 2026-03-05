@@ -12,11 +12,23 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @namazue/globe",
-    "build": "npm run build -w @namazue/globe",
+    "typecheck": "npm run typecheck -w @namazue/globe && npm run typecheck -w @namazue/worker",
+    "test": "npm run test -w @namazue/globe && npm run test -w @namazue/worker",
+    "build:globe": "npm run build -w @namazue/globe",
+    "build:worker": "npm run build -w @namazue/worker",
+    "build": "npm run build:globe && npm run build:worker",
+    "check:quick": "npm run typecheck && npm run test",
+    "check": "npm run check:quick && npm run build",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
     "dev:worker": "npm run dev -w @namazue/worker",
-    "build:data": "npx tsx tools/build-slab2-contours.ts && npx tsx tools/build-historical-catalog.ts"
+    "build:data": "npx tsx tools/build-slab2-contours.ts && npx tsx tools/build-historical-catalog.ts",
+    "quality:baseline": "node tools/collect-quality-baseline.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "dotenv": "^17.3.1",
     "tsx": "^4.19.0",
     "typescript": "~5.9.3"
