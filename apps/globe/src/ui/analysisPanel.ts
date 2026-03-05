@@ -80,6 +80,23 @@ function switchTab(tab: AiTab): void {
 
 // ── Easy Tab (Public Briefing) ──
 
+function renderTsunamiCard(container: HTMLElement, a: any): void {
+  const tsunami = a.facts?.tsunami;
+  if (!tsunami) return;
+  const risk: string = tsunami.risk || 'none';
+
+  // Always show for offshore events; for inland "none", skip
+  const isOffshore = a.facts?.max_intensity?.is_offshore === true;
+  if (risk === 'none' && !isOffshore) return;
+
+  const card = el('div', `analysis__tsunami analysis__tsunami--${risk}`);
+  const label = el('div', 'analysis__tsunami-label', t(`tsunami.label.${risk}`));
+  card.appendChild(label);
+  const desc = el('div', 'analysis__tsunami-desc', t(`tsunami.risk.${risk}`));
+  card.appendChild(desc);
+  container.appendChild(card);
+}
+
 function renderEasyPane(a: any): void {
   easyPane.innerHTML = '';
   const pub = a.public;
@@ -88,6 +105,9 @@ function renderEasyPane(a: any): void {
     easyPane.appendChild(el('div', 'analysis__empty', t('ai.noPublic')));
     return;
   }
+
+  // Tsunami assessment card (prominent, before everything else)
+  renderTsunamiCard(easyPane, a);
 
   // One-liner summary
   const oneLiner = loc(dash?.one_liner);

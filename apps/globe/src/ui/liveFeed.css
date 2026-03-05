@@ -206,6 +206,30 @@
   border-radius: 2px;
 }
 
+.feed-item__tsunami--warn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--accent-danger);
+  border-radius: 2px;
+}
+
+.feed-item__tsunami--safe {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.15);
+  color: var(--accent-positive, #4ade80);
+  border-radius: 2px;
+}
+
 /* --- Source Tags --- */
 .source-tag {
   font-family: var(--font-mono);

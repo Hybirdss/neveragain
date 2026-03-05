@@ -95,6 +95,14 @@ const ko: Record<string, string> = {
 
   // Tsunami
   'tsunami.warning': '\uacbd\uace0',
+  'tsunami.risk.high': '쓰나미 경보 — 즉시 고지대로 대피하세요',
+  'tsunami.risk.moderate': '쓰나미 주의보 — 해안에서 떨어지세요',
+  'tsunami.risk.low': '이 지진으로 인한 쓰나미 우려는 없습니다',
+  'tsunami.risk.none': '이 지진으로 인한 쓰나미 우려는 없습니다',
+  'tsunami.label.high': '쓰나미 경보',
+  'tsunami.label.moderate': '쓰나미 주의보',
+  'tsunami.label.low': '쓰나미 우려 없음',
+  'tsunami.label.none': '쓰나미 우려 없음',
 
   // Fault types
   'faultType.crustal': '\uc9c0\uac01',

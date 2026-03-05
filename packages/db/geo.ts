@@ -570,6 +570,13 @@ export function assessTsunamiRisk(
     return { risk: 'low', source: 'rule_engine', confidence: 'medium', factors };
   }
 
+  // M5.0-5.5 shallow offshore — low risk (JMA would still assess)
+  if (magnitude >= 5.0 && depth_km < 70) {
+    factors.push(`Magnitude M${magnitude}`);
+    factors.push(`Shallow depth (${depth_km}km)`);
+    return { risk: 'low', source: 'rule_engine', confidence: 'medium', factors };
+  }
+
   // Small event but USGS flagged tsunami
   if (usgsTsunamiFlag === true) {
     factors.push('USGS tsunami advisory issued');

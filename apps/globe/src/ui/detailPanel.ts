@@ -192,7 +192,20 @@ export function refreshDetail(
       `${Math.abs(selectedEvent.lat).toFixed(3)}\u00B0${selectedEvent.lat >= 0 ? 'N' : 'S'}`));
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lng).toFixed(3)}\u00B0${selectedEvent.lng >= 0 ? 'E' : 'W'}`));
-    if (selectedEvent.tsunami) {
+    // Tsunami badge: prefer analysis-based risk, fallback to USGS flag
+    const ai = store.get('ai');
+    const analysis = ai.currentAnalysis as any;
+    const tsunamiRisk = analysis?.facts?.tsunami?.risk;
+    if (tsunamiRisk === 'high' || tsunamiRisk === 'moderate') {
+      detailMetaEl.appendChild(el('span', 'feed-item__tsunami feed-item__tsunami--warn',
+        t(`tsunami.label.${tsunamiRisk}`)));
+    } else if (tsunamiRisk === 'low' || tsunamiRisk === 'none') {
+      const isOffshore = analysis?.facts?.max_intensity?.is_offshore === true;
+      if (isOffshore) {
+        detailMetaEl.appendChild(el('span', 'feed-item__tsunami--safe',
+          t(`tsunami.label.${tsunamiRisk}`)));
+      }
+    } else if (selectedEvent.tsunami) {
       detailMetaEl.appendChild(el('span', 'feed-item__tsunami', '津波注意'));
     }
 
@@ -225,8 +238,7 @@ export function refreshDetail(
     }
 
     // AI Analysis rendering (delegated to analysisPanel)
-    const aiState = store.get('ai');
-    updateAnalysis(aiState.currentAnalysis, aiState.analysisLoading, aiState.analysisError);
+    updateAnalysis(ai.currentAnalysis, ai.analysisLoading, ai.analysisError);
 
     crossSectionBtn.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';
   } else {
