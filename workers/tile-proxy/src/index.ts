@@ -49,6 +49,7 @@ async function fetchTileCached(
   cacheUrl: string,
   upstreamUrl: string,
   ttl: number,
+  options: { emptyOnFailure?: boolean; failureTtl?: number } = {},
 ): Promise<Response> {
   const cache = caches.default;
   const cacheKey = new Request(cacheUrl);
@@ -60,8 +61,39 @@ async function fetchTileCached(
     return resp;
   }
 
-  const upstream = await fetch(upstreamUrl);
+  let upstream: Response;
+  try {
+    upstream = await fetch(upstreamUrl);
+  } catch {
+    if (options.emptyOnFailure) {
+      const empty = new Response(null, {
+        status: 204,
+        headers: {
+          'Cache-Control': `public, max-age=${options.failureTtl ?? 300}, s-maxage=${options.failureTtl ?? 300}`,
+          'CDN-Cache-Control': `max-age=${options.failureTtl ?? 300}`,
+          'Access-Control-Allow-Origin': '*',
+          'x-cache': 'MISS-EMPTY',
+        },
+      });
+      await cache.put(cacheKey, empty.clone());
+      return empty;
+    }
+    return new Response('Upstream error', { status: 502 });
+  }
   if (!upstream.ok) {
+    if (options.emptyOnFailure) {
+      const empty = new Response(null, {
+        status: 204,
+        headers: {
+          'Cache-Control': `public, max-age=${options.failureTtl ?? 300}, s-maxage=${options.failureTtl ?? 300}`,
+          'CDN-Cache-Control': `max-age=${options.failureTtl ?? 300}`,
+          'Access-Control-Allow-Origin': '*',
+          'x-cache': 'MISS-EMPTY',
+        },
+      });
+      await cache.put(cacheKey, empty.clone());
+      return empty;
+    }
     return new Response(`Upstream error: ${upstream.status}`, { status: 502 });
   }
 
@@ -201,7 +233,10 @@ export default {
         return new Response(null, { status: 204 });
       }
 
-      return fetchTileCached(request.url, originUrl, ttl);
+      return fetchTileCached(request.url, originUrl, ttl, {
+        emptyOnFailure: true,
+        failureTtl: Math.min(ttl, 300),
+      });
     }
 
     // ── Route: /terrain/* ──────────────────────────────────────

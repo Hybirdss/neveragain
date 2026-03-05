@@ -17,6 +17,12 @@
 
 import * as Cesium from 'cesium';
 
+import {
+  createTileFallbackState,
+  registerTileFailure,
+  registerTileSuccess,
+} from './tileFallback';
+
 export type GlobeInstance = Cesium.Viewer;
 
 /** Japan bounding box: Kyushu south to Hokkaido north, with margin. */
@@ -73,6 +79,19 @@ function addGsiFallbackImagery(viewer: GlobeInstance): void {
     }),
   );
   gsiSatellite.alpha = 1.0;
+}
+
+function extractStatusCode(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const record = error as Record<string, unknown>;
+  if (typeof record.statusCode === 'number') return record.statusCode;
+  const response = record.response as Record<string, unknown> | undefined;
+  if (response && typeof response.status === 'number') return response.status;
+  if (typeof record.message === 'string') {
+    const match = record.message.match(/\b(5\d\d)\b/);
+    if (match) return Number(match[1]);
+  }
+  return undefined;
 }
 
 
@@ -180,6 +199,23 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
 
   // ── Imagery layer ───────────────────────────────────────────
   const proxyOk = tileProbeOk;
+  let tileFallbackState = createTileFallbackState();
+  if (proxyOk) {
+    tileFallbackState = registerTileSuccess(tileFallbackState);
+  }
+  let satelliteLayer: Cesium.ImageryLayer | null = null;
+  let satelliteFallbackApplied = false;
+
+  const applySatelliteFallback = (): void => {
+    if (satelliteFallbackApplied) return;
+    satelliteFallbackApplied = true;
+    if (satelliteLayer) {
+      viewer.imageryLayers.remove(satelliteLayer, true);
+      satelliteLayer = null;
+    }
+    addGsiFallbackImagery(viewer);
+    console.warn('[globe] Satellite proxy unhealthy — switched to GSI fallback imagery');
+  };
 
   // Base layer: dark map that covers z0+ so globe is never black when zoomed out
   viewer.imageryLayers.addImageryProvider(
@@ -192,14 +228,22 @@ export async function createGlobe(container: HTMLElement): Promise<GlobeInstance
   );
 
   if (proxyOk) {
-    viewer.imageryLayers.addImageryProvider(
-      new Cesium.UrlTemplateImageryProvider({
-        url: satelliteUrl,
-        minimumLevel: 1,
-        maximumLevel: 18,
-        credit: new Cesium.Credit('© MapTiler © OpenStreetMap contributors | 航空写真: 国土地理院', true),
-      }),
-    );
+    const satelliteProvider = new Cesium.UrlTemplateImageryProvider({
+      url: satelliteUrl,
+      minimumLevel: 1,
+      maximumLevel: 18,
+      credit: new Cesium.Credit('© MapTiler © OpenStreetMap contributors | 航空写真: 国土地理院', true),
+    });
+    satelliteProvider.errorEvent.addEventListener((tileError) => {
+      tileFallbackState = registerTileFailure(
+        tileFallbackState,
+        extractStatusCode(tileError?.error ?? tileError),
+      );
+      if (tileFallbackState.fallbackMode === 'gsi') {
+        applySatelliteFallback();
+      }
+    });
+    satelliteLayer = viewer.imageryLayers.addImageryProvider(satelliteProvider);
     console.log('[globe] Imagery: satellite (proxy/MapTiler) + dark base');
   } else {
     // GSI fallback: pale basemap + seamlessphoto (Japan satellite, free)
