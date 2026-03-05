@@ -19,10 +19,10 @@ Execution branch: `codex-enterprise-quality`
   - [x] Add `biome.json`
   - [x] Add lint/format scripts
   - [x] Run format pass + verify
-- [ ] Task 4. Build PR CI pipeline
-  - [ ] Add `.github/workflows/ci.yml`
-  - [ ] Add PR template
-  - [ ] Verify CI on PR
+- [x] Task 4. Build PR CI pipeline
+  - [x] Add `.github/workflows/ci.yml`
+  - [x] Add PR template
+  - [x] Verify CI config locally (`npm run check`) and ready for PR run
 
 ## Phase 2 (Day 31-60): Test Depth + Observability
 
@@ -38,5 +38,5 @@ Execution branch: `codex-enterprise-quality`
 
 ## Current Focus
 
-1. Start Task 4 PR CI pipeline (`.github/workflows/ci.yml` + PR template).
-2. Wire CI to `npm run check` and capture baseline runtime impact.
+1. Start Task 5 worker boundary test expansion.
+2. Add route-level validation regression matrix.
