@@ -6,7 +6,9 @@
  *
  * Algorithm:
  *   1. Parse USGS/JMA place text for geographic keywords (highest confidence)
- *   2. Geometric fallback using simplified Japan coastline reference points
+ *   2. Island zone check for Ryukyu/Ogasawara/Izu archipelagos
+ *   3. Geometric fallback: point-in-polygon test on Japan's 4 main island
+ *      outlines + haversine distance to nearest coast reference
  */
 
 // ── Types ──
@@ -27,79 +29,219 @@ export interface TsunamiRisk {
   factors: string[];
 }
 
-// ── Coastline Reference Points ──
-// Each point represents an approximate coastal location with the direction of the sea.
-// seaLng/seaLat offsets indicate which direction is "ocean" from this coast point.
+// ── Coastline Reference Points (for distance estimation only) ──
 
 interface CoastRef {
   lat: number;
   lng: number;
-  seaLat: number; // direction to sea (latitude offset, normalized)
-  seaLng: number; // direction to sea (longitude offset, normalized)
   name: string;
 }
 
 const COAST_REFS: CoastRef[] = [
-  // ── Pacific coast (sea = east/southeast) ──
-  { lat: 42.5, lng: 145.0, seaLat: 0, seaLng: 1, name: 'Hokkaido-Pacific-E' },
-  { lat: 42.0, lng: 143.0, seaLat: -1, seaLng: 1, name: 'Hokkaido-Pacific-SE' },
-  { lat: 41.0, lng: 141.5, seaLat: 0, seaLng: 1, name: 'Aomori-Pacific' },
-  { lat: 39.5, lng: 142.0, seaLat: 0, seaLng: 1, name: 'Iwate' },
-  { lat: 38.3, lng: 141.5, seaLat: 0, seaLng: 1, name: 'Miyagi' },
-  { lat: 37.0, lng: 141.0, seaLat: 0, seaLng: 1, name: 'Fukushima' },
-  { lat: 36.3, lng: 140.8, seaLat: 0, seaLng: 1, name: 'Ibaraki' },
-  { lat: 35.7, lng: 140.8, seaLat: 0, seaLng: 1, name: 'Chiba-N' },
-  { lat: 35.0, lng: 140.0, seaLat: 0, seaLng: 1, name: 'Boso' },
-  { lat: 34.7, lng: 139.0, seaLat: -1, seaLng: 1, name: 'Izu-E' },
-  { lat: 34.5, lng: 138.5, seaLat: -1, seaLng: 0, name: 'Suruga' },
-  { lat: 34.0, lng: 137.0, seaLat: -1, seaLng: 0, name: 'Enshunada' },
-  { lat: 33.5, lng: 136.0, seaLat: -1, seaLng: 0, name: 'Kii-S' },
-  { lat: 33.3, lng: 134.0, seaLat: -1, seaLng: 0, name: 'Shikoku-S' },
-  { lat: 33.0, lng: 132.5, seaLat: -1, seaLng: 1, name: 'Shikoku-SW' },
-  { lat: 32.5, lng: 132.0, seaLat: -1, seaLng: 0, name: 'Hyuganada' },
-  { lat: 31.5, lng: 131.5, seaLat: -1, seaLng: 0, name: 'Miyazaki' },
-  { lat: 31.0, lng: 131.0, seaLat: -1, seaLng: 0, name: 'Kagoshima-S' },
-
-  // ── Sea of Japan coast (sea = west/northwest) ──
-  { lat: 43.0, lng: 141.0, seaLat: 0, seaLng: -1, name: 'Hokkaido-SeaOfJapan' },
-  { lat: 41.0, lng: 140.0, seaLat: 0, seaLng: -1, name: 'Tsugaru' },
-  { lat: 39.8, lng: 140.0, seaLat: 0, seaLng: -1, name: 'Akita' },
-  { lat: 38.8, lng: 139.5, seaLat: 0, seaLng: -1, name: 'Yamagata' },
-  { lat: 38.0, lng: 139.0, seaLat: 0, seaLng: -1, name: 'Niigata' },
-  { lat: 37.0, lng: 136.7, seaLat: 0, seaLng: -1, name: 'Noto-base' },
-  { lat: 37.5, lng: 137.2, seaLat: 0, seaLng: 1, name: 'Noto-tip' },
-  { lat: 36.0, lng: 136.0, seaLat: 1, seaLng: -1, name: 'Fukui' },
-  { lat: 35.5, lng: 134.5, seaLat: 1, seaLng: 0, name: 'Tottori' },
-  { lat: 35.0, lng: 132.5, seaLat: 1, seaLng: 0, name: 'Shimane' },
-  { lat: 34.5, lng: 131.0, seaLat: 1, seaLng: -1, name: 'Yamaguchi-N' },
-
-  // ── Kyushu west coast (sea = west) ──
-  { lat: 33.5, lng: 130.0, seaLat: 0, seaLng: -1, name: 'Fukuoka-W' },
-  { lat: 33.0, lng: 129.5, seaLat: 0, seaLng: -1, name: 'Nagasaki' },
-  { lat: 32.0, lng: 130.0, seaLat: 0, seaLng: -1, name: 'Kumamoto-W' },
-
-  // ── Inland sea / channels (near_coast zones) ──
-  { lat: 34.3, lng: 134.5, seaLat: -0.5, seaLng: 0.5, name: 'Seto-Inland-E' },
-  { lat: 34.0, lng: 133.0, seaLat: -0.5, seaLng: 0, name: 'Seto-Inland-W' },
-  { lat: 33.5, lng: 132.0, seaLat: -0.5, seaLng: 0.5, name: 'Bungo-Channel' },
-  { lat: 34.3, lng: 135.0, seaLat: -0.5, seaLng: 0, name: 'Kii-Channel' },
-
-  // ── Okinawa/Ryukyu (islands — sea in all directions) ──
-  // For islands, seaLat/seaLng are less meaningful; the island zone check handles these.
-  // Multiple refs per island help distance estimation.
-  { lat: 26.5, lng: 128.0, seaLat: 0, seaLng: 1, name: 'Okinawa-E' },
-  { lat: 26.3, lng: 127.5, seaLat: 0, seaLng: -1, name: 'Okinawa-W' },
-  { lat: 26.7, lng: 127.8, seaLat: 1, seaLng: 0, name: 'Okinawa-N' },
-  { lat: 24.8, lng: 125.3, seaLat: 0, seaLng: 1, name: 'Miyako-E' },
-  { lat: 24.8, lng: 125.1, seaLat: 0, seaLng: -1, name: 'Miyako-W' },
-  { lat: 24.3, lng: 124.2, seaLat: -1, seaLng: 0, name: 'Yaeyama-S' },
-  { lat: 24.5, lng: 124.0, seaLat: 0, seaLng: -1, name: 'Yaeyama-W' },
-  { lat: 24.5, lng: 124.4, seaLat: 0, seaLng: 1, name: 'Yaeyama-E' },
-  { lat: 28.4, lng: 129.5, seaLat: 0, seaLng: 1, name: 'Amami-E' },
-  { lat: 28.3, lng: 129.3, seaLat: 0, seaLng: -1, name: 'Amami-W' },
-  { lat: 30.4, lng: 130.5, seaLat: 0, seaLng: 1, name: 'Yakushima-E' },
-  { lat: 30.3, lng: 130.4, seaLat: 0, seaLng: -1, name: 'Yakushima-W' },
+  // ── Hokkaido ──
+  { lat: 42.5, lng: 145.0, name: 'Hokkaido-E' },
+  { lat: 42.0, lng: 143.0, name: 'Hokkaido-SE' },
+  { lat: 43.0, lng: 141.0, name: 'Hokkaido-W' },
+  { lat: 45.5, lng: 142.0, name: 'Hokkaido-N' },
+  { lat: 44.0, lng: 145.0, name: 'Hokkaido-NE' },
+  { lat: 43.3, lng: 145.5, name: 'Nemuro' },
+  // ── Honshu Pacific coast ──
+  { lat: 41.0, lng: 141.5, name: 'Aomori' },
+  { lat: 40.5, lng: 141.7, name: 'Hachinohe' },
+  { lat: 39.5, lng: 142.0, name: 'Iwate' },
+  { lat: 38.3, lng: 141.0, name: 'Sendai' },
+  { lat: 38.3, lng: 141.5, name: 'Ishinomaki' },
+  { lat: 37.0, lng: 141.0, name: 'Fukushima' },
+  { lat: 36.3, lng: 140.8, name: 'Ibaraki' },
+  { lat: 35.7, lng: 140.8, name: 'Chiba' },
+  { lat: 35.3, lng: 140.0, name: 'Boso-tip' },
+  { lat: 35.1, lng: 139.7, name: 'Miura' },
+  { lat: 34.6, lng: 138.8, name: 'Izu' },
+  { lat: 34.5, lng: 138.2, name: 'Suruga' },
+  { lat: 34.7, lng: 137.0, name: 'Enshu' },
+  { lat: 33.5, lng: 136.0, name: 'Kii-S' },
+  { lat: 33.4, lng: 135.8, name: 'Kii-tip' },
+  // ── Honshu Sea of Japan coast ──
+  { lat: 41.0, lng: 140.0, name: 'Tsugaru' },
+  { lat: 39.8, lng: 140.0, name: 'Akita' },
+  { lat: 38.8, lng: 139.5, name: 'Yamagata' },
+  { lat: 38.0, lng: 139.0, name: 'Niigata' },
+  { lat: 37.5, lng: 137.3, name: 'Noto-tip' },
+  { lat: 37.0, lng: 136.7, name: 'Noto-base' },
+  { lat: 36.0, lng: 136.0, name: 'Fukui' },
+  { lat: 35.5, lng: 134.5, name: 'Tottori' },
+  { lat: 35.0, lng: 132.5, name: 'Shimane' },
+  { lat: 34.5, lng: 131.0, name: 'Yamaguchi' },
+  // ── Shikoku ──
+  { lat: 33.3, lng: 134.2, name: 'Muroto' },
+  { lat: 32.8, lng: 133.0, name: 'Ashizuri' },
+  { lat: 34.3, lng: 134.0, name: 'Takamatsu' },
+  { lat: 34.0, lng: 133.0, name: 'Niihama' },
+  // ── Kyushu ──
+  { lat: 33.0, lng: 131.8, name: 'Oita' },
+  { lat: 31.9, lng: 131.5, name: 'Miyazaki' },
+  { lat: 31.0, lng: 131.0, name: 'Kagoshima-S' },
+  { lat: 33.5, lng: 130.0, name: 'Fukuoka' },
+  { lat: 33.0, lng: 129.5, name: 'Nagasaki' },
+  { lat: 32.0, lng: 130.0, name: 'Kumamoto' },
+  // ── Inland Sea / Channels (denser for accuracy) ──
+  { lat: 34.3, lng: 134.5, name: 'Seto-E' },
+  { lat: 34.1, lng: 133.5, name: 'Seto-Mid' },
+  { lat: 34.3, lng: 132.5, name: 'Onomichi' },
+  { lat: 33.9, lng: 132.5, name: 'Imabari' },
+  { lat: 33.5, lng: 132.0, name: 'Bungo-Channel' },
+  { lat: 34.3, lng: 135.0, name: 'Kii-Channel' },
+  // ── Okinawa/Ryukyu ──
+  { lat: 26.5, lng: 128.0, name: 'Okinawa-E' },
+  { lat: 26.3, lng: 127.5, name: 'Okinawa-W' },
+  { lat: 26.7, lng: 127.8, name: 'Okinawa-N' },
+  { lat: 24.8, lng: 125.3, name: 'Miyako-E' },
+  { lat: 24.8, lng: 125.1, name: 'Miyako-W' },
+  { lat: 24.3, lng: 124.2, name: 'Yaeyama-S' },
+  { lat: 24.5, lng: 124.0, name: 'Yaeyama-W' },
+  { lat: 24.5, lng: 124.4, name: 'Yaeyama-E' },
+  { lat: 28.4, lng: 129.5, name: 'Amami-E' },
+  { lat: 28.3, lng: 129.3, name: 'Amami-W' },
+  { lat: 30.4, lng: 130.5, name: 'Yakushima-E' },
+  { lat: 30.3, lng: 130.4, name: 'Yakushima-W' },
 ];
+
+// ── Japan Land Polygons (simplified, ~15-20km accuracy) ──
+// Used for point-in-polygon tests to determine land vs sea.
+// Each polygon traces a main island clockwise as [lat, lng] pairs.
+// Accuracy within 30km of coast doesn't matter — both "near_coast"
+// regardless of which side of the polygon boundary the point falls on.
+
+type LatLng = [number, number];
+
+const HOKKAIDO: LatLng[] = [
+  [41.4, 140.1],  // Cape Shirakami (SW tip)
+  [42.0, 140.7],  // Hakodate
+  [42.0, 141.5],  // Tomakomai
+  [42.3, 143.0],  // Obihiro
+  [43.0, 144.5],  // Kushiro
+  [43.2, 145.3],  // Nemuro west (captures peninsula)
+  [43.4, 145.8],  // Cape Nosappu (Nemuro tip)
+  [43.6, 145.3],  // Nemuro north
+  [44.2, 145.0],  // Shiretoko
+  [44.8, 143.2],  // Abashiri/Monbetsu
+  [45.5, 142.0],  // Cape Soya
+  [44.5, 141.7],  // South of Soya
+  [43.3, 140.4],  // Rumoi
+  [42.5, 140.0],  // West coast
+  [42.1, 140.3],  // Oshima Peninsula west
+];
+
+const HONSHU: LatLng[] = [
+  // Pacific coast (NE → SW)
+  [41.5, 141.0],  // Shimokita
+  [40.5, 141.7],  // Hachinohe
+  [39.6, 142.1],  // Miyako
+  [38.3, 141.5],  // Sendai
+  [37.0, 141.0],  // Iwaki
+  [36.4, 140.8],  // Ibaraki
+  [35.8, 140.9],  // Choshi
+  [35.3, 140.0],  // Boso
+  [35.1, 139.7],  // Miura
+  [35.1, 139.1],  // Odawara
+  [34.6, 138.8],  // Izu Peninsula tip
+  [34.8, 138.2],  // Shizuoka
+  [34.7, 137.0],  // Enshu
+  [34.3, 136.5],  // Shima
+  [33.5, 136.0],  // Kii east
+  [33.4, 135.8],  // Kii south tip
+  [33.5, 135.0],  // Kii west
+  [34.0, 135.1],  // Wakayama
+  // Inland Sea coast (E → W)
+  [34.4, 135.0],  // Osaka
+  [34.7, 134.8],  // Akashi
+  [34.7, 134.0],  // Himeji
+  [34.5, 133.5],  // Okayama
+  [34.3, 133.0],  // Fukuyama
+  [34.2, 132.5],  // Hiroshima
+  [34.0, 131.5],  // Yamaguchi south
+  [33.9, 131.0],  // Shimonoseki
+  // Sea of Japan coast (SW → NE)
+  [34.3, 131.0],  // Hagi
+  [34.7, 131.5],  // Masuda
+  [35.0, 132.2],  // Hamada
+  [35.3, 132.7],  // Izumo
+  [35.5, 133.5],  // Tottori
+  [35.6, 134.5],  // Toyooka
+  [35.7, 135.2],  // Tango
+  [35.8, 135.7],  // Maizuru
+  [36.1, 136.0],  // Tsuruga
+  [36.5, 136.6],  // Kanazawa
+  [37.0, 136.7],  // Noto base W
+  [37.5, 137.3],  // Noto tip
+  [37.2, 137.0],  // Noto base E
+  [37.8, 138.5],  // Joetsu
+  [38.0, 139.0],  // Niigata
+  [38.8, 139.5],  // Sakata
+  [39.7, 140.0],  // Akita
+  [40.5, 140.0],  // Noshiro
+  [41.0, 140.2],  // Tsugaru W
+  [41.4, 140.5],  // Tsugaru N
+];
+
+const SHIKOKU: LatLng[] = [
+  [34.3, 134.5],  // Naruto (NE)
+  [33.8, 134.7],  // East coast
+  [33.3, 134.2],  // Cape Muroto
+  [32.8, 133.0],  // Cape Ashizuri
+  [33.3, 132.3],  // SW coast
+  [33.6, 132.0],  // Bungo Channel
+  [33.9, 132.7],  // Matsuyama
+  [34.2, 133.5],  // Niihama
+  [34.4, 134.0],  // Takamatsu
+];
+
+const KYUSHU: LatLng[] = [
+  [33.9, 131.0],  // Kitakyushu (NE)
+  [33.5, 131.6],  // Oita
+  [33.0, 131.8],  // Saiki
+  [32.7, 132.0],  // Nobeoka
+  [31.9, 131.5],  // Miyazaki
+  [31.3, 131.2],  // Shibushi
+  [30.7, 131.0],  // Cape Sata
+  [31.3, 130.3],  // Kagoshima
+  [32.0, 130.0],  // Kumamoto/Amakusa
+  [32.7, 129.7],  // Nagasaki
+  [33.2, 129.5],  // Sasebo
+  [33.5, 129.8],  // Karatsu
+  [33.6, 130.4],  // Fukuoka
+];
+
+const MAIN_ISLAND_POLYGONS: LatLng[][] = [HOKKAIDO, HONSHU, SHIKOKU, KYUSHU];
+
+/**
+ * Ray-casting point-in-polygon test.
+ * Counts how many times a ray from the point to the right crosses the polygon boundary.
+ * Odd count = inside, even count = outside.
+ */
+function pointInPolygon(lat: number, lng: number, polygon: LatLng[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [yi, xi] = polygon[i];
+    const [yj, xj] = polygon[j];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Check if a point is on one of Japan's 4 main islands
+ * (Hokkaido, Honshu, Shikoku, Kyushu).
+ */
+function isOnMainIsland(lat: number, lng: number): boolean {
+  for (const poly of MAIN_ISLAND_POLYGONS) {
+    if (pointInPolygon(lat, lng, poly)) return true;
+  }
+  return false;
+}
 
 // ── Place Text Parsing ──
 
@@ -255,11 +397,17 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 /**
- * Geometric classification using coastline reference points.
- * For each nearby coast reference, check if epicenter is on the sea side.
+ * Geometric classification using land polygons + coast distance.
+ *
+ * No sea-direction vectors — uses point-in-polygon for definitive land/sea
+ * determination, combined with haversine distance to coast reference points.
+ *
+ * The polygon has ~15-20km accuracy, but this doesn't matter:
+ * points within 30km of coast are classified as "near_coast" regardless
+ * of which side of the polygon boundary they fall on.
  */
 function classifyByGeometry(lat: number, lng: number): LocationClassification {
-  // Not in Japan region at all — classify as offshore if clearly oceanic
+  // Not in Japan region at all
   if (lat < 20 || lat > 50 || lng < 120 || lng > 155) {
     return {
       type: 'offshore',
@@ -269,100 +417,42 @@ function classifyByGeometry(lat: number, lng: number): LocationClassification {
     };
   }
 
-  // Find closest coast reference points
-  const scored: { ref: CoastRef; dist: number; seaSide: boolean }[] = [];
+  const dist = estimateCoastDistance(lat, lng);
+  const onLand = isOnMainIsland(lat, lng);
 
-  for (const ref of COAST_REFS) {
-    const dist = haversineKm(lat, lng, ref.lat, ref.lng);
-    if (dist > 500) continue; // Skip distant refs
-
-    // Check if epicenter is on the sea side of this coast point
-    const dLat = lat - ref.lat;
-    const dLng = lng - ref.lng;
-    // Dot product with sea direction: positive = sea side, negative = land side
-    const dot = dLat * ref.seaLat + dLng * ref.seaLng;
-
-    scored.push({ ref, dist, seaSide: dot > 0 });
-  }
-
-  if (scored.length === 0) {
-    // No nearby coast references — check if in a known ocean region
-    // Within Japan's tectonic zone but far from main islands = likely oceanic
-    // (Kurils, Bonin/Ogasawara, open Pacific, remote Sea of Japan)
-    const nearestCoast = estimateCoastDistance(lat, lng);
-    if (nearestCoast > 300) {
+  if (onLand) {
+    // On a main island: inland or near_coast depending on distance
+    if (dist < 30) {
       return {
-        type: 'offshore',
+        type: 'near_coast',
         confidence: 'medium',
-        coastDistanceKm: nearestCoast,
-        reason: `Far from any coastline reference (~${nearestCoast}km)`,
+        coastDistanceKm: dist,
+        reason: `On main island, near coast (~${dist}km)`,
       };
     }
     return {
       type: 'inland',
       confidence: 'medium',
-      coastDistanceKm: nearestCoast,
-      reason: `No nearby coast reference points (~${nearestCoast}km from nearest)`,
+      coastDistanceKm: dist,
+      reason: `On main island, ~${dist}km from coast`,
     };
   }
 
-  // Sort by distance
-  scored.sort((a, b) => a.dist - b.dist);
-  const nearest = scored[0];
-
-  // Use the 3 nearest refs for consensus, weighted by proximity
-  const topRefs = scored.slice(0, 3);
-  const avgDist = Math.round(topRefs.reduce((s, r) => s + r.dist, 0) / topRefs.length);
-
-  // If nearest ref is much closer than others (2x+), trust it directly
-  if (topRefs.length >= 2 && topRefs[0].dist * 2 < topRefs[1].dist) {
-    const n = topRefs[0];
-    if (n.seaSide) {
-      return n.dist > 50
-        ? { type: 'offshore', confidence: 'medium', coastDistanceKm: Math.round(n.dist), reason: `Sea side of ${n.ref.name} coast (~${Math.round(n.dist)}km)` }
-        : { type: 'near_coast', confidence: 'medium', coastDistanceKm: Math.round(n.dist), reason: `Near ${n.ref.name} coast (~${Math.round(n.dist)}km), sea side` };
-    }
-    return n.dist < 30
-      ? { type: 'near_coast', confidence: 'medium', coastDistanceKm: Math.round(n.dist), reason: `Near ${n.ref.name} coast (~${Math.round(n.dist)}km), land side` }
-      : { type: 'inland', confidence: 'medium', coastDistanceKm: Math.round(n.dist), reason: `Inland, ~${Math.round(n.dist)}km from ${n.ref.name} coast` };
-  }
-
-  const seaSideCount = topRefs.filter(s => s.seaSide).length;
-
-  // Majority sea side (or single ref on sea side)
-  if (seaSideCount > topRefs.length / 2) {
-    // Majority says sea side
-    if (nearest.dist > 50) {
-      return {
-        type: 'offshore',
-        confidence: 'medium',
-        coastDistanceKm: Math.round(nearest.dist),
-        reason: `Sea side of ${nearest.ref.name} coast (~${Math.round(nearest.dist)}km)`,
-      };
-    }
+  // Not on a main island polygon: at sea
+  if (dist <= 50) {
     return {
       type: 'near_coast',
       confidence: 'medium',
-      coastDistanceKm: Math.round(nearest.dist),
-      reason: `Near ${nearest.ref.name} coast (~${Math.round(nearest.dist)}km), sea side`,
-    };
-  }
-
-  // Majority says land side
-  if (nearest.dist < 30) {
-    return {
-      type: 'near_coast',
-      confidence: 'medium',
-      coastDistanceKm: Math.round(nearest.dist),
-      reason: `Near ${nearest.ref.name} coast (~${Math.round(nearest.dist)}km), land side`,
+      coastDistanceKm: dist,
+      reason: `At sea, near coast (~${dist}km)`,
     };
   }
 
   return {
-    type: 'inland',
+    type: 'offshore',
     confidence: 'medium',
-    coastDistanceKm: avgDist,
-    reason: `Inland, ~${avgDist}km from nearest coast (${nearest.ref.name})`,
+    coastDistanceKm: dist,
+    reason: `Offshore, ~${dist}km from coast`,
   };
 }
 
