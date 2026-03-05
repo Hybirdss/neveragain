@@ -14,7 +14,6 @@ import { MMI_COLORS } from '../utils/colorScale';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { buildAnalysisSection, updateAnalysis, disposeAnalysisPanel } from './analysisPanel';
 import { createHelpButton } from './intensityGuide';
-import { assessTsunamiRisk, classifyLocation, inferFaultType } from '../../../../packages/db/geo.ts';
 
 // ── DOM refs ──
 
@@ -195,26 +194,19 @@ export function refreshDetail(
       `${Math.abs(selectedEvent.lat).toFixed(3)}\u00B0${selectedEvent.lat >= 0 ? 'N' : 'S'}`));
     detailMetaEl.appendChild(el('span', undefined,
       `${Math.abs(selectedEvent.lng).toFixed(3)}\u00B0${selectedEvent.lng >= 0 ? 'E' : 'W'}`));
-    // Tsunami badge: compute client-side (overrides stale DB facts)
-    const ai = store.get('ai');
-    const placeText = selectedEvent.place?.text;
-    const loc = classifyLocation(selectedEvent.lat, selectedEvent.lng, placeText, undefined);
-    const ft = selectedEvent.faultType || inferFaultType(selectedEvent.depth_km, selectedEvent.lat, selectedEvent.lng, placeText, undefined);
-    const tsunamiResult = assessTsunamiRisk(
-      selectedEvent.magnitude, selectedEvent.depth_km, ft,
-      selectedEvent.lat, selectedEvent.lng, placeText, undefined,
-      selectedEvent.tsunami,
-    );
-    const tsunamiRisk = tsunamiResult.risk;
-    const isOffshore = loc.type !== 'inland';
-    if (tsunamiRisk === 'high' || tsunamiRisk === 'moderate') {
-      detailMetaEl.appendChild(el('span', 'feed-item__tsunami feed-item__tsunami--warn',
-        t(`tsunami.label.${tsunamiRisk}`)));
-    } else if ((tsunamiRisk === 'low' || tsunamiRisk === 'none') && isOffshore) {
-      detailMetaEl.appendChild(el('span', 'feed-item__tsunami--safe',
-        t(`tsunami.label.${tsunamiRisk}`)));
+    // Tsunami badge: read from store (computed once in selectionOrchestrator)
+    const tsunami = store.get('tsunamiAssessment');
+    if (tsunami) {
+      const isOffshore = tsunami.locationType !== 'inland';
+      if (tsunami.risk === 'high' || tsunami.risk === 'moderate') {
+        detailMetaEl.appendChild(el('span', 'feed-item__tsunami feed-item__tsunami--warn',
+          t(`tsunami.label.${tsunami.risk}`)));
+      } else if ((tsunami.risk === 'low' || tsunami.risk === 'none') && isOffshore) {
+        detailMetaEl.appendChild(el('span', 'feed-item__tsunami--safe',
+          t(`tsunami.label.${tsunami.risk}`)));
+      }
     } else if (selectedEvent.tsunami) {
-      detailMetaEl.appendChild(el('span', 'feed-item__tsunami', '津波注意'));
+      detailMetaEl.appendChild(el('span', 'feed-item__tsunami', t('tsunami.label.low')));
     }
 
     if (intensitySource === 'shakemap') {
@@ -246,6 +238,7 @@ export function refreshDetail(
     }
 
     // AI Analysis rendering (delegated to analysisPanel)
+    const ai = store.get('ai');
     updateAnalysis(ai.currentAnalysis, ai.analysisLoading, ai.analysisError);
 
     crossSectionBtn.style.display = selectedEvent.magnitude >= 4.0 ? 'block' : 'none';

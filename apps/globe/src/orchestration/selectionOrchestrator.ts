@@ -12,6 +12,8 @@
 
 import { store } from '../store/appState';
 import type { EarthquakeEvent } from '../types';
+import type { TsunamiAssessment } from '../types';
+import { assessTsunamiRisk, classifyLocation, inferFaultType } from '@namazue/db/geo';
 import type { GlobeInstance } from '../globe/globeInstance';
 import type { GmpeOrchestrator } from './gmpeOrchestrator';
 import { flyToEarthquake } from '../globe/camera';
@@ -73,6 +75,7 @@ export function initSelectionOrchestrator(
       store.set('intensityGrid', null);
       store.set('intensitySource', 'none');
       store.set('waveState', null);
+      store.set('tsunamiAssessment', null);
       store.set('ai', {
         ...store.get('ai'),
         currentAnalysis: null,
@@ -87,6 +90,25 @@ export function initSelectionOrchestrator(
     clearShakeMapOverlay();
     store.set('intensityGrid', null);
     store.set('intensitySource', 'none');
+
+    // Tsunami assessment — compute once, store for all UI modules
+    const placeText = event.place?.text;
+    const loc = classifyLocation(event.lat, event.lng, placeText, undefined);
+    const ft = event.faultType || inferFaultType(event.depth_km, event.lat, event.lng, placeText, undefined);
+    const tsunamiResult = assessTsunamiRisk(
+      event.magnitude, event.depth_km, ft,
+      event.lat, event.lng, placeText, undefined,
+      event.tsunami,
+    );
+    const assessment: TsunamiAssessment = {
+      risk: tsunamiResult.risk,
+      confidence: tsunamiResult.confidence,
+      factors: tsunamiResult.factors,
+      locationType: loc.type,
+      coastDistanceKm: loc.coastDistanceKm,
+      faultType: ft,
+    };
+    store.set('tsunamiAssessment', assessment);
 
     // AI analysis
     if (shouldFetchOnClick(event)) {

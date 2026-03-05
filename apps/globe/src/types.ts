@@ -220,6 +220,17 @@ export interface PlateauCityConfig {
 
 export type PanelTab = 'map' | 'live' | 'detail';
 
+// ── Tsunami Assessment (computed once per selection) ─────────
+
+export interface TsunamiAssessment {
+  risk: 'high' | 'moderate' | 'low' | 'none';
+  confidence: 'high' | 'medium';
+  factors: string[];
+  locationType: 'offshore' | 'near_coast' | 'inland';
+  coastDistanceKm: number | null;
+  faultType: string;
+}
+
 // ── AI Analysis State ──────────────────────────────────────
 
 export type AiTab = 'easy' | 'expert' | 'data';
@@ -241,6 +252,7 @@ export interface AppState {
   viewState: ViewState;
   activePanel: PanelTab;
   selectedEvent: EarthquakeEvent | null;
+  tsunamiAssessment: TsunamiAssessment | null;
   intensityGrid: IntensityGrid | null;
   intensitySource: IntensitySource;
   waveState: WaveState | null;

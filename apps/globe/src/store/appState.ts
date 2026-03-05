@@ -125,6 +125,7 @@ const initialState: AppState = {
   viewState: { type: 'idle' },
   activePanel: 'map',
   selectedEvent: null,
+  tsunamiAssessment: null,
   intensityGrid: null,
   intensitySource: 'none',
   waveState: null,

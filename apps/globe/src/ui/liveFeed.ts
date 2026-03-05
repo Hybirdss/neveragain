@@ -207,7 +207,7 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean, cluster?: Cl
     meta.appendChild(el('span', `source-tag ${sourceTag.className}`, sourceTag.label));
   }
   if (event.tsunami) {
-    meta.appendChild(el('span', 'feed-item__tsunami', '津波'));
+    meta.appendChild(el('span', 'feed-item__tsunami', t('tsunami.label.low')));
   }
 
   // Aftershock badge for mainshock events

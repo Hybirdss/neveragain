@@ -10,7 +10,6 @@
 import type { AiTab } from '../types';
 import { store } from '../store/appState';
 import { t, getLocale, onLocaleChange } from '../i18n/index';
-import { assessTsunamiRisk, classifyLocation, inferFaultType } from '../../../../packages/db/geo.ts';
 
 // ── State ──
 
@@ -82,21 +81,12 @@ function switchTab(tab: AiTab): void {
 // ── Easy Tab (Public Briefing) ──
 
 function renderTsunamiCard(container: HTMLElement, _a: any): void {
-  // Always compute tsunami risk client-side from earthquake parameters
-  // This overrides potentially stale DB facts (e.g., old classifyLocation bugs)
-  const ev = store.get('selectedEvent');
-  if (!ev) return;
+  // Read pre-computed tsunami assessment from store (computed once in selectionOrchestrator)
+  const tsunami = store.get('tsunamiAssessment');
+  if (!tsunami) return;
 
-  const placeText = ev.place?.text;
-  const loc = classifyLocation(ev.lat, ev.lng, placeText, undefined);
-  const faultType = ev.faultType || inferFaultType(ev.depth_km, ev.lat, ev.lng, placeText, undefined);
-  const isOffshore = loc.type !== 'inland';
-  const tsunami = assessTsunamiRisk(
-    ev.magnitude, ev.depth_km, faultType,
-    ev.lat, ev.lng, placeText, undefined,
-    ev.tsunami,
-  );
   const risk = tsunami.risk;
+  const isOffshore = tsunami.locationType !== 'inland';
 
   // Skip for inland "none"
   if (risk === 'none' && !isOffshore) return;
@@ -352,18 +342,14 @@ function renderDataPane(a: any): void {
       dataPane.appendChild(group);
     }
 
-    // Tsunami — compute client-side for accuracy
+    // Tsunami — read pre-computed assessment from store
     {
-      const ev = store.get('selectedEvent');
-      if (ev) {
-        const pt = ev.place?.text;
-        const lc = classifyLocation(ev.lat, ev.lng, pt, undefined);
-        const ftx = ev.faultType || inferFaultType(ev.depth_km, ev.lat, ev.lng, pt, undefined);
-        const tr = assessTsunamiRisk(ev.magnitude, ev.depth_km, ftx, ev.lat, ev.lng, pt, undefined, ev.tsunami);
+      const tr = store.get('tsunamiAssessment');
+      if (tr) {
         dataPane.appendChild(el('div', 'analysis__section-header', t('detail.tsunami')));
         const group = el('div', 'analysis__kv-group');
         addKV(group, 'Risk', tr.risk);
-        addKV(group, 'Location', `${lc.type} (${lc.reason.slice(0, 50)})`);
+        addKV(group, 'Location', tr.locationType);
         addKV(group, 'Confidence', tr.confidence);
         addKV(group, 'Factors', tr.factors.join(', '));
         dataPane.appendChild(group);
