@@ -11,8 +11,8 @@ import {
   EARTHQUAKE_LIMITS,
   parseFiniteNumber,
   validateRange,
-  validateRangePair,
 } from '../lib/earthquakeValidation.ts';
+import { parseValidatedRange } from '../lib/searchValidation.ts';
 
 export const searchRoute = new Hono<{ Bindings: Env }>();
 const MAX_QUERY_LENGTH = 256;
@@ -77,12 +77,37 @@ searchRoute.post('/', async (c) => {
   // SQL-based search
   const conditions: SQL[] = [];
 
-  let magMin = getNumber(body.mag_min);
-  let magMax = getNumber(body.mag_max);
-  let depthMin = getNumber(body.depth_min);
-  let depthMax = getNumber(body.depth_max);
-  [magMin, magMax] = normalizeRange(magMin, magMax);
-  [depthMin, depthMax] = normalizeRange(depthMin, depthMax);
+  const {
+    min: magMin,
+    max: magMax,
+    error: magRangeErr,
+  } = parseValidatedRange(
+    body.mag_min,
+    body.mag_max,
+    'mag_min',
+    'mag_max',
+    EARTHQUAKE_LIMITS.magnitude.min,
+    EARTHQUAKE_LIMITS.magnitude.max,
+  );
+  if (magRangeErr) {
+    return c.json({ error: magRangeErr }, 400);
+  }
+
+  const {
+    min: depthMin,
+    max: depthMax,
+    error: depthRangeErr,
+  } = parseValidatedRange(
+    body.depth_min,
+    body.depth_max,
+    'depth_min',
+    'depth_max',
+    EARTHQUAKE_LIMITS.depthKm.min,
+    EARTHQUAKE_LIMITS.depthKm.max,
+  );
+  if (depthRangeErr) {
+    return c.json({ error: depthRangeErr }, 400);
+  }
   const lat = getNumber(body.lat);
   const lng = getNumber(body.lng);
   const radiusKm = getNumber(body.radius_km);
@@ -90,20 +115,6 @@ searchRoute.post('/', async (c) => {
   const depthClass = getDepthClass(body.depth_class);
   const relative = getRelativeWindow(body.relative);
   const tags = getTags(body.tags);
-
-  const magMinErr = magMin === null ? null : validateRange('mag_min', magMin, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
-  const magMaxErr = magMax === null ? null : validateRange('mag_max', magMax, EARTHQUAKE_LIMITS.magnitude.min, EARTHQUAKE_LIMITS.magnitude.max);
-  const magPairErr = validateRangePair('mag_min', magMin, 'mag_max', magMax);
-  if (magMinErr || magMaxErr || magPairErr) {
-    return c.json({ error: magMinErr ?? magMaxErr ?? magPairErr }, 400);
-  }
-
-  const depthMinErr = depthMin === null ? null : validateRange('depth_min', depthMin, EARTHQUAKE_LIMITS.depthKm.min, EARTHQUAKE_LIMITS.depthKm.max);
-  const depthMaxErr = depthMax === null ? null : validateRange('depth_max', depthMax, EARTHQUAKE_LIMITS.depthKm.min, EARTHQUAKE_LIMITS.depthKm.max);
-  const depthPairErr = validateRangePair('depth_min', depthMin, 'depth_max', depthMax);
-  if (depthMinErr || depthMaxErr || depthPairErr) {
-    return c.json({ error: depthMinErr ?? depthMaxErr ?? depthPairErr }, 400);
-  }
 
   const hasLat = lat !== null;
   const hasLng = lng !== null;
@@ -234,11 +245,6 @@ searchRoute.post('/', async (c) => {
 
 function getNumber(value: unknown): number | null {
   return parseFiniteNumber(value);
-}
-
-function normalizeRange(min: number | null, max: number | null): [number | null, number | null] {
-  if (min === null || max === null) return [min, max];
-  return min <= max ? [min, max] : [max, min];
 }
 
 function getString(value: unknown): string {
