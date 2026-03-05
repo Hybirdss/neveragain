@@ -375,6 +375,9 @@ export function initTimeline(
 export function updateTimeline(state: TimelineState): void {
   currentState = state;
 
+  // Guard: DOM not yet created (orchestrator hydration runs before initTimeline)
+  if (!scrubProgress) return;
+
   // Update progress bar
   const progress = getProgress(state);
   const pctStr = `${(progress * 100).toFixed(2)}%`;
