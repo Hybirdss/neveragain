@@ -549,41 +549,51 @@ export function assessTsunamiRisk(
     ? `Offshore epicenter${distStr}`
     : `Near-coast epicenter${distStr}`;
   factors.push(locLabel);
+  factors.push(`Magnitude M${magnitude}, depth ${depth_km}km`);
+  if (faultType === 'interface') {
+    factors.push('Subduction interface mechanism');
+  }
 
-  if (magnitude >= 7.5 && depth_km < 60) {
-    factors.push(`Large magnitude (M${magnitude})`);
-    factors.push(`Shallow depth (${depth_km}km)`);
-    if (faultType === 'interface') {
-      factors.push('Subduction interface mechanism');
-    }
+  // ── HIGH: major tsunami potential ──
+  // M8+ at any depth (< 300km already filtered), or M7.5+ shallow, or M7+ very shallow
+  if (magnitude >= 8.0) {
+    return { risk: 'high', source: 'rule_engine', confidence: 'high', factors };
+  }
+  if (magnitude >= 7.5 && depth_km < 100) {
+    return { risk: 'high', source: 'rule_engine', confidence: 'high', factors };
+  }
+  if (magnitude >= 7.0 && depth_km < 80) {
     return { risk: 'high', source: 'rule_engine', confidence: 'high', factors };
   }
 
-  if (magnitude >= 6.5 && depth_km < 40) {
-    factors.push(`Moderate magnitude (M${magnitude})`);
-    factors.push(`Shallow depth (${depth_km}km)`);
+  // ── MODERATE: real tsunami concern ──
+  // M7.5+ deeper, M7.0+ mid-depth, M6.5+ upper crust, M6.0+ shallow
+  if (magnitude >= 7.5) {
+    return { risk: 'moderate', source: 'rule_engine', confidence: 'medium', factors };
+  }
+  if (magnitude >= 7.0 && depth_km < 120) {
+    return { risk: 'moderate', source: 'rule_engine', confidence: 'medium', factors };
+  }
+  if (magnitude >= 6.5 && depth_km < 80) {
+    return { risk: 'moderate', source: 'rule_engine', confidence: 'medium', factors };
+  }
+  if (magnitude >= 6.0 && depth_km < 50) {
     return { risk: 'moderate', source: 'rule_engine', confidence: 'medium', factors };
   }
 
-  if (magnitude >= 5.5) {
-    factors.push(`Magnitude M${magnitude}`);
+  // ── LOW: tsunami unlikely but assessed ──
+  if (magnitude >= 5.0) {
     return { risk: 'low', source: 'rule_engine', confidence: 'medium', factors };
   }
 
-  // M5.0-5.5 shallow offshore — low risk (JMA would still assess)
-  if (magnitude >= 5.0 && depth_km < 70) {
-    factors.push(`Magnitude M${magnitude}`);
-    factors.push(`Shallow depth (${depth_km}km)`);
-    return { risk: 'low', source: 'rule_engine', confidence: 'medium', factors };
-  }
-
-  // Small event but USGS flagged tsunami
+  // USGS flagged tsunami for small event
   if (usgsTsunamiFlag === true) {
     factors.push('USGS tsunami advisory issued');
     return { risk: 'low', source: 'rule_engine', confidence: 'medium', factors };
   }
 
-  return { risk: 'none', source: 'rule_engine', confidence: 'high', factors: [`Small ${loc.type} event${distStr}`] };
+  // ── NONE: negligible (M < 5.0 offshore, no USGS flag) ──
+  return { risk: 'none', source: 'rule_engine', confidence: 'high', factors };
 }
 
 // ── JMA Intensity Scale ──
