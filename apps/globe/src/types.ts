@@ -294,6 +294,7 @@ export interface PresentationDetailSummary {
 export interface PresentationEvidenceSummary {
   expertSummary: string | null;
   comparisonNarrative: string | null;
+  sourceNote: string | null;
   similarities: string[];
   differences: string[];
 }

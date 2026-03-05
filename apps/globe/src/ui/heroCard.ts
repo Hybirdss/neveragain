@@ -1,4 +1,4 @@
-import { getLocale, onLocaleChange } from '../i18n/index';
+import { getLocale, onLocaleChange, t } from '../i18n/index';
 import { store } from '../store/appState';
 import { getJmaColor, type EarthquakeEvent } from '../types';
 import { buildHeroSummary, deriveTsunamiAssessmentFromEvent, pickHeroEvent } from './presentation';
@@ -56,6 +56,7 @@ function render(): void {
 
   rootEl.classList.toggle('hero-card--empty', summary.state === 'empty');
   rootEl.classList.toggle('hero-card--loading', summary.state === 'loading');
+  rootEl.setAttribute('aria-busy', String(summary.state === 'loading'));
   rootEl.style.borderLeftColor = summary.severity === 'none'
     ? 'var(--border-subtle)'
     : getJmaColor(summary.severity, store.get('colorblind'));
@@ -77,13 +78,20 @@ function render(): void {
     tsunamiEl.style.display = 'none';
   }
 
-  if (heroEvent && !isSelectedHero) {
+  if (summary.state === 'loading') {
+    ctaEl.textContent = t('ai.badge.loading');
+    ctaEl.classList.add('hero-card__cta--loading');
+    ctaEl.style.display = '';
+  } else if (heroEvent && !isSelectedHero) {
     ctaEl.textContent = locale === 'ja' ? '詳しく見る' : locale === 'ko' ? '자세히 보기' : 'Open details';
+    ctaEl.classList.remove('hero-card__cta--loading');
     ctaEl.style.display = '';
   } else if (summary.state !== 'empty') {
     ctaEl.textContent = locale === 'ja' ? '選択中' : locale === 'ko' ? '선택 중' : 'Selected';
+    ctaEl.classList.remove('hero-card__cta--loading');
     ctaEl.style.display = '';
   } else {
+    ctaEl.classList.remove('hero-card__cta--loading');
     ctaEl.style.display = 'none';
   }
 }

@@ -327,8 +327,9 @@ export function initMobileSheet(): SheetContainers {
     if (!sheetRevealed && tl.events.length > 0) {
       sheetRevealed = true;
       sheetEl.style.transition = 'transform 500ms cubic-bezier(0.32, 0.72, 0, 1)';
-      currentSnap = 'half';
-      setSheetPosition(getSnapHeight('half'), true);
+      currentSnap = 'peek';
+      updatePeekSummary(null);
+      setSheetPosition(getSnapHeight('peek'), true);
       peekTimerId = setInterval(() => {
         if (!store.get('selectedEvent')) updatePeekSummary(null);
       }, 30_000);

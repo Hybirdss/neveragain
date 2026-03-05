@@ -53,13 +53,14 @@ function loc(value: unknown): string {
   return (record[locale] as string) || (record.en as string) || (record.ja as string) || (record.ko as string) || '';
 }
 
-function uiText(key: 'about' | 'evidence' | 'data' | 'copy' | 'download' | 'error'): string {
+function uiText(key: 'about' | 'evidence' | 'data' | 'copy' | 'download' | 'error' | 'source'): string {
   const locale = getLocale();
   if (key === 'about') return locale === 'ja' ? 'この地震について' : locale === 'ko' ? '이 지진에 대해' : 'About this earthquake';
   if (key === 'evidence') return locale === 'ja' ? '専門家向けの根拠' : locale === 'ko' ? '전문가 근거' : 'Evidence for experts';
   if (key === 'data') return locale === 'ja' ? 'データ' : locale === 'ko' ? '데이터' : 'Data';
   if (key === 'copy') return locale === 'ja' ? '要約をコピー' : locale === 'ko' ? '요약 복사' : 'Copy summary';
   if (key === 'download') return locale === 'ja' ? 'JSONを保存' : locale === 'ko' ? 'JSON 저장' : 'Download JSON';
+  if (key === 'source') return locale === 'ja' ? '根拠の出どころ' : locale === 'ko' ? '근거 출처' : 'Evidence basis';
   return locale === 'ja' ? '分析を読み込めませんでした' : locale === 'ko' ? '분석을 불러오지 못했습니다' : 'Could not load analysis';
 }
 
@@ -90,11 +91,11 @@ function appendBodyText(container: HTMLElement, title: string, text: string | nu
   container.appendChild(block);
 }
 
-function renderAboutPanel(analysis: Record<string, unknown>): void {
+function renderAboutPanel(analysis: Record<string, unknown> | null): void {
   aboutBodyEl.innerHTML = '';
   renderTsunamiCard(aboutBodyEl);
 
-  const publicLayer = asRecord(analysis.public);
+  const publicLayer = asRecord(analysis?.public);
   appendBodyText(aboutBodyEl, t('ai.why'), loc(publicLayer?.why ?? publicLayer?.why_it_happened));
   appendBodyText(aboutBodyEl, t('ai.aftershock'), loc(publicLayer?.aftershock_note ?? publicLayer?.will_it_shake_again));
 
@@ -117,20 +118,28 @@ function renderAboutPanel(analysis: Record<string, unknown>): void {
   }
 }
 
-function renderEvidencePanel(analysis: Record<string, unknown>): void {
+function renderEvidencePanel(analysis: Record<string, unknown> | null): void {
   evidenceBodyEl.innerHTML = '';
   const selected = store.get('selectedEvent');
   if (!selected) return;
+  const tsunami = store.get('tsunamiAssessment') ?? deriveTsunamiAssessmentFromEvent(selected);
 
   const evidence = buildEvidenceSummary({
     analysis,
+    event: selected,
+    tsunamiAssessment: tsunami,
+    locale: getLocale(),
+  });
+  const share = buildShareSummary({
+    event: selected,
+    analysis,
+    tsunamiAssessment: tsunami,
     locale: getLocale(),
   });
 
   const copyBtn = el('button', 'analysis__copy', uiText('copy')) as HTMLButtonElement;
   copyBtn.type = 'button';
   copyBtn.addEventListener('click', async () => {
-    const tsunami = store.get('tsunamiAssessment') ?? deriveTsunamiAssessmentFromEvent(selected);
     const summary = buildShareSummary({
       event: selected,
       analysis,
@@ -141,7 +150,9 @@ function renderEvidencePanel(analysis: Record<string, unknown>): void {
   });
   evidenceBodyEl.appendChild(copyBtn);
 
+  appendBodyText(evidenceBodyEl, uiText('copy'), share.shortText);
   appendBodyText(evidenceBodyEl, t('ai.expert.tectonic'), evidence.expertSummary);
+  appendBodyText(evidenceBodyEl, uiText('source'), evidence.sourceNote);
   appendBodyText(evidenceBodyEl, t('ai.expert.historical'), evidence.comparisonNarrative);
 
   if (evidence.similarities.length > 0) {
@@ -161,7 +172,7 @@ function renderEvidencePanel(analysis: Record<string, unknown>): void {
   }
 }
 
-function renderDataPanel(analysis: Record<string, unknown>): void {
+function renderDataPanel(analysis: Record<string, unknown> | null): void {
   dataBodyEl.innerHTML = '';
   const selected = store.get('selectedEvent');
   if (!selected) return;
@@ -181,7 +192,7 @@ function renderDataPanel(analysis: Record<string, unknown>): void {
     facts.appendChild(row);
   }
 
-  const factsRecord = asRecord(analysis.facts);
+  const factsRecord = asRecord(analysis?.facts);
   const maxIntensity = asRecord(factsRecord?.max_intensity);
   if (maxIntensity) {
     const extraRow = el('div', 'analysis__row');
@@ -206,13 +217,20 @@ function renderDataPanel(analysis: Record<string, unknown>): void {
 }
 
 function renderContent(): void {
-  if (!lastAnalysis) return;
+  const selected = store.get('selectedEvent');
+  if (!selected) {
+    rootEl.style.display = 'none';
+    return;
+  }
+
   rootEl.style.display = 'block';
-  skeletonEl.style.display = 'none';
-  errorEl.style.display = 'none';
   aboutSummaryEl.textContent = uiText('about');
   evidenceSummaryEl.textContent = uiText('evidence');
   dataSummaryEl.textContent = uiText('data');
+  aboutDetailsEl.open = true;
+  if (!lastAnalysis) {
+    evidenceDetailsEl.open = true;
+  }
   renderAboutPanel(lastAnalysis);
   renderEvidencePanel(lastAnalysis);
   renderDataPanel(lastAnalysis);
@@ -256,28 +274,15 @@ export function updateAnalysis(
 ): void {
   lastAnalysis = asRecord(analysis);
   lastError = error;
-
-  if (loading) {
-    rootEl.style.display = 'block';
-    skeletonEl.style.display = 'flex';
-    errorEl.style.display = 'none';
-    return;
-  }
-
-  if (lastAnalysis) {
-    renderContent();
-    return;
-  }
-
+  renderContent();
+  skeletonEl.style.display = loading ? 'flex' : 'none';
   if (error) {
-    rootEl.style.display = 'block';
-    skeletonEl.style.display = 'none';
     errorEl.style.display = 'block';
     errorEl.textContent = `${uiText('error')}: ${error}`;
-    return;
+  } else {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
   }
-
-  rootEl.style.display = 'none';
 }
 
 export function disposeAnalysisPanel(): void {

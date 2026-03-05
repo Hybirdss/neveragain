@@ -141,6 +141,20 @@ async function bootstrap(): Promise<void> {
   const realtime = initRealtimeOrchestrator();
   const firstPollDone = realtime.pollerHandle.firstPollDone;
 
+  // Dismiss the loading screen as soon as the first realtime fetch resolves.
+  // The live feed and mobile peek summary are already mounted before globe boot.
+  const loadingScreen = document.getElementById('loading-screen');
+  function dismissLoading(): void {
+    if (!loadingScreen || loadingScreen.classList.contains('exit')) return;
+    updateLoading('Ready', 100);
+    setTimeout(() => {
+      loadingScreen.classList.add('exit');
+      setTimeout(() => loadingScreen.remove(), 700);
+    }, 200);
+  }
+  firstPollDone.then(dismissLoading, dismissLoading);
+  setTimeout(dismissLoading, 12_000);
+
   // 5. Globe + data grids in parallel
   updateLoading('Loading 3D globe…', 20);
   const [{ globe, disposeGlobeSetup }, dataGrids] = await Promise.all([
@@ -242,24 +256,8 @@ async function bootstrap(): Promise<void> {
   // 10. Initial timeline state
   updateTimeline(store.get('timeline'));
 
-  // 11. Dismiss loading screen — earthquake data likely already arrived
+  // 11. Final loading status update for any in-flight loading UI.
   updateLoading('Fetching earthquakes…', 90);
-  const loadingScreen = document.getElementById('loading-screen');
-
-  function dismissLoading(): void {
-    if (!loadingScreen || loadingScreen.classList.contains('exit')) return;
-    updateLoading('Ready', 100);
-    setTimeout(() => {
-      loadingScreen.classList.add('exit');
-      setTimeout(() => loadingScreen.remove(), 700);
-    }, 200);
-  }
-
-  // Dismiss on first poll success OR failure (app is usable either way)
-  firstPollDone.then(dismissLoading, dismissLoading);
-
-  // Safety net: dismiss after 12s even if poll is still in-flight
-  setTimeout(dismissLoading, 12_000);
 
   // HMR cleanup
   if (import.meta.hot) {

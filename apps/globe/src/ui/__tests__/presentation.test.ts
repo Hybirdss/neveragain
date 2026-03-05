@@ -189,7 +189,7 @@ describe('buildHeroSummary', () => {
 
     expect(summary.state).toBe('loading');
     expect(summary.headline).toBe('Near Osaka');
-    expect(summary.message).toBe('Preparing AI summary...');
+    expect(summary.message).toBe('Noticeable shaking is likely. Watch for falling objects. No tsunami expected from this earthquake');
   });
 
   it('falls back to a plain-language summary when analysis is missing', () => {
@@ -259,6 +259,19 @@ describe('buildShareSummary', () => {
     expect(summary.shortText).toContain('No tsunami expected');
     expect(summary.lines).toContain('A shallow crustal fault moved beneath Osaka.');
   });
+
+  it('keeps a deduplicated short summary even without ai analysis', () => {
+    const summary = buildShareSummary({
+      event: EVENT,
+      analysis: null,
+      tsunamiAssessment: TSUNAMI_WARNING,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary.shortText).toBe('M5.8 · Near Osaka · TSUNAMI ADVISORY');
+    expect(summary.lines).toEqual([]);
+  });
 });
 
 describe('buildDetailSummary', () => {
@@ -276,6 +289,24 @@ describe('buildDetailSummary', () => {
     expect(summary.actionItems[0]).toBe('Check shelves and glass around you.');
     expect(summary.rawFacts[0]).toEqual({ label: 'Magnitude', value: 'M5.8' });
     expect(summary.rawFacts[1]).toEqual({ label: 'Depth', value: '12 km deep' });
+  });
+
+  it('builds concrete fallback actions when no ai action items exist', () => {
+    const summary = buildDetailSummary({
+      event: EVENT,
+      analysis: null,
+      tsunamiAssessment: TSUNAMI_WARNING,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary.summary).toContain('Strong shaking');
+    expect(summary.actionItems).toEqual([
+      'Move away from the coast and follow official tsunami updates.',
+      'Check shelves, lights, and loose objects around you.',
+      'Expect aftershocks and re-check official guidance before moving.',
+    ]);
+    expect(summary.actionItems).not.toContain(summary.summary);
   });
 });
 
@@ -295,5 +326,20 @@ describe('buildEvidenceSummary', () => {
     expect(sharedShape.expertSummary).toBe('Shared-type tectonic context');
     expect(sharedShape.comparisonNarrative).toBe('Shared type comparison narrative');
     expect(sharedShape.similarities).toContain('Offshore source');
+  });
+
+  it('creates fallback evidence copy when expert ai fields are unavailable', () => {
+    const summary = buildEvidenceSummary({
+      analysis: null,
+      event: EVENT,
+      tsunamiAssessment: TSUNAMI_WARNING,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary.expertSummary).toBe('Fallback from event facts: expected JMA 4 shaking for a M5.8 earthquake at 12 km deep.');
+    expect(summary.sourceNote).toBe('Using event magnitude, depth, computed intensity, and tsunami assessment until AI evidence is available.');
+    expect(summary.similarities).toEqual([]);
+    expect(summary.differences).toEqual([]);
   });
 });

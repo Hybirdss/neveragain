@@ -185,6 +185,7 @@ export function refreshDetail(
 
   const ai = store.get('ai');
   const tsunami = store.get('tsunamiAssessment') ?? deriveTsunamiAssessmentFromEvent(selectedEvent);
+  detailPanel.setAttribute('aria-busy', String(ai.analysisLoading));
   const summary = buildDetailSummary({
     event: selectedEvent,
     analysis: ai.currentAnalysis,

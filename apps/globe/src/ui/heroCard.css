@@ -80,6 +80,10 @@
   color: var(--text-tertiary);
 }
 
+.hero-card__cta--loading {
+  color: var(--accent-warning);
+}
+
 .hero-card--loading .hero-card__headline,
 .hero-card--loading .hero-card__message {
   opacity: 0.88;
