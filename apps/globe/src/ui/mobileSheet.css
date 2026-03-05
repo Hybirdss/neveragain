@@ -130,6 +130,22 @@
     width: 100%;
   }
 
+  .peek__headline {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .peek__summary-text {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+
   .peek__time {
     font-family: var(--font-mono);
     font-size: var(--text-xs);

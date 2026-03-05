@@ -11,9 +11,13 @@
 
 import type { EarthquakeEvent } from '../types';
 import { store } from '../store/appState';
-import { t, getLocale, onLocaleChange } from '../i18n/index';
-import { getJapanPlaceName } from '../utils/japanGeo';
-import { getLiveFeedEvents, formatRelativeTime } from './liveFeed';
+import { getLocale, t, onLocaleChange } from '../i18n/index';
+import { getLiveFeedEvents } from './liveFeed';
+import {
+  buildHeroSummary,
+  deriveTsunamiAssessmentFromEvent,
+  pickHeroEvent,
+} from './presentation';
 
 // ── Constants ──
 
@@ -46,6 +50,8 @@ let sheetRevealed = false;
 let unsubSelected: (() => void) | null = null;
 let unsubTimeline: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
+let unsubAi: (() => void) | null = null;
+let unsubTsunami: (() => void) | null = null;
 let peekTimerId: ReturnType<typeof setInterval> | null = null;
 
 // ── Helpers ──
@@ -59,14 +65,6 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (className) e.className = className;
   if (text !== undefined) e.textContent = text;
   return e;
-}
-
-function eventPlaceName(event: EarthquakeEvent): string {
-  const place = getJapanPlaceName(event.lat, event.lng);
-  if (!place) return event.place?.text || 'Unknown';
-  const locale = getLocale();
-  if (locale === 'ko') return place.ko;
-  return locale === 'ja' ? place.ja : place.en;
 }
 
 function clamp(val: number, min: number, max: number): number {
@@ -199,25 +197,42 @@ function onBodyTouchStart(e: TouchEvent): void {
 
 function updatePeekSummary(event: EarthquakeEvent | null): void {
   peekEl.innerHTML = '';
+  const locale = getLocale();
 
   if (event) {
-    // ── Detail mode ──
+    const ai = store.get('ai');
+    const summary = buildHeroSummary({
+      event,
+      analysis: ai.currentAnalysis,
+      tsunamiAssessment: store.get('tsunamiAssessment') ?? deriveTsunamiAssessmentFromEvent(event),
+      locale,
+      isLoading: ai.analysisLoading,
+    });
+
     const headerRow = el('div', 'peek__header');
-    headerRow.appendChild(el('span', 'peek__mag', event.magnitude.toFixed(1)));
-    headerRow.appendChild(el('span', 'peek__place', eventPlaceName(event)));
-    headerRow.appendChild(el('span', 'peek__meta', `${Math.round(event.depth_km)}km`));
+    headerRow.appendChild(el('span', 'peek__mag', summary.magnitudeLabel));
+    headerRow.appendChild(el('span', 'peek__headline', summary.headline));
     peekEl.appendChild(headerRow);
 
+    peekEl.appendChild(el('div', 'peek__summary-text', summary.message));
     const metaRow = el('div', 'peek__meta-row');
-    metaRow.appendChild(el('span', 'peek__time', formatRelativeTime(event.time)));
+    metaRow.appendChild(el('span', 'peek__meta', `${summary.place} · ${summary.relativeTime}`));
+    if (summary.tsunami) {
+      metaRow.appendChild(el('span', 'peek__count', summary.tsunami.label));
+    }
     peekEl.appendChild(metaRow);
   } else {
-    // ── List mode ──
     const events = getLiveFeedEvents();
-    const latest = events[0];
-    if (!latest) return; // Sheet is hidden when no data
+    const heroEvent = pickHeroEvent(events);
+    if (!heroEvent) return;
 
     const count = events.length;
+    const summary = buildHeroSummary({
+      event: heroEvent,
+      analysis: null,
+      tsunamiAssessment: deriveTsunamiAssessmentFromEvent(heroEvent),
+      locale,
+    });
 
     const headerRow = el('div', 'peek__header');
     headerRow.appendChild(el('span', 'peek__title', t('sheet.recentTitle')));
@@ -225,11 +240,17 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
     peekEl.appendChild(headerRow);
 
     const summaryRow = el('div', 'peek__summary');
-    summaryRow.appendChild(el('span', 'peek__mag', latest.magnitude.toFixed(1)));
-    summaryRow.appendChild(el('span', 'peek__place', eventPlaceName(latest)));
-    summaryRow.appendChild(el('span', 'peek__time', formatRelativeTime(latest.time)));
-    summaryRow.appendChild(el('span', 'peek__count', `${count}${t('sheet.countSuffix')}`));
+    summaryRow.appendChild(el('span', 'peek__mag', summary.magnitudeLabel));
+    summaryRow.appendChild(el('span', 'peek__headline', summary.headline));
+    summaryRow.appendChild(el('span', 'peek__time', summary.relativeTime));
     peekEl.appendChild(summaryRow);
+
+    peekEl.appendChild(el('div', 'peek__summary-text', summary.message));
+
+    const metaRow = el('div', 'peek__meta-row');
+    metaRow.appendChild(el('span', 'peek__meta', summary.place));
+    metaRow.appendChild(el('span', 'peek__count', `${count}${t('sheet.countSuffix')}`));
+    peekEl.appendChild(metaRow);
   }
 }
 
@@ -322,6 +343,14 @@ export function initMobileSheet(): SheetContainers {
     const selected = store.get('selectedEvent');
     updatePeekSummary(selected);
   });
+  unsubAi = store.subscribe('ai', () => {
+    const selected = store.get('selectedEvent');
+    updatePeekSummary(selected);
+  });
+  unsubTsunami = store.subscribe('tsunamiAssessment', () => {
+    const selected = store.get('selectedEvent');
+    updatePeekSummary(selected);
+  });
 
   return {
     listContainer: listEl,
@@ -336,6 +365,10 @@ export function disposeMobileSheet(): void {
   unsubTimeline = null;
   unsubLocale?.();
   unsubLocale = null;
+  unsubAi?.();
+  unsubAi = null;
+  unsubTsunami?.();
+  unsubTsunami = null;
   if (peekTimerId) { clearInterval(peekTimerId); peekTimerId = null; }
   sheetRevealed = false;
   // Clean up drag listeners that may still be active mid-drag

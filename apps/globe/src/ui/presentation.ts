@@ -269,12 +269,20 @@ function readHistoricalComparison(
     return { narrative: null, similarities: [], differences: [] };
   }
 
+  const primary = asRecord(comparison.primary);
+  const similarities = asArray(comparison.similarities).length > 0
+    ? asArray(comparison.similarities)
+    : asArray(primary?.similarities);
+  const differences = asArray(comparison.differences).length > 0
+    ? asArray(comparison.differences)
+    : asArray(primary?.differences);
+
   return {
     narrative: loc(comparison.narrative as LocalizedLike, locale) || null,
-    similarities: asArray(comparison.similarities)
+    similarities: similarities
       .map((item) => loc(item as LocalizedLike, locale))
       .filter(Boolean),
-    differences: asArray(comparison.differences)
+    differences: differences
       .map((item) => loc(item as LocalizedLike, locale))
       .filter(Boolean),
   };
@@ -418,9 +426,10 @@ export function buildDetailSummary(args: {
     tsunami: buildTsunamiSummary(args.tsunamiAssessment, locale),
     actionItems: readActionItems(analysis, locale),
     rawFacts: [
-      { label: 'lat', value: event.lat.toFixed(3) },
-      { label: 'lng', value: event.lng.toFixed(3) },
-      { label: 'faultType', value: event.faultType },
+      { label: locale === 'ja' ? '規模' : locale === 'ko' ? '규모' : 'Magnitude', value: `M${event.magnitude.toFixed(1)}` },
+      { label: locale === 'ja' ? '深さ' : locale === 'ko' ? '깊이' : 'Depth', value: formatDepth(event, locale) },
+      { label: locale === 'ja' ? '発生' : locale === 'ko' ? '발생' : 'Occurred', value: formatRelativeTime(event.time, locale, now) },
+      { label: locale === 'ja' ? '座標' : locale === 'ko' ? '좌표' : 'Coordinates', value: `${event.lat.toFixed(3)}, ${event.lng.toFixed(3)}` },
     ],
   };
 }

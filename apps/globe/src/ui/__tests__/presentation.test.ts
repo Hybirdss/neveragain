@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { EarthquakeEvent, TsunamiAssessment } from '../../types';
 import {
+  buildDetailSummary,
+  buildEvidenceSummary,
   buildHeroSummary,
   buildLiveFeedSummary,
   buildShareSummary,
@@ -109,6 +111,28 @@ const ANALYSIS = {
           ko: '예상 피해 범위는 훨씬 제한적입니다',
         },
       ],
+    },
+  },
+};
+
+const SHARED_STYLE_ANALYSIS = {
+  expert: {
+    tectonic_context: {
+      en: 'Shared-type tectonic context',
+      ja: '共有型の構造解説',
+      ko: '공유 타입 구조 해설',
+    },
+    historical_comparison: {
+      primary: {
+        name: '1968 Tokachi-oki earthquake',
+        similarities: ['Offshore source'],
+        differences: ['Smaller magnitude'],
+      },
+      narrative: {
+        en: 'Shared type comparison narrative',
+        ja: '共有型の比較ナラティブ',
+        ko: '공유 타입 비교 서술',
+      },
     },
   },
 };
@@ -234,5 +258,42 @@ describe('buildShareSummary', () => {
     expect(summary.shortText).toContain('Strong shaking near Osaka');
     expect(summary.shortText).toContain('No tsunami expected');
     expect(summary.lines).toContain('A shallow crustal fault moved beneath Osaka.');
+  });
+});
+
+describe('buildDetailSummary', () => {
+  it('prioritizes meaning and actions before raw facts', () => {
+    const summary = buildDetailSummary({
+      event: EVENT,
+      analysis: ANALYSIS,
+      tsunamiAssessment: TSUNAMI_WARNING,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary.summary).toBe('Objects may fall indoors, but no tsunami is expected.');
+    expect(summary.intensityMeaning.length).toBeGreaterThan(0);
+    expect(summary.actionItems[0]).toBe('Check shelves and glass around you.');
+    expect(summary.rawFacts[0]).toEqual({ label: 'Magnitude', value: 'M5.8' });
+    expect(summary.rawFacts[1]).toEqual({ label: 'Depth', value: '12 km deep' });
+  });
+});
+
+describe('buildEvidenceSummary', () => {
+  it('normalizes both current worker and shared-type historical comparison shapes', () => {
+    const currentShape = buildEvidenceSummary({
+      analysis: ANALYSIS,
+      locale: 'en',
+    });
+    const sharedShape = buildEvidenceSummary({
+      analysis: SHARED_STYLE_ANALYSIS,
+      locale: 'en',
+    });
+
+    expect(currentShape.expertSummary).toBe('Consistent with shallow inland crustal faulting.');
+    expect(currentShape.similarities).toContain('Shallow crustal setting');
+    expect(sharedShape.expertSummary).toBe('Shared-type tectonic context');
+    expect(sharedShape.comparisonNarrative).toBe('Shared type comparison narrative');
+    expect(sharedShape.similarities).toContain('Offshore source');
   });
 });
