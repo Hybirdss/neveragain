@@ -1,30 +1,35 @@
 /**
- * crossSection.ts — Textbook-quality Canvas 2D vertical cross-section panel
+ * crossSection.ts — Full-page cross-section overlay
  *
- * Shows a depth profile along a user-drawn line on the globe:
+ * When user clicks "Cross Section" in the detail panel:
+ * 1. Auto-generate optimal cross-section line from earthquake + slab data
+ * 2. Camera flies to close-up view of the area
+ * 3. Full-page overlay fades in with textbook-quality diagram
+ *
+ * Diagram features:
  * - Filled earth layers (crust, upper mantle, transition zone, lower mantle)
  * - Slab2 rendered as thick filled wedge with motion arrows
  * - Surface profile bar (ocean, trench, volcanic arc, land)
  * - Deforming discontinuity boundaries near slab
- * - Earthquake hypocenters with depth coloring, magnitude scaling, glow
- * - 3D depth effects (top light, bottom vignette, side darkening)
- *
- * Desktop: right-side panel (500px). Mobile: bottom sheet (55vh).
- * Tile cost: $0 — pure computation from cached data.
+ * - Earthquake hypocenters with depth coloring and magnitude scaling
+ * - 3D depth effects (lighting, vignettes)
  */
 
 import type { EarthquakeEvent } from '../types';
+import type { GlobeInstance } from '../globe/globeInstance';
 import { haversineDistance } from '../utils/coordinates';
 import { depthToColor } from '../utils/colorScale';
 import { getSlabDepthAt } from '../globe/features/slab2Contours';
+import { flyToForCrossSection } from '../globe/camera';
+import { store } from '../store/appState';
 
 // ── Types ────────────────────────────────────────────────────────
 
 export interface CrossSectionConfig {
   startPoint: { lat: number; lng: number };
   endPoint: { lat: number; lng: number };
-  swathKm: number;    // perpendicular width to include earthquakes (default 50)
-  maxDepthKm: number; // Y axis max (default 700)
+  swathKm: number;
+  maxDepthKm: number;
 }
 
 export interface SlabProfilePoint {
@@ -55,13 +60,14 @@ interface ProjectedPoint {
 
 // ── State ────────────────────────────────────────────────────────
 
-let panelEl: HTMLElement | null = null;
+let overlayEl: HTMLElement | null = null;
 let canvasEl: HTMLCanvasElement | null = null;
-let closeBtn: HTMLButtonElement | null = null;
+let headerInfoEl: HTMLElement | null = null;
+let footerEl: HTMLElement | null = null;
 let titleEl: HTMLElement | null = null;
+let globeRef: GlobeInstance | null = null;
 let isOpen = false;
 
-// Hit-testing state for hover
 let projectedPoints: (ProjectedPoint & { screenX: number; screenY: number })[] = [];
 let hoveredIndex = -1;
 let selectedEventId: string | null = null;
@@ -70,16 +76,17 @@ let currentRenderArgs: {
   earthquakes: EarthquakeEvent[];
   totalDistKm: number;
   slabProfile: SlabProfilePoint[];
+  earthquake: EarthquakeEvent;
 } | null = null;
 
-// Pulse animation state
 let pulseAnimId: number | null = null;
 let pulsePhase = 0;
+let resizeObserver: ResizeObserver | null = null;
 
 // ── Constants ────────────────────────────────────────────────────
 
-const MARGIN = { top: 45, right: 30, bottom: 35, left: 55 };
-const SURFACE_BAR_H = 25;
+const MARGIN = { top: 50, right: 30, bottom: 40, left: 55 };
+const SURFACE_BAR_H = 28;
 
 const EARTH_LAYERS = [
   { name: 'Crust',           depthMin: 0,   depthMax: 35,   colorTop: '#2D2518', colorBot: '#1E1A12' },
@@ -96,61 +103,52 @@ const DISCONTINUITIES = [
 
 // ── Public API ───────────────────────────────────────────────────
 
-export function initCrossSection(container: HTMLElement): void {
-  panelEl = document.createElement('div');
-  panelEl.className = 'cross-section-panel';
+export function initCrossSection(container: HTMLElement, globe: GlobeInstance): void {
+  globeRef = globe;
 
-  // Header bar
+  overlayEl = document.createElement('div');
+  overlayEl.className = 'cross-section-overlay';
+
+  // Header
   const header = document.createElement('div');
-  header.className = 'cross-section-header';
-  Object.assign(header.style, {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '8px 12px',
-    borderBottom: '1px solid var(--color-border)',
-  });
+  header.className = 'cross-section-overlay__header';
 
   titleEl = document.createElement('span');
-  Object.assign(titleEl.style, {
-    fontFamily: 'var(--font-mono)',
-    fontSize: 'var(--text-sm)',
-    color: 'var(--color-cyan)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  });
+  titleEl.className = 'cross-section-overlay__title';
   titleEl.textContent = 'Cross Section';
   header.appendChild(titleEl);
 
-  closeBtn = document.createElement('button');
+  headerInfoEl = document.createElement('span');
+  headerInfoEl.className = 'cross-section-overlay__eq-info';
+  header.appendChild(headerInfoEl);
+
+  const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.textContent = '\u00d7';
-  Object.assign(closeBtn.style, {
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-muted)',
-    fontSize: '18px',
-    cursor: 'pointer',
-    padding: '0 4px',
+  closeBtn.className = 'cross-section-overlay__close';
+  closeBtn.innerHTML = '\u00d7';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.addEventListener('click', () => {
+    store.set('viewPreset', 'default');
   });
-  closeBtn.addEventListener('click', hideCrossSection);
   header.appendChild(closeBtn);
+  overlayEl.appendChild(header);
 
-  panelEl.appendChild(header);
-
-  // Canvas
+  // Body (canvas container)
+  const body = document.createElement('div');
+  body.className = 'cross-section-overlay__body';
   canvasEl = document.createElement('canvas');
   canvasEl.className = 'cross-section-canvas';
-  Object.assign(canvasEl.style, {
-    width: '100%',
-    flex: '1',
-    display: 'block',
-  });
-  panelEl.appendChild(canvasEl);
+  body.appendChild(canvasEl);
+  overlayEl.appendChild(body);
 
-  container.appendChild(panelEl);
+  // Footer
+  footerEl = document.createElement('div');
+  footerEl.className = 'cross-section-overlay__footer';
+  overlayEl.appendChild(footerEl);
 
-  // Hover event listener
+  container.appendChild(overlayEl);
+
+  // Hover
   canvasEl.addEventListener('mousemove', handleCanvasHover);
   canvasEl.addEventListener('mouseleave', () => {
     if (hoveredIndex !== -1) {
@@ -159,32 +157,85 @@ export function initCrossSection(container: HTMLElement): void {
       canvasEl!.dispatchEvent(new CustomEvent('crosssection-hover', { detail: null, bubbles: true }));
     }
   });
+
+  // Keyboard: Escape to close
+  overlayEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') store.set('viewPreset', 'default');
+  });
+
+  // Resize observer for responsive canvas
+  resizeObserver = new ResizeObserver(() => {
+    if (isOpen) rerender();
+  });
+  resizeObserver.observe(body);
 }
 
+/**
+ * Show the cross-section for the currently selected earthquake.
+ * Auto-generates the cross-section line, flies camera, then shows overlay.
+ */
 export function showCrossSection(
-  config: CrossSectionConfig,
-  earthquakes: EarthquakeEvent[],
-  slabProfile?: SlabProfilePoint[],
+  earthquake: EarthquakeEvent,
+  events: EarthquakeEvent[],
 ): void {
-  if (!panelEl || !canvasEl) return;
+  if (!overlayEl || !canvasEl || !globeRef) return;
 
-  isOpen = true;
-  panelEl.classList.add('cross-section-panel--open');
-
+  const config = autoGenerateCrossSectionConfig(earthquake);
   const totalDist = haversineDistance(
     config.startPoint.lat, config.startPoint.lng,
     config.endPoint.lat, config.endPoint.lng,
   );
+
+  // Sample slab profile
+  const slabProfile = sampleSlabProfile(config, totalDist);
+
+  // Update header info
   if (titleEl) {
     titleEl.textContent = `Cross Section \u2014 ${totalDist.toFixed(0)} km`;
   }
+  if (headerInfoEl) {
+    headerInfoEl.innerHTML = '';
+    const mag = document.createElement('span');
+    mag.className = 'cross-section-overlay__mag';
+    mag.textContent = `M${earthquake.magnitude.toFixed(1)}`;
+    headerInfoEl.appendChild(mag);
 
-  const slab = slabProfile ?? sampleSlabProfile(config, totalDist);
+    const place = document.createElement('span');
+    place.textContent = earthquake.place?.text || '';
+    headerInfoEl.appendChild(place);
 
-  currentRenderArgs = { config, earthquakes, totalDistKm: totalDist, slabProfile: slab };
+    const depth = document.createElement('span');
+    depth.textContent = `${Math.round(earthquake.depth_km)} km depth`;
+    headerInfoEl.appendChild(depth);
+  }
 
-  // Render after CSS transition settles (panel animates open over ~500ms)
-  setTimeout(() => renderCanvas(config, earthquakes, totalDist, slab), 550);
+  selectedEventId = earthquake.id;
+  currentRenderArgs = { config, earthquakes: events, totalDistKm: totalDist, slabProfile, earthquake };
+
+  // Camera close-up, then show overlay
+  flyToForCrossSection(globeRef, earthquake.lat, earthquake.lng, () => {
+    setTimeout(() => {
+      isOpen = true;
+      overlayEl!.classList.add('cross-section-overlay--open');
+      // Start pulse animation for selected earthquake
+      startPulseAnimation();
+      // Render after overlay transition starts (canvas gets its final size)
+      requestAnimationFrame(() => {
+        setTimeout(() => renderCanvas(), 100);
+      });
+    }, 400);
+  });
+}
+
+export function hideCrossSection(): void {
+  if (!overlayEl) return;
+  isOpen = false;
+  overlayEl.classList.remove('cross-section-overlay--open');
+  stopPulseAnimation();
+}
+
+export function isCrossSectionOpen(): boolean {
+  return isOpen;
 }
 
 export function setSelectedEventId(eventId: string | null): void {
@@ -197,29 +248,24 @@ export function setSelectedEventId(eventId: string | null): void {
   rerender();
 }
 
-export function hideCrossSection(): void {
-  if (!panelEl) return;
-  isOpen = false;
-  panelEl.classList.remove('cross-section-panel--open');
-  stopPulseAnimation();
-}
-
-export function isCrossSectionOpen(): boolean {
-  return isOpen;
-}
-
 export function disposeCrossSection(): void {
   stopPulseAnimation();
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
   if (canvasEl) {
     canvasEl.removeEventListener('mousemove', handleCanvasHover);
   }
-  if (panelEl) {
-    panelEl.remove();
-    panelEl = null;
+  if (overlayEl) {
+    overlayEl.remove();
+    overlayEl = null;
   }
   canvasEl = null;
-  closeBtn = null;
+  headerInfoEl = null;
+  footerEl = null;
   titleEl = null;
+  globeRef = null;
   isOpen = false;
   projectedPoints = [];
   hoveredIndex = -1;
@@ -227,9 +273,78 @@ export function disposeCrossSection(): void {
   currentRenderArgs = null;
 }
 
+// ── Auto cross-section line generation ───────────────────────────
+
+function autoGenerateCrossSectionConfig(eq: EarthquakeEvent): CrossSectionConfig {
+  // Sample slab depth gradient around earthquake to find optimal direction
+  const R = 1.5; // degrees radius for sampling
+  const angles = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5]; // 0-180° (lines are bidirectional)
+
+  let bestAngle = 115; // default: ESE-WNW (typical Pacific subduction)
+  let maxRange = 0;
+
+  for (const angleDeg of angles) {
+    const rad = angleDeg * Math.PI / 180;
+    const depths: number[] = [];
+
+    for (let t = -R; t <= R; t += 0.25) {
+      const lat = eq.lat + t * Math.sin(rad);
+      const lng = eq.lng + t * Math.cos(rad);
+      const d = getSlabDepthAt(lat, lng);
+      if (!isNaN(d)) depths.push(d);
+    }
+
+    if (depths.length >= 3) {
+      const range = Math.max(...depths) - Math.min(...depths);
+      if (range > maxRange) {
+        maxRange = range;
+        bestAngle = angleDeg;
+      }
+    }
+  }
+
+  // Generate endpoints — extend 2.5° in each direction from earthquake
+  const halfExtent = 2.5;
+  const rad = bestAngle * Math.PI / 180;
+
+  const p1 = {
+    lat: eq.lat - halfExtent * Math.sin(rad),
+    lng: eq.lng - halfExtent * Math.cos(rad),
+  };
+  const p2 = {
+    lat: eq.lat + halfExtent * Math.sin(rad),
+    lng: eq.lng + halfExtent * Math.cos(rad),
+  };
+
+  // Ensure start (A) is the shallow/ocean side, end (A') is the deep/inland side
+  const d1 = getSlabDepthAt(p1.lat, p1.lng);
+  const d2 = getSlabDepthAt(p2.lat, p2.lng);
+
+  let start = p1, end = p2;
+  if (!isNaN(d1) && !isNaN(d2) && d1 > d2) {
+    start = p2;
+    end = p1;
+  } else if (isNaN(d1) && !isNaN(d2)) {
+    // p1 has no slab data → likely ocean side → start there
+    start = p1;
+    end = p2;
+  } else if (!isNaN(d1) && isNaN(d2)) {
+    start = p2;
+    end = p1;
+  }
+
+  return {
+    startPoint: start,
+    endPoint: end,
+    swathKm: 50,
+    maxDepthKm: 700,
+  };
+}
+
 // ── Pulse animation ──────────────────────────────────────────────
 
 function startPulseAnimation(): void {
+  if (pulseAnimId) return;
   const tick = () => {
     pulsePhase += 0.06;
     if (pulsePhase > Math.PI * 200) pulsePhase = 0;
@@ -252,7 +367,7 @@ function stopPulseAnimation(): void {
 function sampleSlabProfile(
   config: CrossSectionConfig,
   totalDistKm: number,
-  numSamples = 100,
+  numSamples = 120,
 ): SlabProfilePoint[] {
   const profile: SlabProfilePoint[] = [];
   for (let i = 0; i <= numSamples; i++) {
@@ -275,7 +390,6 @@ function deriveSlabGeometry(profile: SlabProfilePoint[]): {
 } {
   if (profile.length < 2) return { trenchDistKm: null, volcanicArcDistKm: null };
 
-  // Trench = where slab is shallowest (first point ~ surface)
   let trenchIdx = 0;
   let minDepth = profile[0].depthKm;
   for (let i = 1; i < Math.min(profile.length, Math.floor(profile.length * 0.4)); i++) {
@@ -285,7 +399,6 @@ function deriveSlabGeometry(profile: SlabProfilePoint[]): {
     }
   }
 
-  // Volcanic arc = where slab depth ~ 100km (magma generation depth)
   let volcanicArcIdx: number | null = null;
   for (let i = trenchIdx; i < profile.length; i++) {
     if (profile[i].depthKm >= 90 && profile[i].depthKm <= 120) {
@@ -310,7 +423,7 @@ function handleCanvasHover(e: MouseEvent): void {
   const my = e.clientY - rect.top;
 
   let nearest = -1;
-  let nearestDist = 10;
+  let nearestDist = 12;
 
   for (let i = 0; i < projectedPoints.length; i++) {
     const dx = projectedPoints[i].screenX - mx;
@@ -325,40 +438,30 @@ function handleCanvasHover(e: MouseEvent): void {
   if (nearest !== hoveredIndex) {
     hoveredIndex = nearest;
     rerender();
-
     const detail = nearest >= 0 ? projectedPoints[nearest] : null;
-    canvasEl.dispatchEvent(new CustomEvent('crosssection-hover', {
-      detail,
-      bubbles: true,
-    }));
+    canvasEl.dispatchEvent(new CustomEvent('crosssection-hover', { detail, bubbles: true }));
   }
 }
 
 function rerender(): void {
-  if (currentRenderArgs) {
-    const { config, earthquakes, totalDistKm, slabProfile } = currentRenderArgs;
-    renderCanvas(config, earthquakes, totalDistKm, slabProfile);
-  }
+  if (currentRenderArgs && isOpen) renderCanvas();
 }
 
 // ── Main rendering ───────────────────────────────────────────────
 
-function renderCanvas(
-  config: CrossSectionConfig,
-  earthquakes: EarthquakeEvent[],
-  totalDistKm: number,
-  slabProfile: SlabProfilePoint[],
-): void {
-  if (!canvasEl) return;
+function renderCanvas(): void {
+  if (!canvasEl || !currentRenderArgs) return;
+
+  const { config, earthquakes, totalDistKm, slabProfile, earthquake } = currentRenderArgs;
 
   const rect = canvasEl.getBoundingClientRect();
+  if (rect.width < 10 || rect.height < 10) return;
+
   const baseDpr = window.devicePixelRatio || 1;
   const dpr = window.innerWidth < 768 ? Math.min(baseDpr, 1.5) : Math.min(baseDpr, 2);
 
   canvasEl.width = Math.floor(rect.width * dpr);
   canvasEl.height = Math.floor(rect.height * dpr);
-  canvasEl.style.width = `${rect.width}px`;
-  canvasEl.style.height = `${rect.height}px`;
 
   const ctx = canvasEl.getContext('2d');
   if (!ctx) return;
@@ -392,32 +495,26 @@ function renderCanvas(
     screenY: yScale(p.depthKm),
   }));
 
-  // ── Render passes (ordered back to front) ──
+  // ── Render passes ──
   ctx.clearRect(0, 0, w, h);
 
-  // Pass 1: Earth layers
   drawEarthLayers(rc);
-
-  // Pass 2: Grid lines
   drawGridLines(rc);
-
-  // Pass 3: Discontinuities (deforming near slab)
   drawDiscontinuities(rc);
-
-  // Pass 4: Slab wedge
   drawSlabWedge(rc);
-
-  // Pass 5: Earthquakes
-  drawEarthquakes(rc, projectedPoints, swathKm);
-
-  // Pass 6: Surface profile bar
+  drawEarthquakes(rc, projectedPoints);
   drawSurfaceProfile(rc);
-
-  // Pass 7: Axes and annotations
   drawAxesAndAnnotations(rc, projected.length, swathKm);
-
-  // Pass 8: 3D depth effects
   drawDepthEffects(rc);
+
+  // Update footer
+  if (footerEl) {
+    footerEl.textContent =
+      `${projected.length} events within ${swathKm}km swath` +
+      ` · M${earthquake.magnitude.toFixed(1)}` +
+      ` · ${Math.round(earthquake.depth_km)}km deep` +
+      ` · Profile: ${totalDistKm.toFixed(0)}km`;
+  }
 }
 
 // ── Pass 1: Earth Layer Bands ────────────────────────────────────
@@ -425,7 +522,6 @@ function renderCanvas(
 function drawEarthLayers(rc: RenderContext): void {
   const { ctx, w, h, maxDepth, yScale } = rc;
 
-  // Full dark background first
   ctx.fillStyle = '#080808';
   ctx.fillRect(0, 0, w, h);
 
@@ -445,8 +541,8 @@ function drawEarthLayers(rc: RenderContext): void {
     ctx.fillStyle = grad;
     ctx.fillRect(MARGIN.left, y0, rc.plotW, layerH);
 
-    // Large semi-transparent layer name centered inside
-    const fontSize = Math.min(16, layerH * 0.4);
+    // Layer name
+    const fontSize = Math.min(18, layerH * 0.35);
     if (fontSize >= 8) {
       ctx.save();
       ctx.font = `600 ${fontSize}px Inter, sans-serif`;
@@ -457,7 +553,7 @@ function drawEarthLayers(rc: RenderContext): void {
       ctx.restore();
     }
 
-    // Subtle luminous boundary glow at layer top
+    // Boundary glow
     if (layer.depthMin > 0) {
       const glowGrad = ctx.createLinearGradient(0, y0 - 2, 0, y0 + 4);
       glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
@@ -477,7 +573,6 @@ function drawGridLines(rc: RenderContext): void {
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
   ctx.lineWidth = 1;
 
-  // Horizontal depth grid
   for (let d = 0; d <= maxDepth; d += 100) {
     const y = yScale(d);
     ctx.beginPath();
@@ -486,7 +581,6 @@ function drawGridLines(rc: RenderContext): void {
     ctx.stroke();
   }
 
-  // Vertical distance grid
   const stepKm = totalDistKm > 600 ? 200 : totalDistKm > 200 ? 100 : 50;
   for (let km = 0; km <= totalDistKm; km += stepKm) {
     const x = xScale(km);
@@ -515,18 +609,15 @@ function drawDiscontinuities(rc: RenderContext): void {
     for (let km = 0; km <= totalDistKm; km += sampleStep) {
       let depth = disc.depth;
 
-      // Deform near slab
       if (slabProfile.length > 1 && trenchDistKm !== null) {
         const slabDepthHere = interpolateSlabDepth(slabProfile, km);
         if (slabDepthHere !== null) {
           const distToSlab = Math.abs(depth - slabDepthHere);
           if (distToSlab < 80) {
-            // Moho: crust thins near trench
             if (disc.depth === 35) {
               const trenchProximity = Math.max(0, 1 - Math.abs(km - trenchDistKm) / 150);
-              depth -= 10 * trenchProximity; // Moho rises (shallower)
+              depth -= 10 * trenchProximity;
             }
-            // 410/660: slight downward deflection near slab
             if (disc.depth >= 410) {
               const proximity = Math.max(0, 1 - distToSlab / 80);
               depth += 8 * proximity;
@@ -544,7 +635,6 @@ function drawDiscontinuities(rc: RenderContext): void {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Label at right edge
     ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.font = '9px Inter, sans-serif';
     ctx.textAlign = 'right';
@@ -578,13 +668,11 @@ function drawSlabWedge(rc: RenderContext): void {
   const minSlabDepth = Math.min(...slabProfile.map(p => p.depthKm));
   const depthRange = maxSlabDepth - minSlabDepth || 1;
 
-  // Generate thickness: 80km at shallow → 40km at deepest
   const getThickness = (depthKm: number): number => {
     const t = (depthKm - minSlabDepth) / depthRange;
     return 80 - 40 * t;
   };
 
-  // Build top edge and bottom edge
   const topEdge: { x: number; y: number }[] = [];
   const botEdge: { x: number; y: number }[] = [];
 
@@ -597,11 +685,10 @@ function drawSlabWedge(rc: RenderContext): void {
 
   // Drop shadow
   ctx.save();
-  ctx.shadowBlur = 6;
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
   ctx.shadowOffsetY = 3;
 
-  // Filled polygon
   const fillGrad = ctx.createLinearGradient(0, yScale(minSlabDepth), 0, yScale(maxSlabDepth));
   fillGrad.addColorStop(0, '#CC3300');
   fillGrad.addColorStop(1, '#661100');
@@ -619,7 +706,7 @@ function drawSlabWedge(rc: RenderContext): void {
   ctx.fill();
   ctx.restore();
 
-  // Internal texture lines (2-3 parallel lines inside)
+  // Internal texture lines
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.lineWidth = 1;
@@ -641,9 +728,8 @@ function drawSlabWedge(rc: RenderContext): void {
   }
   ctx.restore();
 
-  // Top edge highlight (bright line + glow)
+  // Top edge glow + highlight
   ctx.save();
-  // Glow pass
   ctx.strokeStyle = '#ff6644';
   ctx.globalAlpha = 0.3;
   ctx.lineWidth = 4;
@@ -654,9 +740,7 @@ function drawSlabWedge(rc: RenderContext): void {
   }
   ctx.stroke();
 
-  // Sharp edge
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#ff6644';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   for (let i = 0; i < topEdge.length; i++) {
@@ -666,7 +750,7 @@ function drawSlabWedge(rc: RenderContext): void {
   ctx.stroke();
   ctx.restore();
 
-  // Motion arrows (chevrons along slab)
+  // Motion arrows
   drawSlabArrows(rc, slabProfile, getThickness);
 }
 
@@ -676,7 +760,7 @@ function drawSlabArrows(
   getThickness: (d: number) => number,
 ): void {
   const { ctx, xScale, yScale, totalDistKm } = rc;
-  const arrowSpacingKm = Math.max(80, totalDistKm * 0.12);
+  const arrowSpacingKm = Math.max(80, totalDistKm * 0.1);
 
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
@@ -697,19 +781,16 @@ function drawSlabArrows(
     const angle = Math.atan2(dy, dx);
 
     const thickness = getThickness(p.depthKm);
-    const arrowSize = Math.min(6, thickness * 0.08);
+    const arrowSize = Math.min(7, thickness * 0.09);
 
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-
-    // Chevron
     ctx.beginPath();
     ctx.moveTo(-arrowSize, -arrowSize * 0.7);
     ctx.lineTo(0, 0);
     ctx.lineTo(-arrowSize, arrowSize * 0.7);
     ctx.stroke();
-
     ctx.restore();
   }
   ctx.restore();
@@ -720,7 +801,6 @@ function drawSlabArrows(
 function drawEarthquakes(
   rc: RenderContext,
   points: (ProjectedPoint & { screenX: number; screenY: number })[],
-  _swathKm: number,
 ): void {
   const { ctx } = rc;
 
@@ -749,7 +829,7 @@ function drawEarthquakes(
     ctx.fill();
     ctx.globalAlpha = 1.0;
 
-    // Selected earthquake highlight — pulsing ring
+    // Selected pulse
     if (selectedEventId && p.eventId === selectedEventId) {
       const pulseRadius = radius + 4 + Math.sin(pulsePhase) * 2;
       ctx.beginPath();
@@ -765,7 +845,7 @@ function drawEarthquakes(
       ctx.stroke();
     }
 
-    // Hovered point highlight
+    // Hover highlight
     if (i === hoveredIndex) {
       ctx.beginPath();
       ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
@@ -785,12 +865,11 @@ function drawSurfaceProfile(rc: RenderContext): void {
   const barBot = MARGIN.top;
   const barH = SURFACE_BAR_H;
 
-  // Background
   ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(MARGIN.left, barTop, rc.plotW, barH);
 
   if (trenchDistKm === null) {
-    // No slab data: flat sea-level line
+    // No slab: flat sea line
     ctx.strokeStyle = 'rgba(100, 160, 220, 0.3)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -800,20 +879,17 @@ function drawSurfaceProfile(rc: RenderContext): void {
     return;
   }
 
-  // Draw ocean/land terrain profile
   const oceanEnd = trenchDistKm;
-  const landStart = trenchDistKm;
   const arcDist = volcanicArcDistKm ?? trenchDistKm + totalDistKm * 0.2;
 
-  // Ocean area (before trench)
+  // Ocean
   const oceanGrad = ctx.createLinearGradient(0, barTop, 0, barBot);
   oceanGrad.addColorStop(0, '#060d18');
   oceanGrad.addColorStop(1, '#0a1525');
-
   ctx.fillStyle = oceanGrad;
   ctx.fillRect(MARGIN.left, barTop, xScale(oceanEnd) - MARGIN.left, barH);
 
-  // Subtle wave effect on ocean surface
+  // Waves
   ctx.save();
   ctx.strokeStyle = 'rgba(80, 140, 200, 0.15)';
   ctx.lineWidth = 1;
@@ -842,22 +918,20 @@ function drawSurfaceProfile(rc: RenderContext): void {
   ctx.fill();
   ctx.restore();
 
-  // Land area (after trench — terrain silhouette with arc peak)
+  // Land terrain silhouette
   ctx.save();
   ctx.beginPath();
   const landEndX = w - MARGIN.right;
+  const landStart = trenchDistKm;
   const landStartX = xScale(landStart);
 
   ctx.moveTo(landStartX, barBot);
-
-  // Build terrain bezier: rising toward volcanic arc, then declining
-  const segments = 40;
+  const segments = 50;
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
     const km = landStart + t * (totalDistKm - landStart);
     const x = xScale(km);
 
-    // Height profile: peak at volcanic arc
     let elevation = 0;
     const distToArc = Math.abs(km - arcDist);
     const arcWidth = totalDistKm * 0.15;
@@ -867,11 +941,8 @@ function drawSurfaceProfile(rc: RenderContext): void {
       elevation = arcPeakH * Math.cos((distToArc / arcWidth) * Math.PI * 0.5);
     }
 
-    // General elevation: slight rise from coast, drops behind arc
     const coastProgress = (km - landStart) / Math.max(1, totalDistKm - landStart);
     elevation = Math.max(elevation, barH * 0.15 * Math.sin(coastProgress * Math.PI));
-
-    // Add some terrain noise
     elevation += Math.sin(km * 0.08) * 2 + Math.sin(km * 0.2) * 1;
 
     const y = barBot - Math.max(2, elevation);
@@ -889,12 +960,11 @@ function drawSurfaceProfile(rc: RenderContext): void {
   ctx.fill();
   ctx.restore();
 
-  // Volcanic arc triangles
+  // Volcanic arc triangle
   if (volcanicArcDistKm !== null) {
     const arcX = xScale(volcanicArcDistKm);
-    const triH = 6;
-    const triW = 4;
-
+    const triH = 7;
+    const triW = 5;
     ctx.save();
     ctx.fillStyle = '#cc4400';
     ctx.beginPath();
@@ -904,7 +974,6 @@ function drawSurfaceProfile(rc: RenderContext): void {
     ctx.closePath();
     ctx.fill();
 
-    // Small eruption glow
     ctx.beginPath();
     ctx.arc(arcX, barTop + 3, 3, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 100, 0, 0.2)';
@@ -914,18 +983,17 @@ function drawSurfaceProfile(rc: RenderContext): void {
 
   // Labels
   ctx.save();
-  ctx.font = '8px Inter, sans-serif';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.font = '9px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-
   ctx.fillText('Trench', trenchX, barTop + 2);
   if (volcanicArcDistKm !== null) {
-    ctx.fillText('Volcanic Arc', xScale(volcanicArcDistKm), barTop + barH - 10);
+    ctx.fillText('Volcanic Arc', xScale(volcanicArcDistKm), barTop + barH - 11);
   }
   ctx.restore();
 
-  // Bottom border of surface bar
+  // Bottom border
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -949,12 +1017,12 @@ function drawAxesAndAnnotations(
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('A', MARGIN.left, 4);
+  ctx.fillText('A', MARGIN.left, 6);
   ctx.textAlign = 'right';
-  ctx.fillText("A'", w - MARGIN.right, 4);
+  ctx.fillText("A'", w - MARGIN.right, 6);
 
-  // Direction arrow between A and A'
-  const arrowY = 10;
+  // Direction arrow
+  const arrowY = 12;
   const arrowLeft = MARGIN.left + 18;
   const arrowRight = w - MARGIN.right - 18;
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
@@ -963,7 +1031,6 @@ function drawAxesAndAnnotations(
   ctx.moveTo(arrowLeft, arrowY);
   ctx.lineTo(arrowRight, arrowY);
   ctx.stroke();
-  // Arrowhead
   ctx.beginPath();
   ctx.moveTo(arrowRight - 5, arrowY - 3);
   ctx.lineTo(arrowRight, arrowY);
@@ -971,22 +1038,21 @@ function drawAxesAndAnnotations(
   ctx.stroke();
   ctx.restore();
 
-  // Scale bar (top right area)
+  // Scale bar
   const scaleKm = totalDistKm > 400 ? 200 : 100;
-  const scaleStartX = w - MARGIN.right - (scaleKm / totalDistKm) * rc.plotW;
+  const scaleBarW = (scaleKm / totalDistKm) * rc.plotW;
+  const scaleStartX = w - MARGIN.right - scaleBarW;
   const scaleEndX = w - MARGIN.right;
-  const scaleY = MARGIN.top - SURFACE_BAR_H - 6;
+  const scaleY = MARGIN.top - SURFACE_BAR_H - 8;
 
-  if (scaleY > 16) {
+  if (scaleY > 20) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.lineWidth = 1;
-    // Main line
     ctx.beginPath();
     ctx.moveTo(scaleStartX, scaleY);
     ctx.lineTo(scaleEndX, scaleY);
     ctx.stroke();
-    // End caps
     ctx.beginPath();
     ctx.moveTo(scaleStartX, scaleY - 3);
     ctx.lineTo(scaleStartX, scaleY + 3);
@@ -995,7 +1061,6 @@ function drawAxesAndAnnotations(
     ctx.moveTo(scaleEndX, scaleY - 3);
     ctx.lineTo(scaleEndX, scaleY + 3);
     ctx.stroke();
-    // Label
     ctx.font = '8px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.textAlign = 'center';
@@ -1004,7 +1069,7 @@ function drawAxesAndAnnotations(
     ctx.restore();
   }
 
-  // Depth axis (Y)
+  // Depth axis
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -1012,20 +1077,18 @@ function drawAxesAndAnnotations(
   ctx.lineTo(MARGIN.left, h - MARGIN.bottom);
   ctx.stroke();
 
-  // Y axis labels — tick marks at 50km, labels at 100km
+  // Y axis labels
   ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
   ctx.font = '9px Inter, sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let d = 0; d <= maxDepth; d += 50) {
     const y = yScale(d);
-    // Tick mark
     ctx.beginPath();
     ctx.moveTo(MARGIN.left - 3, y);
     ctx.lineTo(MARGIN.left, y);
     ctx.stroke();
 
-    // Label only at 100km intervals
     if (d % 100 === 0) {
       ctx.fillText(`${d}`, MARGIN.left - 6, y);
     }
@@ -1033,34 +1096,28 @@ function drawAxesAndAnnotations(
 
   // Y axis title
   ctx.save();
-  ctx.translate(12, MARGIN.top + plotH / 2);
+  ctx.translate(14, MARGIN.top + plotH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.font = '9px Inter, sans-serif';
+  ctx.font = '10px Inter, sans-serif';
   ctx.fillText('Depth (km)', 0, 0);
   ctx.restore();
 
-  // X axis labels (distance)
+  // X axis labels
   ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
   ctx.font = '9px Inter, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   const stepKm = totalDistKm > 500 ? 200 : totalDistKm > 200 ? 100 : 50;
   for (let km = 0; km <= totalDistKm; km += stepKm) {
-    ctx.fillText(`${km}`, xScale(km), h - MARGIN.bottom + 6);
+    ctx.fillText(`${km}`, xScale(km), h - MARGIN.bottom + 8);
   }
-  ctx.fillText('km', w - MARGIN.right, h - MARGIN.bottom + 6);
+  ctx.fillText('km', w - MARGIN.right, h - MARGIN.bottom + 8);
 
-  // Stats (bottom center)
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.font = '9px Inter, sans-serif';
-  ctx.fillText(
-    `${eventCount} events within ${swathKm}km swath`,
-    MARGIN.left + rc.plotW / 2,
-    h - 6,
-  );
+  // Stats (not needed here — in footer)
+  void eventCount;
+  void swathKm;
 }
 
 // ── Pass 8: 3D Depth Effects ─────────────────────────────────────
@@ -1068,41 +1125,36 @@ function drawAxesAndAnnotations(
 function drawDepthEffects(rc: RenderContext): void {
   const { ctx, w, h } = rc;
 
-  // Top light — horizontal gradient across top
-  const topGrad = ctx.createLinearGradient(0, MARGIN.top, 0, MARGIN.top + 15);
+  // Top light
+  const topGrad = ctx.createLinearGradient(0, MARGIN.top, 0, MARGIN.top + 20);
   topGrad.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
   topGrad.addColorStop(1, 'transparent');
   ctx.fillStyle = topGrad;
-  ctx.fillRect(MARGIN.left, MARGIN.top, rc.plotW, 15);
+  ctx.fillRect(MARGIN.left, MARGIN.top, rc.plotW, 20);
 
   // Bottom vignette
-  const botGrad = ctx.createLinearGradient(0, h - MARGIN.bottom - 20, 0, h - MARGIN.bottom);
+  const botGrad = ctx.createLinearGradient(0, h - MARGIN.bottom - 25, 0, h - MARGIN.bottom);
   botGrad.addColorStop(0, 'transparent');
   botGrad.addColorStop(1, 'rgba(0, 0, 0, 0.15)');
   ctx.fillStyle = botGrad;
-  ctx.fillRect(MARGIN.left, h - MARGIN.bottom - 20, rc.plotW, 20);
+  ctx.fillRect(MARGIN.left, h - MARGIN.bottom - 25, rc.plotW, 25);
 
-  // Left side vignette
-  const leftGrad = ctx.createLinearGradient(MARGIN.left, 0, MARGIN.left + 10, 0);
+  // Side vignettes
+  const leftGrad = ctx.createLinearGradient(MARGIN.left, 0, MARGIN.left + 12, 0);
   leftGrad.addColorStop(0, 'rgba(0, 0, 0, 0.1)');
   leftGrad.addColorStop(1, 'transparent');
   ctx.fillStyle = leftGrad;
-  ctx.fillRect(MARGIN.left, MARGIN.top, 10, rc.plotH);
+  ctx.fillRect(MARGIN.left, MARGIN.top, 12, rc.plotH);
 
-  // Right side vignette
-  const rightGrad = ctx.createLinearGradient(w - MARGIN.right - 10, 0, w - MARGIN.right, 0);
+  const rightGrad = ctx.createLinearGradient(w - MARGIN.right - 12, 0, w - MARGIN.right, 0);
   rightGrad.addColorStop(0, 'transparent');
   rightGrad.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
   ctx.fillStyle = rightGrad;
-  ctx.fillRect(w - MARGIN.right - 10, MARGIN.top, 10, rc.plotH);
+  ctx.fillRect(w - MARGIN.right - 12, MARGIN.top, 12, rc.plotH);
 }
 
 // ── Earthquake projection ────────────────────────────────────────
 
-/**
- * Project earthquakes onto the cross-section line.
- * Only includes events within swathKm of the profile line.
- */
 function projectEarthquakes(
   events: EarthquakeEvent[],
   start: { lat: number; lng: number },

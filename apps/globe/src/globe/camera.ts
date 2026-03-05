@@ -119,6 +119,20 @@ export function initCamera(viewer: GlobeInstance): void {
 }
 
 /**
+ * Fly to a position for cross-section intro shot.
+ * Tilted view showing the area before the overlay appears.
+ */
+export function flyToForCrossSection(
+  viewer: GlobeInstance,
+  lat: number,
+  lng: number,
+  onComplete: () => void,
+): void {
+  userHasOverridden = false;
+  flyTo(viewer, lat, lng, 350_000, 1200, onComplete, -55);
+}
+
+/**
  * Fly the camera to an earthquake's epicentre.
  * Altitude and duration are determined by magnitude.
  * For M7+ events, a zoom → hold → pullback sequence is played.

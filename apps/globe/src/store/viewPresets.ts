@@ -27,7 +27,7 @@ const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
       waveRings: true,
       isoseismalContours: true,
       shakeMapContours: false,
-      slab2Contours: false,
+      slab2Contours: false, // data-only, no globe rendering
       labels: true,
       crossSection: false,
     },
@@ -41,7 +41,7 @@ const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
       waveRings: false,
       isoseismalContours: false,
       shakeMapContours: false,
-      slab2Contours: true,
+      slab2Contours: false, // data-only, no globe rendering
       labels: false,
       crossSection: false,
     },
@@ -55,7 +55,7 @@ const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
       waveRings: true,
       isoseismalContours: false,
       shakeMapContours: true,
-      slab2Contours: false,
+      slab2Contours: false, // data-only, no globe rendering
       labels: true,
       crossSection: false,
     },
@@ -69,7 +69,7 @@ const VIEW_PRESETS: Record<ViewPreset, ViewPresetConfig> = {
       waveRings: false,
       isoseismalContours: false,
       shakeMapContours: false,
-      slab2Contours: true,
+      slab2Contours: false, // data-only, no globe rendering
       labels: false,
       crossSection: true,
     },

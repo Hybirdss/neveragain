@@ -1,7 +1,8 @@
 /**
  * View Preset Orchestrator — Handles viewPreset subscription.
  *
- * Cross-section drawing, underground catalog toggle.
+ * Cross-section: auto-generates line from selected earthquake,
+ * flies camera, shows full-page overlay.
  */
 
 import { store } from '../store/appState';
@@ -9,7 +10,6 @@ import type { GlobeInstance } from '../globe/globeInstance';
 import type { ViewPreset } from '../types';
 import { applyViewPreset } from '../store/viewPresets';
 import { setCatalogActive } from '../globe/layers/seismicPoints';
-import { enableCrossSectionDrawing, disableCrossSectionDrawing, isDrawingActive } from '../globe/features/crossSectionLine';
 import { showCrossSection, hideCrossSection } from '../ui/crossSection';
 
 export function initViewPresetOrchestrator(globe: GlobeInstance): () => void {
@@ -17,19 +17,18 @@ export function initViewPresetOrchestrator(globe: GlobeInstance): () => void {
     applyViewPreset(globe, preset);
     setCatalogActive(preset === 'underground');
 
-    // Cross-section drawing mode
     if (preset === 'crossSection') {
-      enableCrossSectionDrawing(globe, (config) => {
-        const timeline = store.get('timeline');
-        const visibleEvents = timeline.events.filter(
-          (e) => e.time <= timeline.currentTime,
-        );
-        showCrossSection(config, visibleEvents);
-      });
+      const selectedEvent = store.get('selectedEvent');
+      if (!selectedEvent) return;
+
+      // Get visible events for cross-section projection
+      const timeline = store.get('timeline');
+      const visibleEvents = timeline.events.filter(
+        (e) => e.time <= timeline.currentTime,
+      );
+
+      showCrossSection(selectedEvent, visibleEvents);
     } else {
-      if (isDrawingActive()) {
-        disableCrossSectionDrawing(globe);
-      }
       hideCrossSection();
     }
   });

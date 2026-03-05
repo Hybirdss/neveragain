@@ -13,9 +13,7 @@ import { setRingsVisible } from './waveRings';
 import { setIsoseismalVisible } from './isoseismal';
 import { setPlatesVisible } from './tectonicPlates';
 import { setShakeMapVisible } from '../features/shakeMapOverlay';
-import { setSlab2Visible } from '../features/slab2Contours';
 import { setPlateauVisible } from '../features/plateauBuildings';
-import { setDepthRingsVisible } from '../features/depthRings';
 import { setLabelsVisible } from './labels';
 import {
   setGsiFaultsVisible,
@@ -32,8 +30,6 @@ function applyVisibility(_viewer: GlobeInstance, layers: LayerVisibility): void 
   setRingsVisible(layers.waveRings);
   setIsoseismalVisible(layers.isoseismalContours);
   setShakeMapVisible(layers.shakeMapContours);
-  setSlab2Visible(layers.slab2Contours);
-  setDepthRingsVisible(layers.slab2Contours);
   setPlateauVisible(layers.plateauBuildings);
   setLabelsVisible(layers.labels);
   setGsiFaultsVisible(layers.gsiFaults);

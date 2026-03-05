@@ -252,22 +252,6 @@
     display: none;
   }
 
-  .cross-section-panel {
-    right: 0;
-    left: 0;
-    bottom: calc(var(--mobile-bottom-offset) + env(safe-area-inset-bottom));
-    top: auto;
-    width: 100%;
-    height: min(55vh, 400px);
-    border-left: none;
-    border-top: 1px solid var(--grid-line);
-    transform: translateY(100%);
-  }
-
-  .cross-section-panel--open {
-    transform: translateY(0);
-  }
-
   .scenario-grid {
     grid-template-columns: 1fr;
     max-height: 78vh;

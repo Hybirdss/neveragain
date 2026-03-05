@@ -12,7 +12,7 @@ import { initTectonicPlates } from '../globe/layers/tectonicPlates';
 import { initLabels, disposeLabels } from '../globe/layers/labels';
 import { initLayerToggle, disposeLayerToggle } from '../globe/layers/layerToggle';
 import { initShakeMapOverlay } from '../globe/features/shakeMapOverlay';
-import { initSlab2Contours } from '../globe/features/slab2Contours';
+import { initSlab2Data } from '../globe/features/slab2Contours';
 import { initDepthRings, disposeDepthRings } from '../globe/features/depthRings';
 import { initPlateauBuildings, disposePlateau } from '../globe/features/plateauBuildings';
 import { initGsiLayers } from '../globe/layers/gsiLayers';
@@ -40,9 +40,9 @@ export async function setupGlobe(globeContainer: HTMLElement): Promise<GlobeSetu
   initLabels(globe);
   initLayerToggle(globe);
 
-  // Slab2 contours (async, non-blocking)
-  initSlab2Contours(globe).catch((err) =>
-    console.error('[globeSetup] Failed to load Slab2 contours:', err),
+  // Slab2 depth data (async, non-blocking — used by cross-section)
+  initSlab2Data().catch((err) =>
+    console.error('[globeSetup] Failed to load Slab2 data:', err),
   );
 
   initDepthRings(globe);

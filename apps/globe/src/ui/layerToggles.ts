@@ -18,7 +18,6 @@ const LAYER_LABELS: { key: keyof LayerVisibility; i18nKey: string; color?: strin
   { key: 'waveRings', i18nKey: 'layer.waves', color: '#4488ff' },
   { key: 'isoseismalContours', i18nKey: 'layer.contours', color: '#FAC611' },
   { key: 'shakeMapContours', i18nKey: 'layer.shakeMap', color: '#FAC611' },
-  { key: 'slab2Contours', i18nKey: 'layer.slab2', color: '#ff4444' },
   { key: 'activeFaults', i18nKey: 'layer.activeFaults', color: '#ff6644' },
   { key: 'labels', i18nKey: 'layer.labels', color: '#888' },
 ];
