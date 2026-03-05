@@ -133,5 +133,9 @@ npm run preview
 - 제품 요구사항: `docs/PRD.md`
 - 아키텍처: `docs/ARCHITECTURE.md`
 - 검증 기준: `docs/plans/VALIDATION_PLAN.md`
+- 운영 런북: `docs/ops/incident-runbook.md`
+- 릴리즈 체크리스트: `docs/ops/release-checklist.md`
+- 롤백 플레이북: `docs/ops/rollback-playbook.md`
+- 의존성/보안 정책: `docs/ops/dependency-policy.md`
 - 문서 인덱스: `docs/INDEX.md`
 - 팀 규칙: `CLAUDE.md`

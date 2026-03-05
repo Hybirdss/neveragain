@@ -34,9 +34,9 @@ Execution branch: `codex-enterprise-quality`
 
 - [x] Task 8. Safe decomposition of high-risk hotspot files
 - [x] Task 9. Dependency/security hygiene gate
-- [ ] Task 10. Release and rollback discipline
+- [x] Task 10. Release and rollback discipline
 
 ## Current Focus
 
-1. Start Phase 3 Task 10 release and rollback discipline.
-2. Dry-run release checklist on next deployment candidate.
+1. Dry-run `docs/ops/release-checklist.md` on the next production candidate.
+2. Track monthly KPIs and refresh baseline report.
