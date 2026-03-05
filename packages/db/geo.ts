@@ -321,7 +321,8 @@ export function classifyLocation(
     // These indicate the epicenter is relative to a place, likely offshore or near-coast
     if (USGS_DIRECTIONAL_PATTERN.test(text)) {
       const dist = estimateCoastDistance(lat, lng);
-      const type = dist > 50 ? 'offshore' : 'near_coast';
+      // For non-Japan events, dist is null — classify as offshore (safe default)
+      const type = (dist != null && dist <= 50) ? 'near_coast' : 'offshore';
       return {
         type,
         confidence: 'medium',
@@ -357,12 +358,12 @@ export function classifyLocation(
   const island = isInIslandZone(lat, lng);
   if (island) {
     const dist = estimateCoastDistance(lat, lng);
-    const type = dist > 50 ? 'offshore' : 'near_coast';
+    const type = (dist != null && dist > 50) ? 'offshore' : 'near_coast';
     return {
       type,
       confidence: 'medium',
       coastDistanceKm: dist,
-      reason: `Island zone (${island.name}), ~${dist}km from nearest coast ref`,
+      reason: `Island zone (${island.name}), ~${dist ?? '?'}km from nearest coast ref`,
     };
   }
 
@@ -372,8 +373,11 @@ export function classifyLocation(
 
 /**
  * Estimate distance to nearest coastline reference point (km).
+ * Returns null for non-Japan events (coast refs are Japan-specific).
  */
-function estimateCoastDistance(lat: number, lng: number): number {
+function estimateCoastDistance(lat: number, lng: number): number | null {
+  // Coast refs are Japan-specific — nonsensical for distant events
+  if (lat < 20 || lat > 50 || lng < 120 || lng > 155) return null;
   let minDist = Infinity;
   for (const ref of COAST_REFS) {
     const d = haversineKm(lat, lng, ref.lat, ref.lng);
@@ -417,7 +421,8 @@ function classifyByGeometry(lat: number, lng: number): LocationClassification {
     };
   }
 
-  const dist = estimateCoastDistance(lat, lng);
+  // We're in Japan region (checked above), so coast distance is always available
+  const dist = estimateCoastDistance(lat, lng)!;
   const onLand = isOnMainIsland(lat, lng);
 
   if (onLand) {
