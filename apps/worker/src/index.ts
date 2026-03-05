@@ -6,6 +6,13 @@ import { reportsRoute } from './routes/reports.ts';
 import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
 import { handleCron } from './routes/cron.ts';
+import { AppError, jsonError } from './lib/errors.ts';
+import {
+  ensureRequestId,
+  getPathname,
+  logRequestError,
+  logRequestInfo,
+} from './lib/requestContext.ts';
 
 export interface Env {
   DATABASE_URL: string;
@@ -20,6 +27,22 @@ const app = new Hono<{ Bindings: Env }>();
 const ALLOW_METHODS = 'GET, POST, OPTIONS';
 const ALLOW_HEADERS = 'Content-Type';
 const MAX_AGE = '86400';
+
+app.use('/api/*', async (c, next) => {
+  const requestId = ensureRequestId(c);
+  const startedAt = Date.now();
+  const method = c.req.method;
+  const path = getPathname(c);
+
+  await next();
+
+  logRequestInfo('request.complete', requestId, {
+    method,
+    path,
+    status: c.res.status,
+    duration_ms: Date.now() - startedAt,
+  });
+});
 
 // CORS — explicit origin allow-list from env.ALLOWED_ORIGINS (comma-separated).
 app.use('/api/*', async (c, next) => {
@@ -58,11 +81,26 @@ app.use('/api/*', async (c, next) => {
 });
 
 app.onError((err, c) => {
-  console.error('[worker] unhandled error:', err);
-  return c.json({ error: 'Internal server error' }, 500);
+  const requestId = ensureRequestId(c);
+
+  if (err instanceof AppError) {
+    logRequestError('request.app_error', requestId, err, {
+      status: err.status,
+      code: err.code,
+      path: getPathname(c),
+    });
+    return jsonError(c, err.status, err.code, err.message);
+  }
+
+  logRequestError('request.unhandled_error', requestId, err, {
+    status: 500,
+    code: 'INTERNAL_ERROR',
+    path: getPathname(c),
+  });
+  return jsonError(c, 500, 'INTERNAL_ERROR', 'Internal server error');
 });
 
-app.notFound((c) => c.json({ error: 'Not found' }, 404));
+app.notFound((c) => jsonError(c, 404, 'NOT_FOUND', 'Not found'));
 
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }));

@@ -13,6 +13,8 @@ import { checkRateLimit } from '../lib/rateLimit.ts';
 import { analyses } from '@namazue/db';
 import { eq, and, desc } from 'drizzle-orm';
 import { parseAskBody } from '../lib/askValidation.ts';
+import { AppError, jsonError } from '../lib/errors.ts';
+import { ensureRequestId, logRequestError } from '../lib/requestContext.ts';
 
 export const askRoute = new Hono<{ Bindings: Env }>();
 
@@ -33,11 +35,13 @@ interface AskResponse {
 }
 
 askRoute.post('/', async (c) => {
+  const requestId = ensureRequestId(c);
+
   // Rate limit
   const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? '0.0.0.0';
   const rl = await checkRateLimit(c.env.RATE_LIMIT, ip, 'ask');
   if (!rl.allowed) {
-    return c.json({ error: 'Rate limit exceeded', remaining: 0, limit: rl.limit }, 429);
+    return jsonError(c, 429, 'RATE_LIMITED', 'Rate limit exceeded');
   }
 
   // Parse & validate body
@@ -45,12 +49,12 @@ askRoute.post('/', async (c) => {
   try {
     body = await c.req.json<unknown>();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return jsonError(c, 400, 'BAD_REQUEST', 'Invalid JSON body');
   }
 
   const parsedBody = parseAskBody((body ?? {}) as Record<string, unknown>);
   if ('error' in parsedBody) {
-    return c.json({ error: parsedBody.error }, 400);
+    return jsonError(c, 400, 'BAD_REQUEST', parsedBody.error);
   }
   const { event_id, question } = parsedBody.value;
 
@@ -64,7 +68,7 @@ askRoute.post('/', async (c) => {
     .limit(1);
 
   if (rows.length === 0) {
-    return c.json({ error: 'No analysis found for this event' }, 404);
+    return jsonError(c, 404, 'NOT_FOUND', 'No analysis found for this event');
   }
 
   const analysisData = rows[0].analysis;
@@ -88,12 +92,14 @@ askRoute.post('/', async (c) => {
       temperature: 0.3,
       response_format: { type: 'json_object' },
     }),
+  }).catch((err) => {
+    throw new AppError(502, 'UPSTREAM_FAILURE', `AI request failed: ${(err as Error).message}`);
   });
 
   if (!resp.ok) {
     const errBody = await resp.text();
-    console.error(`Grok API error: ${resp.status} ${errBody.slice(0, 200)}`);
-    return c.json({ error: 'AI service unavailable' }, 502);
+    logRequestError('ask.upstream_error', requestId, errBody, { status: resp.status, event_id });
+    return jsonError(c, 502, 'UPSTREAM_FAILURE', 'AI service unavailable');
   }
 
   const data = await resp.json() as {
@@ -102,15 +108,15 @@ askRoute.post('/', async (c) => {
 
   const raw = data.choices?.[0]?.message?.content;
   if (!raw) {
-    return c.json({ error: 'Empty AI response' }, 502);
+    return jsonError(c, 502, 'UPSTREAM_FAILURE', 'Empty AI response');
   }
 
   let parsed: AskResponse;
   try {
     parsed = JSON.parse(raw) as AskResponse;
   } catch {
-    console.error('Failed to parse Grok response:', raw.slice(0, 200));
-    return c.json({ error: 'Invalid AI response format' }, 502);
+    logRequestError('ask.invalid_ai_json', requestId, raw.slice(0, 200), { event_id });
+    return jsonError(c, 502, 'UPSTREAM_FAILURE', 'Invalid AI response format');
   }
 
   return c.json(parsed);

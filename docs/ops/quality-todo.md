@@ -28,7 +28,7 @@ Execution branch: `codex-enterprise-quality`
 
 - [x] Task 5. Harden worker boundary tests
 - [x] Task 6. Add globe state/orchestration regression tests
-- [ ] Task 7. Add request-scoped observability + incident runbook
+- [x] Task 7. Add request-scoped observability + incident runbook
 
 ## Phase 3 (Day 61-90): Hotspot Refactor + Security + Release Governance
 
@@ -38,5 +38,5 @@ Execution branch: `codex-enterprise-quality`
 
 ## Current Focus
 
-1. Start Task 7 request-scoped observability implementation.
-2. Add incident runbook aligned with new error taxonomy.
+1. Start Phase 3 Task 8 hotspot-safe decomposition.
+2. Add characterization tests before refactoring large modules.
