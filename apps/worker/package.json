@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@namazue/adapters-feeds": "*",
+    "@namazue/adapters-storage": "*",
     "@namazue/application-console": "*",
     "@namazue/application-ingest": "*",
     "@namazue/application-replay": "*",

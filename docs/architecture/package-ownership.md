@@ -28,7 +28,7 @@ This is not aspirational. CI should enforce these boundaries.
 | `packages/contracts` | versioned worker/frontend API contracts | request/response payloads | `packages/kernel` | apps, adapters, application, domain |
 | `packages/domain-*` | pure business rules | domain services, value objects, policies | `packages/kernel` | apps, adapters, application, sibling domains |
 | `packages/application-*` | use-case orchestration | explicit service entrypoints | `packages/kernel`, `packages/contracts`, `packages/domain-*` | apps, adapters as direct dependencies unless intentionally mediated later |
-| `packages/adapters-*` | external feed/storage integration | adapter interfaces and implementations | `packages/kernel`, `packages/contracts`, selected domain value types | apps |
+| `packages/adapters-*` | external feed/storage integration | adapter interfaces and implementations | `packages/kernel`, `packages/contracts`, selected domain value types, `packages/db` schema/types for storage adapters | apps |
 
 ## Boundary Rules
 

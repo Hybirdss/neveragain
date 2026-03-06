@@ -1,7 +1,9 @@
 import { Hono, type Context } from 'hono';
-import { and, desc, gte, lte } from 'drizzle-orm';
+import {
+  createOpsConsoleEarthquakeQuery,
+  fetchOpsConsoleEarthquakes,
+} from '@namazue/adapters-storage';
 import { buildConsoleSnapshot } from '@namazue/application-console';
-import { earthquakes } from '@namazue/db';
 import { computeIntensityGrid, deriveZoomTier } from '@namazue/ops';
 import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
 import {
@@ -9,7 +11,7 @@ import {
   createEmptyServiceReadModel,
 } from '@namazue/ops/ops/serviceReadModel';
 import type { ConsoleSnapshot } from '@namazue/contracts';
-import type { FaultType, ViewportState } from '@namazue/kernel';
+import type { ViewportState } from '@namazue/kernel';
 
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
@@ -36,12 +38,6 @@ function classifyRegion(lat: number, lng: number): ViewportState['activeRegion']
   if (lat >= 33 && lng >= 131) return 'chugoku';
   if (lat >= 32.5 && lng >= 133) return 'shikoku';
   return 'kyushu';
-}
-
-function normalizeFaultType(value: string | null): FaultType {
-  return value === 'crustal' || value === 'interface' || value === 'intraslab'
-    ? value
-    : 'crustal';
 }
 
 function parseViewport(c: Context<{ Bindings: Env }>): ViewportState | { error: string } {
@@ -103,39 +99,7 @@ opsRoute.get('/console', async (c) => {
   const selectedEventId = parseString(c.req.query('selected_event_id'));
   const db = createDb(c.env.DATABASE_URL);
   const now = Date.now();
-
-  const rows = await db.select({
-    id: earthquakes.id,
-    lat: earthquakes.lat,
-    lng: earthquakes.lng,
-    depth_km: earthquakes.depth_km,
-    magnitude: earthquakes.magnitude,
-    time: earthquakes.time,
-    place: earthquakes.place,
-    fault_type: earthquakes.fault_type,
-    tsunami: earthquakes.tsunami,
-  })
-    .from(earthquakes)
-    .where(and(
-      gte(earthquakes.lat, 24),
-      lte(earthquakes.lat, 46),
-      gte(earthquakes.lng, 122),
-      lte(earthquakes.lng, 150),
-    ))
-    .orderBy(desc(earthquakes.time))
-    .limit(80);
-
-  const events = rows.map((row) => ({
-    id: row.id,
-    lat: row.lat,
-    lng: row.lng,
-    depth_km: row.depth_km,
-    magnitude: row.magnitude,
-    time: row.time instanceof Date ? row.time.getTime() : Date.parse(String(row.time)),
-    faultType: normalizeFaultType(row.fault_type),
-    tsunami: row.tsunami ?? false,
-    place: { text: row.place ?? 'Unknown location' },
-  }));
+  const events = await fetchOpsConsoleEarthquakes(createOpsConsoleEarthquakeQuery(db));
 
   const snapshot = buildConsoleSnapshot({
     now,

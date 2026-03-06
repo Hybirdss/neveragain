@@ -229,10 +229,17 @@ function evaluateBoundaryRules(sourceMeta, targetMeta) {
     });
   }
 
-  if (sourceMeta.layer === 'adapters' && !sameScope && !['kernel', 'contracts', 'domain', 'external'].includes(targetMeta.layer)) {
+  const adapterCanUseDbSchema = targetMeta.layer === 'legacy-package' && targetMeta.scope === '@namazue/db';
+
+  if (
+    sourceMeta.layer === 'adapters'
+    && !sameScope
+    && !adapterCanUseDbSchema
+    && !['kernel', 'contracts', 'domain', 'external'].includes(targetMeta.layer)
+  ) {
     violations.push({
       ruleId: 'adapters-layering',
-      message: 'adapter packages may depend only on kernel, contracts, domain packages, and themselves.',
+      message: 'adapter packages may depend only on kernel, contracts, domain packages, @namazue/db schema, and themselves.',
     });
   }
 
