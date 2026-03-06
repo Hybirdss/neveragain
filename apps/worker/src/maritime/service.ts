@@ -56,6 +56,7 @@ export interface MaritimeSnapshotResponse {
     snapshotAgeMs: number;
     provider: MaritimeSnapshotProvider['provider'];
     fallbackReason?: MaritimeFallbackReason;
+    refreshInFlight: boolean;
   };
 }
 
@@ -71,6 +72,7 @@ export class MaritimeSnapshotService {
   private readonly provider: MaritimeSnapshotProvider;
   private readonly store: MaritimeSnapshotStore;
   private readonly ttlMs: number;
+  private readonly refreshByProfile = new Map<string, Promise<MaritimeSnapshotRecord>>();
 
   constructor(options: MaritimeSnapshotServiceOptions) {
     this.provider = options.provider;
@@ -84,18 +86,13 @@ export class MaritimeSnapshotService {
     const cacheStatus = getCacheStatus(cached, now, this.ttlMs);
 
     let record = cached;
-    if (!record || cacheStatus !== 'hit') {
-      const fresh = await this.provider.loadProfileSnapshot(query.profileId, now);
-      record = {
-        source: fresh.source,
-        fallbackReason: fresh.fallbackReason,
-        profile: fresh.profile,
-        generatedAt: fresh.generatedAt,
-        refreshedAt: now,
-        totalTracked: fresh.totalTracked,
-        vessels: fresh.vessels,
-      };
-      await this.store.put(record);
+    let refreshInFlight = false;
+
+    if (!record) {
+      record = await this.refreshSnapshot(query.profileId, now);
+    } else if (cacheStatus === 'stale') {
+      refreshInFlight = true;
+      void this.refreshSnapshot(query.profileId, now);
     }
 
     let vessels = query.bounds ? filterVesselsByBounds(record.vessels, query.bounds) : record.vessels;
@@ -119,8 +116,38 @@ export class MaritimeSnapshotService {
         snapshotAgeMs: Math.max(0, now - record.generatedAt),
         provider: record.source,
         fallbackReason: record.fallbackReason,
+        refreshInFlight,
       },
     };
+  }
+
+  private refreshSnapshot(profileId: AisCoverageProfileId, now: number): Promise<MaritimeSnapshotRecord> {
+    const existingRefresh = this.refreshByProfile.get(profileId);
+    if (existingRefresh) {
+      return existingRefresh;
+    }
+
+    const refreshPromise = (async () => {
+      const fresh = await this.provider.loadProfileSnapshot(profileId, now);
+      const record: MaritimeSnapshotRecord = {
+        source: fresh.source,
+        fallbackReason: fresh.fallbackReason,
+        profile: fresh.profile,
+        generatedAt: fresh.generatedAt,
+        refreshedAt: now,
+        totalTracked: fresh.totalTracked,
+        vessels: fresh.vessels,
+      };
+      await this.store.put(record);
+      return record;
+    })();
+
+    this.refreshByProfile.set(profileId, refreshPromise);
+    void refreshPromise.finally(() => {
+      this.refreshByProfile.delete(profileId);
+    });
+
+    return refreshPromise;
   }
 }
 
