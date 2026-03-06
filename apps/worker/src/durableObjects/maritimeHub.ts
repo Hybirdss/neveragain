@@ -5,14 +5,17 @@ import { createMaritimeSnapshotProvider } from '../maritime/provider.ts';
 import { MaritimeSnapshotService, type MaritimeRuntimeGovernorPolicy, type MaritimeSnapshotQuery, type MaritimeSnapshotRecord, type MaritimeSnapshotStore } from '../maritime/service.ts';
 import { buildGovernorPolicyEnvelopeFromEvents } from '../governor/runtimeGovernor.ts';
 import { getSourcePolicy } from '../governor/policies.ts';
+import type { GovernorActivation } from '../governor/types.ts';
 import { createDb } from '../lib/db.ts';
 import { earthquakes } from '@namazue/db';
 
 const HUB_PATH = '/snapshot';
 const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+const GOVERNOR_RESOLUTION_TTL_MS = 60_000;
 
 export class MaritimeHub {
   private readonly service: MaritimeSnapshotService;
+  private governorCache: { resolvedAt: number; activation: GovernorActivation } | null = null;
 
   constructor(
     private readonly state: DurableObjectState,
@@ -22,7 +25,7 @@ export class MaritimeHub {
       provider: createMaritimeSnapshotProvider(env),
       store: new DurableObjectSnapshotStore(state),
       ttlMs: env.AIS_SNAPSHOT_TTL_MS,
-      resolveRuntimeGovernor: (query, now) => resolveMaritimeRuntimeGovernor(env, query, now),
+      resolveRuntimeGovernor: (query, now) => this.resolveRuntimeGovernor(env, query, now),
     });
   }
 
@@ -65,6 +68,68 @@ export class MaritimeHub {
       },
     });
   }
+
+  private async resolveRuntimeGovernor(
+    env: Env,
+    query: MaritimeSnapshotQuery,
+    now: number,
+  ): Promise<MaritimeRuntimeGovernorPolicy> {
+    const activation = await this.resolveBaseGovernorActivation(env, now);
+    const policy = getSourcePolicy('maritime', activation.state);
+
+    return {
+      activation: {
+        ...activation,
+        regionScope: query.bounds && activation.regionScope.kind !== 'national'
+          ? {
+              kind: 'viewport',
+              regionIds: activation.regionScope.regionIds,
+              bounds: query.bounds,
+            }
+          : activation.regionScope,
+      },
+      refreshMs: policy.cadenceMode === 'poll' ? policy.refreshMs : env.AIS_SNAPSHOT_TTL_MS ?? 60_000,
+    };
+  }
+
+  private async resolveBaseGovernorActivation(
+    env: Env,
+    now: number,
+  ): Promise<GovernorActivation> {
+    if (this.governorCache && now - this.governorCache.resolvedAt <= GOVERNOR_RESOLUTION_TTL_MS) {
+      return this.governorCache.activation;
+    }
+
+    const db = createDb(env.DATABASE_URL);
+    const recentRows = await db.select({
+      magnitude: earthquakes.magnitude,
+      tsunami: earthquakes.tsunami,
+      lat: earthquakes.lat,
+      lng: earthquakes.lng,
+      time: earthquakes.time,
+    })
+      .from(earthquakes)
+      .where(gte(earthquakes.time, new Date(now - GOVERNOR_LOOKBACK_MS)))
+      .orderBy(desc(earthquakes.time))
+      .limit(25);
+
+    const activation = buildGovernorPolicyEnvelopeFromEvents(
+      recentRows.map((row) => ({
+        ...row,
+        tsunami: Boolean(row.tsunami),
+      })),
+      {
+        now: new Date(now).toISOString(),
+      },
+    ).activation;
+
+    this.governorCache = {
+      resolvedAt: now,
+      activation,
+    };
+
+    return activation;
+  }
 }
 
 class DurableObjectSnapshotStore implements MaritimeSnapshotStore {
@@ -105,42 +170,6 @@ function parseSnapshotQuery(url: URL): MaritimeSnapshotQuery {
 
 function storageKey(profileId: string): string {
   return `snapshot:${profileId}`;
-}
-
-async function resolveMaritimeRuntimeGovernor(
-  env: Env,
-  query: MaritimeSnapshotQuery,
-  now: number,
-): Promise<MaritimeRuntimeGovernorPolicy> {
-  const db = createDb(env.DATABASE_URL);
-  const recentRows = await db.select({
-    magnitude: earthquakes.magnitude,
-    tsunami: earthquakes.tsunami,
-    lat: earthquakes.lat,
-    lng: earthquakes.lng,
-    time: earthquakes.time,
-  })
-    .from(earthquakes)
-    .where(gte(earthquakes.time, new Date(now - GOVERNOR_LOOKBACK_MS)))
-    .orderBy(desc(earthquakes.time))
-    .limit(25);
-
-  const envelope = buildGovernorPolicyEnvelopeFromEvents(
-    recentRows.map((row) => ({
-      ...row,
-      tsunami: Boolean(row.tsunami),
-    })),
-    {
-      now: new Date(now).toISOString(),
-      viewportBounds: query.bounds,
-    },
-  );
-  const policy = getSourcePolicy('maritime', envelope.activation.state);
-
-  return {
-    activation: envelope.activation,
-    refreshMs: policy.cadenceMode === 'poll' ? policy.refreshMs : env.AIS_SNAPSHOT_TTL_MS ?? 60_000,
-  };
 }
 
 function serializeRegionScope(regionScope: MaritimeRuntimeGovernorPolicy['activation']['regionScope']) {
