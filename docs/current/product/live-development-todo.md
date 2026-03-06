@@ -7,21 +7,20 @@ This is the working backend build order for the new `namazue.dev` service.
 
 ## In Progress
 
-- [ ] Add a first-class service read model for `currentEvent`, `opsSnapshot`, `assetExposureSummary`, `priorityQueue`, and `freshnessStatus`
-- [ ] Publish backend-owned operational truth objects instead of forcing the service shell to assemble them ad hoc
+- [ ] Connect root service shell to backend-owned read models only
+- [ ] Add selective caching and invalidation for scenario/replay outputs
 
 ## Next
 
-- [ ] Add realtime health state for source, freshness, fallback mode, and stale thresholds
-- [ ] Add replay milestone derivation for event lock, impact ready, tsunami posture, exposure ready, and priorities published
-- [ ] Add scenario delta contracts for change summary, reordered exposures, reordered priorities, and reason lines
+- [ ] Add scenario shift producers so `ops.scenarioShift` and `scenarioDelta` are driven by live what-if inputs
+- [ ] Expose replay milestones and realtime freshness through a service-facing API/selector boundary
+- [ ] Tighten stale/degraded policy with explicit network error and fallback messaging rules
 
 ## After That
 
-- [ ] Connect root service shell to backend-owned read models only
 - [ ] Connect replay rail to replay milestones instead of raw timeline timestamps alone
 - [ ] Connect scenario UI to backend-produced deltas instead of view-layer inference
-- [ ] Add selective caching and invalidation for scenario/replay outputs
+- [ ] Add integration tests around orchestrator-driven backend state transitions
 
 ## Completed
 
@@ -29,6 +28,10 @@ This is the working backend build order for the new `namazue.dev` service.
 - [x] Add calm mode and focused-event presentation models
 - [x] Compute launch asset exposure for ports, rail hubs, and hospitals
 - [x] Generate `Check These Now` priorities from exposure + tsunami posture
+- [x] Add first-class service read model state and freshness contract
+- [x] Publish backend-owned operational truth objects for current event snapshot, exposure summary, and priority queue
+- [x] Add replay milestone derivation for event lock, impact ready, tsunami posture, exposure ready, and priorities published
+- [x] Add scenario delta contracts for exposure and priority changes
 
 ## Workstreams
 

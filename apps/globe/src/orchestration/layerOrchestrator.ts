@@ -12,6 +12,7 @@ import { setActiveFaultsVisible } from '../globe/features/activeFaults';
 import { computeImpact } from '../engine/impactAssessment';
 import { buildAssetExposures } from '../ops/exposure';
 import { buildOpsPriorities } from '../ops/priorities';
+import { buildScenarioDelta } from '../ops/scenarioDelta';
 import { buildServiceReadModel } from '../ops/serviceReadModel';
 
 export function initLayerOrchestrator(
@@ -39,6 +40,7 @@ export function initLayerOrchestrator(
       store.set('impactResults', null);
       const ops = store.get('ops');
       store.set('ops', { ...ops, exposures: [], priorities: [] });
+      store.set('scenarioDelta', null);
       syncServiceReadModel();
       return;
     }
@@ -58,6 +60,7 @@ export function initLayerOrchestrator(
 
     if (!selectedEvent) {
       store.set('ops', { ...ops, exposures: [], priorities: [] });
+      store.set('scenarioDelta', null);
       syncServiceReadModel();
       return;
     }
@@ -73,6 +76,18 @@ export function initLayerOrchestrator(
       metro: ops.metro,
     });
     store.set('ops', { ...ops, exposures, priorities });
+    store.set(
+      'scenarioDelta',
+      ops.scenarioShift
+        ? buildScenarioDelta({
+            previousExposures: ops.exposures,
+            nextExposures: exposures,
+            previousPriorities: ops.priorities,
+            nextPriorities: priorities,
+            scenarioShift: ops.scenarioShift,
+          })
+        : null,
+    );
     syncServiceReadModel();
   }));
 

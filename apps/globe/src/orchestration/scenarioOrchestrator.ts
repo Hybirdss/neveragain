@@ -17,6 +17,7 @@ export interface ScenarioOrchestratorHandle {
 export function initScenarioOrchestrator(globe: GlobeInstance): ScenarioOrchestratorHandle {
   function onScenarioSelect(preset: HistoricalPreset): void {
     store.set('mode', 'scenario');
+    store.set('scenarioDelta', null);
     store.set('selectedEvent', null);
     store.set('intensityGrid', null);
     store.set('waveState', null);
