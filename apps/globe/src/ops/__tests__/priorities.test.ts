@@ -50,12 +50,12 @@ describe('buildOpsPriorities', () => {
     const priorities = buildOpsPriorities({
       assets,
       exposures,
-      metro: 'tokyo',
     });
 
     expect(priorities).toHaveLength(2);
-    expect(priorities[0]?.title).toContain('Verify Tokyo port access');
+    expect(priorities[0]?.title).toContain('Verify Port of Tokyo access');
     expect(priorities[1]?.title).toContain('Inspect Shinagawa rail hub');
+    expect(priorities[0]?.rationale).toContain('Kanto');
   });
 
   it('omits clear exposures from the action list', () => {
@@ -72,7 +72,6 @@ describe('buildOpsPriorities', () => {
     const priorities = buildOpsPriorities({
       assets,
       exposures,
-      metro: 'tokyo',
     });
 
     expect(priorities).toEqual([]);

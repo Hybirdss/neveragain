@@ -73,7 +73,6 @@ export function initLayerOrchestrator(
     const priorities = buildOpsPriorities({
       assets: ops.assets,
       exposures,
-      metro: ops.metro,
     });
     store.set('ops', { ...ops, exposures, priorities });
     store.set(

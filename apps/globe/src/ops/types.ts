@@ -22,7 +22,7 @@ export interface ViewportState {
 
 export interface OpsAsset {
   id: string;
-  metro: LaunchMetro;
+  metro?: LaunchMetro;
   region: OpsRegion;
   class: OpsAssetClass;
   name: string;
