@@ -10,6 +10,8 @@ import { consoleStore } from '../core/store';
 import type { ServiceReadModel } from '../ops/readModelTypes';
 import type { OpsPriority, OpsSeverity } from '../ops/types';
 
+export const MAX_VISIBLE_PRIORITIES = 3;
+
 function severityBadgeClass(sev: OpsSeverity): string {
   switch (sev) {
     case 'critical': return 'critical';
@@ -34,8 +36,20 @@ export function buildPriorityEmptyMessage(readModel: ServiceReadModel): string {
   return readModel.operationalOverview.impactSummary;
 }
 
-function renderPriorities(priorities: OpsPriority[]): string {
-  const items = priorities.map((p, i) => {
+export function trimPriorityQueue(
+  priorities: OpsPriority[],
+  limit: number = MAX_VISIBLE_PRIORITIES,
+): OpsPriority[] {
+  return priorities.slice(0, limit);
+}
+
+function renderPriorities(
+  priorities: OpsPriority[],
+  totalCount: number,
+): string {
+  const visiblePriorities = priorities;
+  const overflowCount = Math.max(totalCount - visiblePriorities.length, 0);
+  const items = visiblePriorities.map((p, i) => {
     const badge = severityBadgeClass(p.severity);
     return `
       <div class="nz-check__item" data-asset-id="${p.assetId ?? ''}">
@@ -53,9 +67,10 @@ function renderPriorities(priorities: OpsPriority[]): string {
     <div class="nz-panel" id="nz-check-now">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Check These Now</span>
-        <span class="nz-check__count">${priorities.length}</span>
+        <span class="nz-check__count">${totalCount}</span>
       </div>
       <div class="nz-check__list">${items}</div>
+      ${overflowCount > 0 ? `<div class="nz-check__empty">${overflowCount} more queued</div>` : ''}
     </div>
   `;
 }
@@ -68,15 +83,22 @@ export function selectPriorityQueue(readModel: ServiceReadModel): OpsPriority[] 
   return readModel.nationalPriorityQueue;
 }
 
+export function renderPriorityQueueMarkup(
+  readModel: ServiceReadModel,
+  limit: number = MAX_VISIBLE_PRIORITIES,
+): string {
+  const priorities = selectPriorityQueue(readModel);
+  if (priorities.length === 0) {
+    return renderEmpty(buildPriorityEmptyMessage(readModel));
+  }
+
+  return renderPriorities(trimPriorityQueue(priorities, limit), priorities.length);
+}
+
 export function mountCheckTheseNow(container: HTMLElement): () => void {
   function render(): void {
     const readModel = consoleStore.get('readModel');
-    const priorities = selectPriorityQueue(readModel);
-    if (priorities.length === 0) {
-      container.innerHTML = renderEmpty(buildPriorityEmptyMessage(readModel));
-    } else {
-      container.innerHTML = renderPriorities(priorities);
-    }
+    container.innerHTML = renderPriorityQueueMarkup(readModel);
   }
 
   let renderScheduled = false;

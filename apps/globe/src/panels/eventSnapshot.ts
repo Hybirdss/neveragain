@@ -128,7 +128,6 @@ function renderEventState(
 ): string {
   const sev = severityClass(event.magnitude);
   const sevLabel = sev.toUpperCase();
-  const headline = readModel.nationalSnapshot?.headline;
   const truthLabel = formatTruthLabel(readModel);
   const revisionLabel = formatRevisionLabel(readModel);
   const freshnessLabel = formatFreshnessLabel(readModel, now);
@@ -157,7 +156,6 @@ function renderEventState(
           <span class="nz-snap__metric-label">Elapsed</span>
         </div>
       </div>
-      ${headline ? `<div class="nz-snap__metric">${headline}</div>` : ''}
       ${metaMarkup ? `<div class="nz-snap__meta">${metaMarkup}</div>` : ''}
       ${healthMarkup}
       <div class="nz-snap__coords">

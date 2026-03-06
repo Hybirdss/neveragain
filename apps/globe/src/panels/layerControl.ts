@@ -10,11 +10,13 @@ import {
 } from '../layers/bundleRegistry';
 import { getLayerDefinition, type BundleId, type LayerId, type LegendEntry } from '../layers/layerRegistry';
 import { consoleStore, type ConsoleState } from '../core/store';
+import { selectPriorityQueue } from './checkTheseNow';
 import type {
   OperatorBundleCounter,
   OperatorBundleDomain,
   OperatorBundleSignal,
   OperatorBundleSummary,
+  ServiceReadModel,
 } from '../ops/readModelTypes';
 import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 
@@ -22,6 +24,36 @@ export type BundleSummary = Pick<
   OperatorBundleSummary,
   'title' | 'metric' | 'detail' | 'trust' | 'counters' | 'signals' | 'domains'
 >;
+
+function normalizeActionCopy(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function sanitizeBundleSummaryForDrawer(
+  summary: BundleSummary,
+  readModel: ServiceReadModel,
+): BundleSummary {
+  const rankedActions = selectPriorityQueue(readModel);
+  const duplicatedCopy = new Set(
+    rankedActions.flatMap((priority) => [
+      normalizeActionCopy(priority.title),
+      normalizeActionCopy(priority.rationale),
+    ]),
+  );
+
+  const metric = duplicatedCopy.has(normalizeActionCopy(summary.metric))
+    ? 'Operational diagnostics'
+    : summary.metric;
+  const detail = duplicatedCopy.has(normalizeActionCopy(summary.detail))
+    ? 'Check These Now owns ranked actions. This drawer stays diagnostic.'
+    : summary.detail;
+
+  return {
+    ...summary,
+    metric,
+    detail,
+  };
+}
 
 export interface LayerControlRow {
   id: LayerId;
@@ -245,7 +277,10 @@ function renderLegendEntries(layerRows: LayerControlRow[]): string {
 
 function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
   const activeBundleEnabled = state.bundleSettings[state.activeBundleId].enabled;
-  const activeSummary = buildBundleSummary(state.activeBundleId, state);
+  const activeSummary = sanitizeBundleSummaryForDrawer(
+    buildBundleSummary(state.activeBundleId, state),
+    state.readModel,
+  );
   const density = model.activeBundle.requestedDensity;
   const effectiveDensity = model.activeBundle.effectiveDensity;
   const densityStatus = model.activeBundle.governorStatus;
@@ -321,15 +356,18 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
         </div>
 
         <div class="nz-bundle-drawer__secondary">
-          ${model.bundleSummaries.map((entry) => `
+          ${model.bundleSummaries.map((entry) => {
+            const summary = sanitizeBundleSummaryForDrawer(entry.summary, state.readModel);
+            return `
             <button class="nz-bundle-summary-card${state.activeBundleId === entry.id ? ' nz-bundle-summary-card--active' : ''}" data-bundle="${entry.id}">
-              <span class="nz-bundle-summary-card__title">${entry.summary.title}</span>
-              <span class="nz-bundle-summary-card__metric">${entry.summary.metric}</span>
-              <span class="nz-bundle-summary-card__detail">${entry.summary.detail}</span>
-              ${renderSignals(entry.summary)}
-              ${renderSummaryMeta(entry.summary)}
+              <span class="nz-bundle-summary-card__title">${summary.title}</span>
+              <span class="nz-bundle-summary-card__metric">${summary.metric}</span>
+              <span class="nz-bundle-summary-card__detail">${summary.detail}</span>
+              ${renderSignals(summary)}
+              ${renderSummaryMeta(summary)}
             </button>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </div>
     </div>
