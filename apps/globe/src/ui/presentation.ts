@@ -408,9 +408,7 @@ export function buildHeroSummary(args: {
   return {
     state: isLoading ? 'loading' : 'ready',
     headline,
-    message: isLoading
-      ? copy(locale, 'loadingMessage')
-      : readOneLiner(analysis, locale) || fallbackMessage(event, args.tsunamiAssessment, locale),
+    message: readOneLiner(analysis, locale) || fallbackMessage(event, args.tsunamiAssessment, locale),
     place,
     relativeTime: formatRelativeTime(event.time, locale, now),
     magnitudeLabel: `M${event.magnitude.toFixed(1)}`,

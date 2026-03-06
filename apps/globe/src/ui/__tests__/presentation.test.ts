@@ -285,7 +285,7 @@ describe('buildHeroSummary', () => {
     expect(summary.tsunami?.label).toBe('No tsunami expected');
   });
 
-  it('returns a loading hero state while analysis is pending', () => {
+  it('keeps the meaning sentence visible while analysis is pending', () => {
     const summary = buildHeroSummary({
       event: EVENT,
       analysis: null,
@@ -297,7 +297,8 @@ describe('buildHeroSummary', () => {
 
     expect(summary.state).toBe('loading');
     expect(summary.headline).toBe('Near Osaka');
-    expect(summary.message).toBe('Preparing AI summary...');
+    expect(summary.message).not.toBe('Preparing AI summary...');
+    expect(summary.message).toContain('No tsunami expected from this earthquake');
   });
 
   it('falls back to a plain-language summary when analysis is missing', () => {
