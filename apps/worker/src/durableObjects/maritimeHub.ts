@@ -38,6 +38,7 @@ export class MaritimeHub {
         cache_status: snapshot.provenance.cacheStatus,
         snapshot_age_ms: snapshot.provenance.snapshotAgeMs,
         provider: snapshot.provenance.provider,
+        fallback_reason: snapshot.provenance.fallbackReason ?? null,
       },
     });
   }

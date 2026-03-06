@@ -23,13 +23,14 @@ test('maritime route forwards maritime queries to the durable object hub', async
                 total_tracked: 356,
                 visible_count: 25,
                 vessels: [],
-                provenance: {
-                  cache_status: 'miss',
-                  snapshot_age_ms: 0,
-                  provider: 'synthetic',
-                },
-              });
-            },
+              provenance: {
+                cache_status: 'miss',
+                snapshot_age_ms: 0,
+                provider: 'synthetic',
+                fallback_reason: 'connect-timeout',
+              },
+            });
+          },
           };
         },
       },
@@ -42,7 +43,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
     profile: { id: string };
     total_tracked: number;
     visible_count: number;
-    provenance: { cache_status: string };
+    provenance: { cache_status: string; fallback_reason: string };
   };
 
   assert.equal(payload.source, 'synthetic');
@@ -50,6 +51,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
   assert.equal(payload.total_tracked, 356);
   assert.equal(payload.visible_count, 25);
   assert.equal(payload.provenance.cache_status, 'miss');
+  assert.equal(payload.provenance.fallback_reason, 'connect-timeout');
   assert.match(
     forwardedUrl,
     /https:\/\/maritime-hub\/snapshot\?profile=japan-wide&west=138.5&south=33.5&east=141.5&north=36.5&limit=25/,

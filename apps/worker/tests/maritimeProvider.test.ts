@@ -8,6 +8,7 @@ test('maritime provider falls back to synthetic snapshots when no AIS key is con
   const snapshot = await provider.loadProfileSnapshot('japan-wide', 1_000);
 
   assert.equal(snapshot.source, 'synthetic');
+  assert.equal(snapshot.fallbackReason, 'not-configured');
   assert.equal(snapshot.profile.id, 'japan-wide');
   assert.ok(snapshot.totalTracked > 122);
 });
@@ -56,6 +57,7 @@ test('maritime provider can build a live snapshot from AISstream websocket messa
 
   const snapshot = await snapshotPromise;
   assert.equal(snapshot.source, 'live');
+  assert.equal(snapshot.fallbackReason, undefined);
   assert.equal(snapshot.totalTracked, 1);
   assert.equal(snapshot.vessels[0]?.name, 'TOKYO TEST');
   assert.equal(snapshot.vessels[0]?.lat, 35.2);
@@ -76,6 +78,7 @@ test('maritime provider falls back to synthetic snapshots when AISstream fails',
 
   const snapshot = await provider.loadProfileSnapshot('japan-wide', 7_000);
   assert.equal(snapshot.source, 'synthetic');
+  assert.equal(snapshot.fallbackReason, 'upstream-error');
   assert.ok(snapshot.totalTracked > 122);
 });
 
@@ -93,6 +96,7 @@ test('maritime provider falls back when AISstream never opens', async () => {
 
   const snapshot = await provider.loadProfileSnapshot('japan-wide', 9_000);
   assert.equal(snapshot.source, 'synthetic');
+  assert.equal(snapshot.fallbackReason, 'connect-timeout');
   assert.ok(snapshot.totalTracked > 122);
 });
 

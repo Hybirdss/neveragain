@@ -24,6 +24,7 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
       calls++;
       return {
         source: 'synthetic',
+        fallbackReason: 'not-configured',
         profile: {
           id: profileId,
           label: 'Japan Wide',
@@ -82,8 +83,10 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
   assert.equal(first.visibleCount, 1);
   assert.equal(first.totalTracked, 2);
   assert.equal(first.provenance.cacheStatus, 'miss');
+  assert.equal(first.provenance.fallbackReason, 'not-configured');
   assert.equal(second.visibleCount, 1);
   assert.equal(second.provenance.cacheStatus, 'hit');
+  assert.equal(second.provenance.fallbackReason, 'not-configured');
 });
 
 test('maritime snapshot service refreshes stale records', async () => {
@@ -94,6 +97,7 @@ test('maritime snapshot service refreshes stale records', async () => {
       calls++;
       return {
         source: 'synthetic',
+        fallbackReason: calls === 1 ? 'upstream-error' : 'connect-timeout',
         profile: {
           id: profileId,
           label: 'Japan Wide',
@@ -131,6 +135,8 @@ test('maritime snapshot service refreshes stale records', async () => {
 
   assert.equal(calls, 2);
   assert.equal(first.provenance.cacheStatus, 'miss');
+  assert.equal(first.provenance.fallbackReason, 'upstream-error');
   assert.equal(second.provenance.cacheStatus, 'stale');
+  assert.equal(second.provenance.fallbackReason, 'connect-timeout');
   assert.equal(second.vessels[0]?.mmsi, '2');
 });

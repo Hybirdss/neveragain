@@ -1,6 +1,6 @@
 import { buildSyntheticMaritimeSnapshot, getAisCoverageProfile, type AisCoverageProfileId, type Vessel, type VesselType } from '@namazue/db';
 import type { Env } from '../index.ts';
-import type { MaritimeSnapshotProvider } from './service.ts';
+import type { MaritimeFallbackReason, MaritimeSnapshotProvider } from './service.ts';
 
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const DEFAULT_COLLECTION_WINDOW_MS = 1_500;
@@ -37,7 +37,7 @@ export function createMaritimeSnapshotProvider(
 ): MaritimeSnapshotProvider {
   const apiKey = env.AISSTREAM_API_KEY?.trim();
   if (!apiKey) {
-    return createSyntheticProvider();
+    return createSyntheticProvider('not-configured');
   }
 
   const collectionWindowMs = normalizeCollectionWindowMs(env.AISSTREAM_COLLECTION_WINDOW_MS);
@@ -59,20 +59,23 @@ export function createMaritimeSnapshotProvider(
         if (snapshot.totalTracked > 0) {
           return snapshot;
         }
+        return buildSyntheticFallback(profileId, now, 'no-live-data');
       } catch (error) {
         console.warn('[maritime] AISstream provider failed, falling back to synthetic snapshot:', error);
+        const fallbackReason = error instanceof Error && error.message === 'AISstream websocket connect timeout'
+          ? 'connect-timeout'
+          : 'upstream-error';
+        return buildSyntheticFallback(profileId, now, fallbackReason);
       }
-
-      return buildSyntheticMaritimeSnapshot({ profileId, now });
     },
   };
 }
 
-function createSyntheticProvider(): MaritimeSnapshotProvider {
+function createSyntheticProvider(fallbackReason: MaritimeFallbackReason): MaritimeSnapshotProvider {
   return {
     provider: 'synthetic',
     async loadProfileSnapshot(profileId: AisCoverageProfileId, now: number) {
-      return buildSyntheticMaritimeSnapshot({ profileId, now });
+      return buildSyntheticFallback(profileId, now, fallbackReason);
     },
   };
 }
@@ -159,6 +162,17 @@ async function collectAisstreamSnapshot(input: {
     generatedAt: input.now,
     totalTracked: vessels.size,
     vessels: [...vessels.values()],
+  };
+}
+
+function buildSyntheticFallback(
+  profileId: AisCoverageProfileId,
+  now: number,
+  fallbackReason: MaritimeFallbackReason,
+) {
+  return {
+    ...buildSyntheticMaritimeSnapshot({ profileId, now }),
+    fallbackReason,
   };
 }
 
