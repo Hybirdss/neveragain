@@ -11,6 +11,8 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "paths": {
+      "@namazue/adapters-feeds": ["../../packages/adapters-feeds/index.ts"],
+      "@namazue/adapters-feeds/*": ["../../packages/adapters-feeds/*"],
       "@namazue/application-console": ["../../packages/application-console/index.ts"],
       "@namazue/application-console/*": ["../../packages/application-console/*"],
       "@namazue/application-ingest": ["../../packages/application-ingest/index.ts"],

@@ -1,10 +1,13 @@
 import { and, desc, eq, gte, lte, isNull, sql, inArray } from 'drizzle-orm';
+import {
+  type EarthquakeFeedRecord,
+  fetchJmaEarthquakeFeed,
+  fetchUsgsEarthquakeFeed,
+} from '@namazue/adapters-feeds';
 import { analyses, earthquakes } from '@namazue/db';
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
 import { generateAndStoreAnalysis } from './analyze.ts';
-import { fetchJmaQuakes } from '../lib/jma.ts';
-import { fetchUsgsQuakes } from '../lib/usgs.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
@@ -24,7 +27,7 @@ const MAG_REVISION_THRESHOLD = 0.3;
 // when magnitude changes ≥0.3.
 
 async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; revised: number }> {
-  const jmaEvents = await fetchJmaQuakes();
+  const jmaEvents = await fetchJmaEarthquakeFeed();
   if (jmaEvents.length === 0) return { ingested: 0, analyzed: 0, revised: 0 };
 
   const db = createDb(env.DATABASE_URL);
@@ -51,16 +54,10 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     }
   }
 
-  // Batch upsert in chunks.
-  // JMA feed can contain duplicate IDs (preliminary + final report).
-  // PostgreSQL rejects ON CONFLICT DO UPDATE when the same PK appears twice in one INSERT,
-  // so we deduplicate by ID first, keeping the last (most recent) entry.
-  const dedupedJma = [...new Map(jmaEvents.map(ev => [ev.id, ev])).values()];
-
   let ingested = 0;
   try {
     const now = new Date();
-    const values = dedupedJma.map(ev => ({
+    const values = jmaEvents.map(ev => ({
       id: ev.id,
       lat: ev.lat,
       lng: ev.lng,
@@ -104,7 +101,7 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
     }
 
     // Count genuinely new rows (not in existingMap before upsert)
-    ingested = dedupedJma.filter(ev => !existingMap.has(ev.id)).length;
+    ingested = jmaEvents.filter(ev => !existingMap.has(ev.id)).length;
   } catch (err) {
     console.error('[jma] batch upsert failed:', err);
   }
@@ -140,7 +137,7 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
 // upserts with status/magnitude updates, generates analysis for new M4+.
 
 async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number; revised: number }> {
-  const usgsEvents = await fetchUsgsQuakes();
+  const usgsEvents = await fetchUsgsEarthquakeFeed();
   if (usgsEvents.length === 0) return { ingested: 0, analyzed: 0, revised: 0 };
 
   const db = createDb(env.DATABASE_URL);
@@ -185,7 +182,7 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
       ));
   }
 
-  function isDuplicate(ev: typeof candidates[0]): boolean {
+  function isDuplicate(ev: EarthquakeFeedRecord): boolean {
     const evTime = new Date(ev.time).getTime();
     for (const row of recentDb) {
       const dbTime = new Date(row.time).getTime();
