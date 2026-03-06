@@ -28,6 +28,7 @@ const sql = neon(DATABASE_URL);
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const START_OFFSET = process.env.START_OFFSET ? parseInt(process.env.START_OFFSET, 10) : 0;
+const STALE_ONLY = process.env.STALE_ONLY === '1';
 
 interface PatchStats {
   total: number;
@@ -52,12 +53,28 @@ async function main() {
   console.log('=== Patch Analysis Facts ===');
   console.log('Re-computing tsunami/intensity/tectonic facts with corrected geo.ts\n');
   if (START_OFFSET > 0) console.log(`Starting from offset ${START_OFFSET}\n`);
+  if (STALE_ONLY) console.log('Filtering to analyses with stale narrative markers only\n');
   if (DRY_RUN) console.log('** DRY RUN — no DB changes **\n');
 
   // Count
-  const [{ count }] = await sql`
-    SELECT count(*)::int as count FROM analyses WHERE is_latest = true
-  `;
+  const [{ count }] = STALE_ONLY
+    ? await sql`
+      SELECT count(*)::int as count
+      FROM analyses a
+      WHERE a.is_latest = true
+        AND (
+          COALESCE(a.analysis->'dashboard'->'headline'->>'ko', '') ~ '(^|\s)M ?[0-9]|깊이[[:space:]]*[0-9]+[[:space:]]*km|[0-9]+[[:space:]]*km'
+          OR COALESCE(a.analysis->'dashboard'->'headline'->>'en', '') ~* '(^|\s)M ?[0-9]|depth[[:space:]]*[0-9]+[[:space:]]*km|[0-9]+[[:space:]]*km'
+          OR a.analysis->'expert'->'historical_comparison' <> 'null'::jsonb
+          OR (
+            a.analysis->'expert'->'notable_features' <> '[]'::jsonb
+            AND a.analysis->'expert'->'notable_features' <> 'null'::jsonb
+          )
+        )
+    `
+    : await sql`
+      SELECT count(*)::int as count FROM analyses WHERE is_latest = true
+    `;
   console.log(`Total analyses to patch: ${count}\n`);
 
   const stats: PatchStats = {
@@ -76,18 +93,43 @@ async function main() {
   const sampleChanges: string[] = [];
 
   for (let offset = START_OFFSET; offset < count; offset += BATCH_SIZE) {
-    const rows: any[] = await sql`
-      SELECT
-        a.id as analysis_id,
-        a.analysis::text as analysis_text,
-        e.id as event_id, e.lat, e.lng, e.depth_km, e.magnitude,
-        e.place, e.place_ja, e.fault_type, e.tsunami as usgs_tsunami
-      FROM analyses a
-      JOIN earthquakes e ON e.id = a.event_id
-      WHERE a.is_latest = true
-      ORDER BY e.magnitude DESC
-      LIMIT ${BATCH_SIZE} OFFSET ${offset}
-    `;
+    const batchOffset = STALE_ONLY ? 0 : offset;
+    const rows: any[] = STALE_ONLY
+      ? await sql`
+        SELECT
+          a.id as analysis_id,
+          a.analysis::text as analysis_text,
+          e.id as event_id, e.lat, e.lng, e.depth_km, e.magnitude,
+          e.place, e.place_ja, e.fault_type, e.tsunami as usgs_tsunami
+        FROM analyses a
+        JOIN earthquakes e ON e.id = a.event_id
+        WHERE a.is_latest = true
+          AND (
+            COALESCE(a.analysis->'dashboard'->'headline'->>'ko', '') ~ '(^|\s)M ?[0-9]|깊이[[:space:]]*[0-9]+[[:space:]]*km|[0-9]+[[:space:]]*km'
+            OR COALESCE(a.analysis->'dashboard'->'headline'->>'en', '') ~* '(^|\s)M ?[0-9]|depth[[:space:]]*[0-9]+[[:space:]]*km|[0-9]+[[:space:]]*km'
+            OR a.analysis->'expert'->'historical_comparison' <> 'null'::jsonb
+            OR (
+              a.analysis->'expert'->'notable_features' <> '[]'::jsonb
+              AND a.analysis->'expert'->'notable_features' <> 'null'::jsonb
+            )
+          )
+        ORDER BY e.magnitude DESC
+        LIMIT ${BATCH_SIZE} OFFSET ${batchOffset}
+      `
+      : await sql`
+        SELECT
+          a.id as analysis_id,
+          a.analysis::text as analysis_text,
+          e.id as event_id, e.lat, e.lng, e.depth_km, e.magnitude,
+          e.place, e.place_ja, e.fault_type, e.tsunami as usgs_tsunami
+        FROM analyses a
+        JOIN earthquakes e ON e.id = a.event_id
+        WHERE a.is_latest = true
+        ORDER BY e.magnitude DESC
+        LIMIT ${BATCH_SIZE} OFFSET ${batchOffset}
+      `;
+
+    if (STALE_ONLY && rows.length === 0) break;
 
     for (const r of rows) {
       try {
@@ -217,8 +259,11 @@ async function main() {
       }
     }
 
-    const pct = Math.round(((offset + rows.length) / count) * 100);
-    process.stdout.write(`\r  Progress: ${offset + rows.length}/${count} (${pct}%) — patched: ${stats.patched}, unchanged: ${stats.skipped}`);
+    const processed = STALE_ONLY
+      ? stats.patched + stats.skipped + stats.errors
+      : offset + rows.length;
+    const pct = Math.min(100, Math.round((processed / count) * 100));
+    process.stdout.write(`\r  Progress: ${processed}/${count} (${pct}%) — patched: ${stats.patched}, unchanged: ${stats.skipped}`);
   }
 
   console.log('\n');
