@@ -1,3 +1,4 @@
+import { prepareAnalysisForEvent } from '@namazue/db';
 import { assessTsunamiRisk, classifyLocation, inferFaultType } from '@namazue/db/geo';
 
 import en from '../i18n/en';
@@ -150,6 +151,22 @@ function getEventPlace(event: EarthquakeEvent, locale: PresentationLocale): stri
   const jp = getJapanPlaceName(event.lat, event.lng);
   if (jp) return jp[locale];
   return getPlaceText(event.place) || 'Unknown';
+}
+
+export function prepareAnalysisForPresentation(
+  analysis: AnalysisLike,
+  event?: EarthquakeEvent,
+): Record<string, unknown> | null {
+  if (!analysis) return null;
+  if (!event) return asRecord(analysis);
+  return prepareAnalysisForEvent(analysis, {
+    magnitude: event.magnitude,
+    depth_km: event.depth_km,
+    lat: event.lat,
+    lng: event.lng,
+    place: event.place?.text,
+    place_ja: undefined,
+  });
 }
 
 function isMetadataHeadline(text: string): boolean {
@@ -367,7 +384,7 @@ export function buildHeroSummary(args: {
   isLoading?: boolean;
 }): PresentationHeroSummary {
   const { event, locale, now = Date.now(), isLoading = false } = args;
-  const analysis = asRecord(args.analysis);
+  const analysis = prepareAnalysisForPresentation(asRecord(args.analysis), event ?? undefined);
   const tsunami = buildTsunamiSummary(args.tsunamiAssessment, locale);
 
   if (!event) {
@@ -411,7 +428,7 @@ export function buildLiveFeedSummary(args: {
   now?: number;
 }): PresentationLiveFeedSummary {
   const { event, locale, now = Date.now() } = args;
-  const analysis = asRecord(args.analysis);
+  const analysis = prepareAnalysisForPresentation(asRecord(args.analysis), event);
   return {
     place: getEventPlace(event, locale),
     relativeTime: formatRelativeTime(event.time, locale, now),
@@ -430,7 +447,7 @@ export function buildDetailSummary(args: {
   now?: number;
 }): PresentationDetailSummary {
   const { event, locale, now = Date.now() } = args;
-  const analysis = asRecord(args.analysis);
+  const analysis = prepareAnalysisForPresentation(asRecord(args.analysis), event);
   const severity = computeSeverity(event);
   return {
     headline: readHeadline(analysis, locale, event) || getEventPlace(event, locale),
@@ -455,9 +472,10 @@ export function buildDetailSummary(args: {
 
 export function buildEvidenceSummary(args: {
   analysis?: unknown;
+  event: EarthquakeEvent;
   locale: PresentationLocale;
 }): PresentationEvidenceSummary {
-  const analysis = asRecord(args.analysis);
+  const analysis = prepareAnalysisForPresentation(asRecord(args.analysis), args.event);
   const locale = args.locale;
   const expertLayer = readExpert(analysis);
   const comparison = readHistoricalComparison(analysis, locale);
@@ -482,13 +500,14 @@ export function buildShareSummary(args: {
 }): PresentationShareSummary {
   const hero = buildHeroSummary({
     event: args.event,
-    analysis: args.analysis,
+    analysis: prepareAnalysisForPresentation(asRecord(args.analysis), args.event),
     tsunamiAssessment: args.tsunamiAssessment,
     locale: args.locale,
     now: args.now,
   });
-  const why = readWhy(asRecord(args.analysis), args.locale);
-  const aftershock = readAftershock(asRecord(args.analysis), args.locale);
+  const safeAnalysis = prepareAnalysisForPresentation(asRecord(args.analysis), args.event);
+  const why = readWhy(safeAnalysis, args.locale);
+  const aftershock = readAftershock(safeAnalysis, args.locale);
   const lines = [why, aftershock].filter(Boolean);
   return {
     shortText: [

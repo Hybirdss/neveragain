@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeAnalysisNarrative } from '@namazue/db';
+import { canonicalizeAnalysisForStorage, normalizeAnalysisNarrative } from '@namazue/db';
 
 const HIRARA_ANALYSIS = {
   dashboard: {
@@ -98,5 +98,49 @@ describe('normalizeAnalysisNarrative', () => {
     expect(normalized.expert.historical_comparison).toBeNull();
     expect(normalized.expert.notable_features).toEqual([]);
     expect(normalized.interpretations.length).toBeGreaterThan(0);
+  });
+
+  it('builds a safe stored analysis even when AI output is sparse or stale', () => {
+    const canonical = canonicalizeAnalysisForStorage({
+      event_id: 'us7000s0n7',
+      tier: 'A',
+      version: 4,
+      generated_at: '2026-03-06T00:00:00.000Z',
+      model: 'grok-4.1-fast-reasoning',
+      facts: HIRARA_ANALYSIS.facts,
+      dashboard: HIRARA_ANALYSIS.dashboard,
+      public: HIRARA_ANALYSIS.public,
+      expert: HIRARA_ANALYSIS.expert,
+      search_index: {
+        tags: ['Ryukyu', 'M5.2', 'plate-boundary'],
+        region: 'invalid-region',
+        damage_level: 'catastrophic',
+        has_foreshocks: 'yes',
+        is_in_seismic_gap: 'no',
+        region_keywords: {
+          ko: ['미야코지마', '', 'M5.2'],
+          ja: ['宮古島', '深さ10km'],
+          en: ['Miyakojima', 'depth 10 km'],
+        },
+      },
+    }, {
+      magnitude: 5.2,
+      depth_km: 10,
+      lat: 25.2336,
+      lng: 125.0287,
+      place: '55 km NNW of Hirara, Japan',
+      place_ja: null,
+    });
+    expect(canonical).not.toBeNull();
+    const safe = canonical!;
+
+    expect(safe.dashboard.headline.ko).toBe('Hirara 인근');
+    expect(safe.search_index.region).toBe('okinawa');
+    expect(safe.search_index.categories.damage_level).toBe('moderate');
+    expect(safe.search_index.categories.is_in_seismic_gap).toBe(false);
+    expect(safe.search_index.tags).toContain('intraplate_shallow');
+    expect(safe.search_index.tags).not.toContain('m5.2');
+    expect(safe.expert.historical_comparison).toBeNull();
+    expect(safe.expert.notable_features).toEqual([]);
   });
 });

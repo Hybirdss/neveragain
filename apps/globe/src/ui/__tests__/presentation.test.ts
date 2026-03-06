@@ -176,6 +176,75 @@ const METADATA_STYLE_ANALYSIS = {
   },
 };
 
+const STALE_NARRATIVE_ANALYSIS = {
+  facts: {
+    max_intensity: { class: '3' },
+    tsunami: { risk: 'low' },
+    aftershocks: {
+      forecast: {
+        p24h_m4plus: 60.9,
+        p7d_m4plus: 75.1,
+        p24h_m5plus: 11.3,
+      },
+    },
+    mechanism: { status: 'missing', source: null },
+    tectonic: {
+      boundary_type: 'intraplate_shallow',
+      plate_pair: 'nearby plate motion',
+      nearest_trench: { name: 'Ryukyu Trench', distance_km: 384 },
+    },
+  },
+  dashboard: {
+    headline: {
+      en: 'M5.2 55 km NNW of Hirara, Japan, depth 10 km',
+      ja: 'M5.2 平良の北北西55km 深さ10km',
+      ko: 'M5.2 일본 히라라 북북서 55km, 깊이 10km',
+    },
+    one_liner: {
+      en: 'Shallow shaking is expected near Miyakojima.',
+      ja: '宮古島周辺で浅い揺れが見込まれます。',
+      ko: '미야코지마 주변에서 얕은 흔들림이 예상됩니다.',
+    },
+  },
+  public: {
+    why: {
+      en: 'Old AI narrative that overstates a direct plate-boundary rupture.',
+      ja: '古いAI説明がプレート境界破壊を断定している。',
+      ko: '오래된 AI 설명이 직접적인 판 경계 파열이라고 단정한다.',
+    },
+  },
+  expert: {
+    tectonic_summary: {
+      en: 'Old tectonic summary',
+      ja: '古いテクトニクス要約',
+      ko: '오래된 구조 요약',
+    },
+    historical_comparison: {
+      primary_name: {
+        en: '1771 Yaeyama earthquake',
+        ja: '1771年八重山地震',
+        ko: '1771년 야에야마 지진',
+      },
+      narrative: {
+        en: 'Overconfident historical analogy',
+        ja: '過度に自信のある歴史比較',
+        ko: '과도하게 단정적인 역사 비교',
+      },
+      similarities: [{ en: 'Similarity', ja: '類似', ko: '유사' }],
+      differences: [{ en: 'Difference', ja: '相違', ko: '차이' }],
+    },
+    notable_features: [
+      {
+        feature: { en: 'Feature', ja: '特徴', ko: '특징' },
+        claim: { en: 'Claim', ja: '主張', ko: '주장' },
+        because: { en: 'Because', ja: '理由', ko: '이유' },
+        because_refs: ['seismology:made_up'],
+        implication: { en: 'Implication', ja: '含意', ko: '함의' },
+      },
+    ],
+  },
+};
+
 describe('pickHeroEvent', () => {
   it('prefers the strongest recent event', () => {
     const weaker = {
@@ -348,10 +417,12 @@ describe('buildEvidenceSummary', () => {
   it('normalizes both current worker and shared-type historical comparison shapes', () => {
     const currentShape = buildEvidenceSummary({
       analysis: ANALYSIS,
+      event: EVENT,
       locale: 'en',
     });
     const sharedShape = buildEvidenceSummary({
       analysis: SHARED_STYLE_ANALYSIS,
+      event: EVENT,
       locale: 'en',
     });
 
@@ -360,5 +431,18 @@ describe('buildEvidenceSummary', () => {
     expect(sharedShape.expertSummary).toBe('Shared-type tectonic context');
     expect(sharedShape.comparisonNarrative).toBe('Shared type comparison narrative');
     expect(sharedShape.similarities).toContain('Offshore source');
+  });
+
+  it('re-sanitizes stale expert narrative before rendering', () => {
+    const summary = buildEvidenceSummary({
+      analysis: STALE_NARRATIVE_ANALYSIS,
+      event: HIRARA_EVENT,
+      locale: 'ko',
+    });
+
+    expect(summary.expertSummary).toContain('류큐 해구 축에서 약 384km');
+    expect(summary.comparisonNarrative).toBeNull();
+    expect(summary.similarities).toEqual([]);
+    expect(summary.differences).toEqual([]);
   });
 });

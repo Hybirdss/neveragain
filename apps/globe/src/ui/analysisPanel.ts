@@ -5,6 +5,7 @@ import {
   buildEvidenceSummary,
   buildShareSummary,
   deriveTsunamiAssessmentFromEvent,
+  prepareAnalysisForPresentation,
 } from './presentation';
 
 let rootEl: HTMLElement;
@@ -124,6 +125,7 @@ function renderEvidencePanel(analysis: Record<string, unknown>): void {
 
   const evidence = buildEvidenceSummary({
     analysis,
+    event: selected,
     locale: getLocale(),
   });
 
@@ -207,15 +209,19 @@ function renderDataPanel(analysis: Record<string, unknown>): void {
 
 function renderContent(): void {
   if (!lastAnalysis) return;
+  const selected = store.get('selectedEvent');
+  const safeAnalysis = selected
+    ? prepareAnalysisForPresentation(lastAnalysis, selected) ?? lastAnalysis
+    : lastAnalysis;
   rootEl.style.display = 'block';
   skeletonEl.style.display = 'none';
   errorEl.style.display = 'none';
   aboutSummaryEl.textContent = uiText('about');
   evidenceSummaryEl.textContent = uiText('evidence');
   dataSummaryEl.textContent = uiText('data');
-  renderAboutPanel(lastAnalysis);
-  renderEvidencePanel(lastAnalysis);
-  renderDataPanel(lastAnalysis);
+  renderAboutPanel(safeAnalysis);
+  renderEvidencePanel(safeAnalysis);
+  renderDataPanel(safeAnalysis);
   disclaimerEl.textContent = t('ai.disclaimer');
 }
 

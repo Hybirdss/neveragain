@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import fs from 'fs';
+import { canonicalizeAnalysisForStorage } from '@namazue/db';
 
 const envRaw = fs.readFileSync('.env', 'utf8');
 const DATABASE_URL = envRaw.split('\n').find((l: string) => l.startsWith('DATABASE_URL='))?.substring('DATABASE_URL='.length).trim();
@@ -149,7 +150,15 @@ async function main() {
     const data = JSON.parse(fs.readFileSync('facts.json', 'utf8'));
     const facts = data.facts;
     const tier = data.tier;
-    const analysis = mergeAnalysis(facts, jaNarrative, translations, tier);
+    const merged = mergeAnalysis(facts, jaNarrative, translations, tier);
+    const analysis = canonicalizeAnalysisForStorage(merged, {
+        magnitude: facts.event.mag,
+        depth_km: facts.event.depth_km,
+        lat: facts.event.lat,
+        lng: facts.event.lon,
+        place: facts.event.place_en,
+        place_ja: facts.event.place_ja,
+    });
 
     console.log('Inserting into database...', JSON.stringify(analysis).length, 'bytes');
     await sql`

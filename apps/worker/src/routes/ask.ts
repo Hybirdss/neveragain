@@ -10,7 +10,8 @@ import { Hono } from 'hono';
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
 import { checkRateLimit } from '../lib/rateLimit.ts';
-import { analyses } from '@namazue/db';
+import { prepareAnalysisForDelivery } from '../lib/analysisDelivery.ts';
+import { analyses, earthquakes } from '@namazue/db';
 import { eq, and, desc } from 'drizzle-orm';
 
 export const askRoute = new Hono<{ Bindings: Env }>();
@@ -71,8 +72,17 @@ askRoute.post('/', async (c) => {
   // Fetch latest analysis
   const db = createDb(c.env.DATABASE_URL);
   const rows = await db
-    .select({ analysis: analyses.analysis })
+    .select({
+      analysis: analyses.analysis,
+      magnitude: earthquakes.magnitude,
+      depth_km: earthquakes.depth_km,
+      lat: earthquakes.lat,
+      lng: earthquakes.lng,
+      place: earthquakes.place,
+      place_ja: earthquakes.place_ja,
+    })
     .from(analyses)
+    .innerJoin(earthquakes, eq(earthquakes.id, analyses.event_id))
     .where(and(eq(analyses.event_id, event_id), eq(analyses.is_latest, true)))
     .orderBy(desc(analyses.created_at))
     .limit(1);
@@ -81,7 +91,14 @@ askRoute.post('/', async (c) => {
     return c.json({ error: 'No analysis found for this event' }, 404);
   }
 
-  const analysisData = rows[0].analysis;
+  const analysisData = prepareAnalysisForDelivery(rows[0].analysis, {
+    magnitude: rows[0].magnitude,
+    depth_km: rows[0].depth_km,
+    lat: rows[0].lat,
+    lng: rows[0].lng,
+    place: rows[0].place,
+    place_ja: rows[0].place_ja,
+  });
 
   // Call Grok
   const userMsg = `Analysis:\n${JSON.stringify(analysisData, null, 2)}\n\nQuestion: ${question}`;

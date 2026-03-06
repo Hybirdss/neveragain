@@ -17,11 +17,12 @@ import { createDb } from '../lib/db.ts';
 import { callGrok } from '../lib/grok.ts';
 import { buildContext } from '../context/builder.ts';
 import { checkRateLimit } from '../lib/rateLimit.ts';
+import { prepareAnalysisForDelivery } from '../lib/analysisDelivery.ts';
 import {
   analyses, earthquakes, classifyLocation,
   inferFaultType as inferFaultTypeGeo,
   computeMaxIntensity as computeMaxIntensityShared,
-  normalizeAnalysisNarrative,
+  canonicalizeAnalysisForStorage,
 } from '@namazue/db';
 import type { AnalysisTier, BuilderInput } from '@namazue/db';
 import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
@@ -38,8 +39,15 @@ async function getLatestAnalysis(
 ): Promise<AnalysisCacheRow | null> {
   const rows = await db.select({
     analysis: analyses.analysis,
+    magnitude: earthquakes.magnitude,
+    depth_km: earthquakes.depth_km,
+    lat: earthquakes.lat,
+    lng: earthquakes.lng,
+    place: earthquakes.place,
+    place_ja: earthquakes.place_ja,
   })
     .from(analyses)
+    .innerJoin(earthquakes, eq(earthquakes.id, analyses.event_id))
     .where(and(
       eq(analyses.event_id, eventId),
       eq(analyses.is_latest, true),
@@ -47,7 +55,18 @@ async function getLatestAnalysis(
     .orderBy(desc(analyses.created_at), desc(analyses.id))
     .limit(1);
 
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    analysis: prepareAnalysisForDelivery(row.analysis, {
+      magnitude: row.magnitude,
+      depth_km: row.depth_km,
+      lat: row.lat,
+      lng: row.lng,
+      place: row.place,
+      place_ja: row.place_ja,
+    }),
+  };
 }
 
 function classifyTier(mag: number, isJapan: boolean): AnalysisTier {
@@ -324,7 +343,7 @@ export async function generateAndStoreAnalysis(
   const exp = grok.expert ?? {};
   const si = grok.search_index ?? {};
 
-  const mergedAnalysis = normalizeAnalysisNarrative({
+  const mergedAnalysis = canonicalizeAnalysisForStorage({
     event_id: event.id,
     tier,
     version: 4,
@@ -424,7 +443,7 @@ export async function generateAndStoreAnalysis(
     lng: event.lng,
     place: event.place ?? undefined,
     place_ja: event.place_ja ?? undefined,
-  });
+  })!;
 
   await db.update(analyses)
     .set({ is_latest: false })
@@ -458,14 +477,7 @@ export async function generateAndStoreAnalysis(
   }
 }
 
-// Analysis cache TTL: 1 hour. Analyses are immutable once generated.
-const ANALYSIS_CACHE_TTL = 3600;
-
-function analysisCacheKey(eventId: string): Request {
-  return new Request(`https://cache.internal/api/analyze/${eventId}`);
-}
-
-// Client route: cached fetch or synchronous generation
+// Client route: DB-backed fetch or synchronous generation
 analyzeRoute.post('/', async (c) => {
   // Rate limit before any work. analyze=10/hr guards against LLM cost abuse.
   const ip = c.req.header('cf-connecting-ip') ?? '0.0.0.0';
@@ -479,33 +491,9 @@ analyzeRoute.post('/', async (c) => {
     return c.json({ error: 'event_id required' }, 400);
   }
 
-  // Check Cloudflare edge cache first — avoids DB hit for repeated analysis requests.
-  const cache = caches.default;
-  const cacheKey = analysisCacheKey(event_id);
-  const cachedResponse = await cache.match(cacheKey);
-  if (cachedResponse) {
-    return new Response(cachedResponse.body, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Cache': 'HIT',
-      },
-    });
-  }
-
   const db = createDb(c.env.DATABASE_URL);
   const cached = await getLatestAnalysis(db, event_id);
   if (cached) {
-    // Store in edge cache for subsequent requests.
-    const body = JSON.stringify(cached.analysis);
-    c.executionCtx.waitUntil(
-      cache.put(cacheKey, new Response(body, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': `public, max-age=${ANALYSIS_CACHE_TTL}`,
-        },
-      })),
-    );
     return c.json(cached.analysis);
   }
 
@@ -531,16 +519,6 @@ analyzeRoute.post('/', async (c) => {
   // Generate synchronously for M4+ Japan events
   try {
     const result = await generateAndStoreAnalysis(c.env, event_id);
-    // Cache the freshly generated analysis at edge.
-    const body = JSON.stringify(result.analysis);
-    c.executionCtx.waitUntil(
-      cache.put(cacheKey, new Response(body, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': `public, max-age=${ANALYSIS_CACHE_TTL}`,
-        },
-      })),
-    );
     return c.json(result.analysis);
   } catch (err) {
     console.error(`[analyze] realtime generation failed for ${event_id}:`, err);

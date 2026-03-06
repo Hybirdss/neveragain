@@ -21,7 +21,7 @@ import {
   assessTsunamiRisk as assessTsunamiRiskShared,
   computeMaxIntensity as computeMaxIntensityShared,
   computeOmori as computeOmoriShared,
-  normalizeAnalysisNarrative,
+  canonicalizeAnalysisForStorage,
 } from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
@@ -622,7 +622,7 @@ async function collectAndStore(
       const raw = completion?.choices?.[0]?.message?.content;
       if (!raw) throw new Error('No content in response');
       const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      const analysis = normalizeAnalysisNarrative(
+      const analysis = canonicalizeAnalysisForStorage(
         mergeAnalysis(entry.facts, narrative, entry.tier),
         {
           magnitude: entry.facts.event.mag,
@@ -632,7 +632,7 @@ async function collectAndStore(
           place: entry.facts.event.place_en,
           place_ja: entry.facts.event.place_ja,
         },
-      );
+      )!;
 
       await sql`
         INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest)
@@ -720,14 +720,14 @@ async function main() {
         const facts = buildFacts(event, faults, spatialStats);
         const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
         const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        const analysis = normalizeAnalysisNarrative(mergeAnalysis(facts, narrative, tier), {
+        const analysis = canonicalizeAnalysisForStorage(mergeAnalysis(facts, narrative, tier), {
           magnitude: facts.event.mag,
           depth_km: facts.event.depth_km,
           lat: facts.event.lat,
           lng: facts.event.lon,
           place: facts.event.place_en,
           place_ja: facts.event.place_ja,
-        });
+        })!;
 
         await sql`INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest) VALUES (${eventId}, 1, ${tier}, 'grok-4.1-fast-reasoning-batch', 'v4.0.0', ${JSON.stringify(facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb, ${analysis.search_index?.tags ?? []}, ${analysis.search_index?.region ?? null}, true)`;
         stored++;

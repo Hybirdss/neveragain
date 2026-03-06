@@ -10,6 +10,10 @@ interface NarrativeEventInput {
 }
 
 type JsonRecord = Record<string, any>;
+const VALID_REGIONS = new Set([
+  'tohoku', 'kanto', 'chubu', 'kinki', 'chugoku', 'shikoku', 'kyushu',
+  'hokkaido', 'okinawa', 'nankai', 'global_pacific', 'global_other',
+]);
 
 const JMA_LABELS: Record<string, LocalizedText> = {
   '0': { ko: '진도 0', ja: '震度0', en: 'JMA 0' },
@@ -64,10 +68,25 @@ function cleanPlaceText(place?: string | null): string {
   return place.replace(/,\s*Japan(?: region)?$/i, '').trim();
 }
 
+function metadataPlace(raw?: string | null): boolean {
+  if (!raw) return false;
+  return (
+    metadataHeadline(raw)
+    || /\d+\s*km/i.test(raw)
+    || /(?:北北西|北西|北東|北北東|南南西|南西|南東|南南東|東北東|東南東|西北西|西南西|東方|西方|南方|北方)/.test(raw)
+  );
+}
+
 function extractTargetPlace(place?: string | null): string {
   const cleaned = cleanPlaceText(place);
   const directional = cleaned.match(/(?:\d+\s*km\s+(?:NNE|NE|ENE|ESE|SE|SSE|SSW|SW|WSW|WNW|NW|NNW|[NSEW]+)\s+of\s+)(.+)$/i);
   if (directional) return directional[1].trim();
+  return cleaned;
+}
+
+function extractJapaneseTargetPlace(place?: string | null): string {
+  const cleaned = (place ?? '').trim();
+  if (!cleaned || metadataPlace(cleaned)) return '';
   return cleaned;
 }
 
@@ -88,12 +107,9 @@ function localizePlatePair(pair: string | null | undefined): LocalizedText {
 }
 
 function fallbackHeadline(locale: keyof LocalizedText, event: NarrativeEventInput): string {
-  if (event.place_ja && event.place_ja.trim()) {
-    if (locale === 'en') return cleanPlaceText(event.place ?? event.place_ja);
-    return event.place_ja.trim();
-  }
-
-  const target = extractTargetPlace(event.place);
+  const englishTarget = extractTargetPlace(event.place);
+  const japaneseTarget = extractJapaneseTargetPlace(event.place_ja);
+  const target = englishTarget || japaneseTarget;
   if (!target) {
     if (locale === 'ko') return '진원 인근 지진';
     if (locale === 'ja') return '震源付近の地震';
@@ -101,7 +117,7 @@ function fallbackHeadline(locale: keyof LocalizedText, event: NarrativeEventInpu
   }
 
   if (locale === 'ko') return `${target} 인근`;
-  if (locale === 'ja') return `${target}周辺`;
+  if (locale === 'ja') return /(周辺|付近|近海|沖)$/.test(target) ? target : `${target}周辺`;
   return `Near ${target}`;
 }
 
@@ -435,6 +451,161 @@ function buildInterpretations(facts: JsonRecord, event: NarrativeEventInput): an
       type: 'risk_assessment',
     },
   ];
+}
+
+function classifyRegion(lat: number, lng: number): string {
+  const isJapan = lat >= 20 && lat <= 50 && lng >= 120 && lng <= 155;
+  if (!isJapan) {
+    if (lng > 100 && lng < 180 && lat > -60 && lat < 60) return 'global_pacific';
+    return 'global_other';
+  }
+  if (lat > 41) return 'hokkaido';
+  if (lat > 38) return 'tohoku';
+  if (lat > 36) return 'kanto';
+  if (lat > 35 && lng < 138) return 'chubu';
+  if (lat > 34 && lng < 136) return 'kinki';
+  if (lat > 33 && lng < 133) return 'chugoku';
+  if (lat > 32 && lng > 132 && lng < 135) return 'shikoku';
+  if (lat > 30 && lat <= 34) return 'kyushu';
+  return 'okinawa';
+}
+
+function deriveDamageLevel(maxIntensity: JsonRecord | null): 'catastrophic' | 'severe' | 'moderate' | 'minor' | 'none' {
+  const jmaClass = typeof maxIntensity?.class === 'string' ? maxIntensity.class : '0';
+  if (jmaClass === '7' || jmaClass === '6+' || jmaClass === '6-') return 'catastrophic';
+  if (jmaClass === '5+' || jmaClass === '5-') return 'severe';
+  if (jmaClass === '4') return 'moderate';
+  if (jmaClass === '3' || jmaClass === '2' || jmaClass === '1') return 'minor';
+  return 'none';
+}
+
+function sanitizeTag(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_\-\s]/g, ' ')
+    .replace(/\s+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!normalized || normalized.length > 32) return null;
+  if (/^m\d/.test(normalized) || /depth|km/.test(normalized)) return null;
+  return normalized;
+}
+
+function normalizeKeywordList(values: unknown, fallback: string[]): string[] {
+  const list = Array.isArray(values) ? values : [];
+  const cleaned = Array.from(new Set(
+    list
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0)
+      .filter((value) => !metadataPlace(value))
+      .slice(0, 8),
+  ));
+  return cleaned.length > 0 ? cleaned : fallback;
+}
+
+function buildFallbackKeywords(
+  event: NarrativeEventInput,
+  tectonic: JsonRecord | null,
+  region: string,
+): { ko: string[]; ja: string[]; en: string[] } {
+  const trench = asRecord(tectonic?.nearest_trench);
+  const trenchName = localizeTrenchName(typeof trench?.name === 'string' ? trench.name : null);
+  const ko = [fallbackHeadline('ko', event), region];
+  const ja = [fallbackHeadline('ja', event), region];
+  const en = [fallbackHeadline('en', event), region];
+  if (trenchName.ko !== '주변 해구') ko.push(trenchName.ko);
+  if (trenchName.ja !== '周辺の海溝') ja.push(trenchName.ja);
+  if (trenchName.en !== 'nearby trench') en.push(trenchName.en);
+  return {
+    ko: Array.from(new Set(ko.filter(Boolean))),
+    ja: Array.from(new Set(ja.filter(Boolean))),
+    en: Array.from(new Set(en.filter(Boolean))),
+  };
+}
+
+function normalizeSearchIndex(current: JsonRecord | null, facts: JsonRecord, event: NarrativeEventInput): JsonRecord {
+  const tectonic = asRecord(facts.tectonic);
+  const maxIntensity = asRecord(facts.max_intensity);
+  const tsunami = asRecord(facts.tsunami);
+  const region = typeof current?.region === 'string' && VALID_REGIONS.has(current.region)
+    ? current.region
+    : classifyRegion(event.lat, event.lng);
+  const fallbackKeywords = buildFallbackKeywords(event, tectonic, region);
+  const tags = Array.from(new Set([
+    ...((Array.isArray(current?.tags) ? current?.tags : []).map(sanitizeTag).filter(Boolean) as string[]),
+    typeof tectonic?.boundary_type === 'string' ? tectonic.boundary_type : null,
+    typeof tectonic?.depth_class === 'string' ? tectonic.depth_class : null,
+    typeof tsunami?.risk === 'string' ? `tsunami_${tsunami.risk}` : null,
+    region,
+  ].filter((value): value is string => typeof value === 'string'))).slice(0, 10);
+
+  return {
+    tags,
+    region,
+    categories: {
+      plate: typeof tectonic?.plate === 'string' ? tectonic.plate : 'other',
+      boundary: typeof tectonic?.boundary_type === 'string' ? tectonic.boundary_type : 'unknown',
+      region,
+      depth_class: typeof tectonic?.depth_class === 'string' ? tectonic.depth_class : 'shallow',
+      damage_level: deriveDamageLevel(maxIntensity),
+      tsunami_generated: typeof tsunami?.risk === 'string' ? tsunami.risk !== 'none' : false,
+      has_foreshocks: current?.categories?.has_foreshocks === true,
+      is_in_seismic_gap: false,
+    },
+    region_keywords: {
+      ko: normalizeKeywordList(current?.region_keywords?.ko, fallbackKeywords.ko),
+      ja: normalizeKeywordList(current?.region_keywords?.ja, fallbackKeywords.ja),
+      en: normalizeKeywordList(current?.region_keywords?.en, fallbackKeywords.en),
+    },
+  };
+}
+
+export function validateCanonicalAnalysis(analysis: JsonRecord): string[] {
+  const errors: string[] = [];
+  const dashboard = asRecord(analysis.dashboard);
+  const publicLayer = asRecord(analysis.public);
+  const expertLayer = asRecord(analysis.expert);
+  const searchIndex = asRecord(analysis.search_index);
+
+  const localizedChecks: Array<[string, JsonRecord | null]> = [
+    ['dashboard.headline', asRecord(dashboard?.headline)],
+    ['dashboard.one_liner', asRecord(dashboard?.one_liner)],
+    ['public.why', asRecord(publicLayer?.why)],
+    ['public.aftershock_note', asRecord(publicLayer?.aftershock_note)],
+    ['expert.tectonic_summary', asRecord(expertLayer?.tectonic_summary)],
+    ['expert.depth_analysis', asRecord(expertLayer?.depth_analysis)],
+  ];
+
+  for (const [label, value] of localizedChecks) {
+    if (!value || !value.ko || !value.ja || !value.en) {
+      errors.push(`${label} missing localized text`);
+    }
+  }
+
+  if (metadataHeadline(dashboard?.headline?.ko ?? '') || metadataHeadline(dashboard?.headline?.en ?? '')) {
+    errors.push('dashboard.headline still contains raw metadata');
+  }
+  if (expertLayer?.historical_comparison !== null) errors.push('expert.historical_comparison must be null');
+  if (Array.isArray(expertLayer?.notable_features) && expertLayer.notable_features.length > 0) {
+    errors.push('expert.notable_features must be empty');
+  }
+  if (!searchIndex || !VALID_REGIONS.has(searchIndex.region)) errors.push('search_index.region invalid');
+
+  return errors;
+}
+
+export function canonicalizeAnalysisForStorage(analysis: JsonRecord, event: NarrativeEventInput): JsonRecord {
+  const canonical = normalizeAnalysisNarrative(analysis, event);
+  const facts = asRecord(canonical.facts);
+  if (!facts) return canonical;
+  canonical.search_index = normalizeSearchIndex(asRecord(canonical.search_index), facts, event);
+  const errors = validateCanonicalAnalysis(canonical);
+  if (errors.length > 0) {
+    throw new Error(`Invalid canonical analysis: ${errors.join('; ')}`);
+  }
+  return canonical;
 }
 
 export function normalizeAnalysisNarrative(analysis: JsonRecord, event: NarrativeEventInput): JsonRecord {
