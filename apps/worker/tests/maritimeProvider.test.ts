@@ -93,7 +93,7 @@ test('maritime provider prefers fetch-upgrade websocket clients when available',
   );
 
   const snapshotPromise = provider.loadProfileSnapshot('japan-wide', 6_000);
-  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 10));
   socket.emitOpen();
   socket.emitMessage(JSON.stringify({
     MessageType: 'PositionReport',
@@ -120,6 +120,54 @@ test('maritime provider prefers fetch-upgrade websocket clients when available',
   assert.equal(snapshot.diagnostics.socketOpened, true);
   assert.equal(snapshot.diagnostics.subscriptionSent, true);
   assert.equal(snapshot.vessels[0]?.name, 'FETCH TEST');
+});
+
+test('maritime provider times out fetch-upgrade attempts and falls back to constructor transport', async () => {
+  const sockets: FakeWebSocket[] = [];
+  const provider = createMaritimeSnapshotProvider(
+    {
+      AISSTREAM_API_KEY: 'test-key',
+      AISSTREAM_COLLECTION_WINDOW_MS: 10,
+    },
+    {
+      fetchImpl: () => new Promise(() => {}),
+      webSocketFactory: (url) => {
+        const socket = new FakeWebSocket(url);
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      connectTimeoutMs: 20,
+    },
+  );
+
+  const snapshotPromise = provider.loadProfileSnapshot('japan-wide', 7_500);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const socket = sockets[0];
+  assert.ok(socket);
+  socket.emitOpen();
+  socket.emitMessage(JSON.stringify({
+    MessageType: 'PositionReport',
+    MetaData: {
+      MMSI: 431000333,
+      ShipName: 'FALLBACK TEST',
+      time_utc: '2026-03-07T00:00:08Z',
+    },
+    Message: {
+      PositionReport: {
+        Latitude: 33.9,
+        Longitude: 130.9,
+        Cog: 10,
+        Sog: 5,
+        NavigationalStatus: 0,
+      },
+    },
+  }));
+
+  const snapshot = await snapshotPromise;
+  assert.equal(snapshot.source, 'live');
+  assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
+  assert.equal(snapshot.diagnostics.socketOpened, true);
+  assert.equal(snapshot.vessels[0]?.name, 'FALLBACK TEST');
 });
 
 test('maritime provider falls back to synthetic snapshots when AISstream fails', async () => {

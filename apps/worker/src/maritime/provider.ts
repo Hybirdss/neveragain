@@ -129,7 +129,18 @@ async function collectAisstreamSnapshot(input: {
   let transport: MaritimeProviderDiagnostics['transport'] = input.fetchImpl ? 'fetch-upgrade' : 'websocket-constructor';
 
   await new Promise<void>((resolve, reject) => {
+    let socketAttached = false;
+
     const attachSocket = (socket: WebSocket) => {
+      if (socketAttached) {
+        try {
+          socket.close();
+        } catch {
+          // ignore duplicate socket close errors
+        }
+        return;
+      }
+      socketAttached = true;
       let settled = false;
       let openTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
         finish(new Error('AISstream websocket connect timeout'));
@@ -210,11 +221,24 @@ async function collectAisstreamSnapshot(input: {
       return;
     }
 
-    void input.fetchImpl(AISSTREAM_FETCH_URL, {
+    const fetchUpgradePromise = input.fetchImpl(AISSTREAM_FETCH_URL, {
       headers: new Headers({
         Upgrade: 'websocket',
       }),
-    }).then((response) => {
+    });
+
+    const timedFetchUpgrade = Promise.race<Response | null>([
+      fetchUpgradePromise,
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), input.connectTimeoutMs);
+      }),
+    ]);
+
+    void timedFetchUpgrade.then((response) => {
+      if (response === null) {
+        openViaConstructor();
+        return;
+      }
       const socket = response.webSocket;
       if (!socket) {
         openViaConstructor();
