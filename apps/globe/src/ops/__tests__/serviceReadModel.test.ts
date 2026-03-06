@@ -123,6 +123,13 @@ describe('buildServiceReadModel', () => {
           rationale: 'Regional watch posture elevated',
         },
       ],
+      maritimeOverview: {
+        totalTracked: 122,
+        highPriorityTracked: 34,
+        underwayCount: 98,
+        anchoredCount: 24,
+        summary: '122 tracked · 34 high-priority · 98 underway',
+      },
       freshnessStatus: {
         source: 'server',
         state: 'fresh',
@@ -150,6 +157,9 @@ describe('buildServiceReadModel', () => {
     expect(model.operationalOverview.nationalAffectedAssetCount).toBe(2);
     expect(model.operationalOverview.topRegion).toBe('kanto');
     expect(model.operationalOverview.impactSummary).toMatch(/1 visible asset/);
+    expect(model.bundleSummaries.seismic?.metric).toContain('2 assets');
+    expect(model.bundleSummaries.maritime?.metric).toContain('122 tracked');
+    expect(model.bundleSummaries.maritime?.detail).toContain('Port of Tokyo');
   });
 
   it('falls back to the national view when visible assets are not provided yet', () => {
@@ -191,6 +201,7 @@ describe('buildServiceReadModel', () => {
           rationale: 'Coastal exposure elevated',
         },
       ],
+      maritimeOverview: null,
       freshnessStatus: {
         source: 'server',
         state: 'fresh',
@@ -204,6 +215,7 @@ describe('buildServiceReadModel', () => {
     expect(model.visiblePriorityQueue.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
     expect(model.systemHealth.level).toBe('nominal');
     expect(model.operationalOverview.impactSummary).toMatch(/1 asset in elevated posture nationwide/);
+    expect(model.bundleSummaries.lifelines?.detail).toContain('standing by');
   });
 
   it('escalates system health and selection messaging when the realtime feed is degraded', () => {

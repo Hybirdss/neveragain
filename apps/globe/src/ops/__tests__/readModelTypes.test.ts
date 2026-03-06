@@ -29,6 +29,7 @@ describe('read model backend contracts', () => {
         topRegion: null,
         topSeverity: 'clear',
       },
+      bundleSummaries: {},
       nationalExposureSummary: [],
       visibleExposureSummary: [],
       nationalPriorityQueue: [],

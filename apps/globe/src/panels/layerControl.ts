@@ -46,6 +46,15 @@ export interface LayerControlModel {
 export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): BundleSummary {
   const definition = getBundleDefinition(bundleId);
   const readModel = state.readModel;
+  const backendSummary = readModel?.bundleSummaries?.[bundleId];
+
+  if (backendSummary) {
+    return {
+      title: backendSummary.title,
+      metric: backendSummary.metric,
+      detail: backendSummary.detail,
+    };
+  }
 
   switch (bundleId) {
     case 'maritime': {

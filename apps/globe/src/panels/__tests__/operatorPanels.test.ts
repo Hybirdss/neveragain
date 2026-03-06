@@ -72,6 +72,7 @@ function createReadModel(overrides: Partial<ServiceReadModel> = {}): ServiceRead
       topRegion: 'kanto',
       topSeverity: 'critical',
     },
+    bundleSummaries: {},
     nationalExposureSummary: [
       {
         assetId: 'tokyo-port',

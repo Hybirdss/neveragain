@@ -62,6 +62,24 @@ export interface OperationalOverview {
   topSeverity: OpsSeverity;
 }
 
+export type OperatorBundleId =
+  | 'seismic'
+  | 'maritime'
+  | 'lifelines'
+  | 'medical'
+  | 'built-environment';
+
+export interface OperatorBundleSummary {
+  bundleId: OperatorBundleId;
+  title: string;
+  metric: string;
+  detail: string;
+  severity: OpsSeverity;
+  availability: 'live' | 'planned';
+}
+
+export type OperatorBundleSummaries = Partial<Record<OperatorBundleId, OperatorBundleSummary>>;
+
 export interface ServiceReadModel {
   currentEvent: EarthquakeEvent | null;
   eventTruth: EventTruth | null;
@@ -69,6 +87,7 @@ export interface ServiceReadModel {
   nationalSnapshot: OpsSnapshot | null;
   systemHealth: SystemHealthSummary;
   operationalOverview: OperationalOverview;
+  bundleSummaries: OperatorBundleSummaries;
   nationalExposureSummary: OpsAssetExposure[];
   visibleExposureSummary: OpsAssetExposure[];
   nationalPriorityQueue: OpsPriority[];

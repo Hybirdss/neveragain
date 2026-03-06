@@ -19,6 +19,10 @@ import type {
 import type { OpsAsset, OpsAssetExposure, OpsPriority, OpsRegion, OpsSeverity, ViewportState } from './types';
 import { filterVisibleOpsAssets } from './viewport';
 import type { SelectedOperationalFocusReason } from './eventSelection';
+import {
+  buildOperatorBundleSummaries,
+  type MaritimeTelemetryOverview,
+} from './bundleSummaries';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
@@ -31,6 +35,7 @@ export interface BuildServiceReadModelInput {
   viewport?: ViewportState | null;
   exposures: OpsAssetExposure[];
   priorities: OpsPriority[];
+  maritimeOverview?: MaritimeTelemetryOverview | null;
   freshnessStatus: RealtimeStatus;
 }
 
@@ -253,6 +258,21 @@ export function createEmptyServiceReadModel(
       topRegion: null,
       topSeverity: 'clear',
     },
+    bundleSummaries: buildOperatorBundleSummaries({
+      selectedEvent: null,
+      assets: [],
+      exposures: [],
+      operationalOverview: {
+        selectionReason: null,
+        selectionSummary: 'No operationally significant event selected',
+        impactSummary: 'No assets in elevated posture',
+        visibleAffectedAssetCount: 0,
+        nationalAffectedAssetCount: 0,
+        topRegion: null,
+        topSeverity: 'clear',
+      },
+      maritimeOverview: null,
+    }),
     nationalExposureSummary: [],
     visibleExposureSummary: [],
     nationalPriorityQueue: [],
@@ -360,6 +380,14 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
   const eventTruth = buildEventTruth(input.selectedEventEnvelope, input.selectedEventRevisionHistory);
   const visibleExposureSummary = filterVisibleExposures(input.exposures, visibleAssetIds);
   const visiblePriorityQueue = filterVisiblePriorities(input.priorities, visibleAssetIds);
+  const operationalOverview = buildOperationalOverview({
+    selectionReason: input.selectionReason ?? null,
+    assets: input.assets,
+    nationalExposureSummary,
+    visibleExposureSummary,
+    hasEvent: input.selectedEvent !== null,
+    hasViewport: Boolean(input.viewport),
+  });
 
   return {
     currentEvent: input.selectedEvent,
@@ -367,13 +395,13 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
     viewport: input.viewport ?? null,
     nationalSnapshot: buildOpsSnapshot(input),
     systemHealth: buildSystemHealth(input.freshnessStatus, eventTruth),
-    operationalOverview: buildOperationalOverview({
-      selectionReason: input.selectionReason ?? null,
+    operationalOverview,
+    bundleSummaries: buildOperatorBundleSummaries({
+      selectedEvent: input.selectedEvent,
       assets: input.assets,
-      nationalExposureSummary,
-      visibleExposureSummary,
-      hasEvent: input.selectedEvent !== null,
-      hasViewport: Boolean(input.viewport),
+      exposures: input.exposures,
+      operationalOverview,
+      maritimeOverview: input.maritimeOverview ?? null,
     }),
     nationalExposureSummary,
     visibleExposureSummary,

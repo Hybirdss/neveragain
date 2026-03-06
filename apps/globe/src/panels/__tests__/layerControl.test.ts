@@ -27,6 +27,7 @@ function createReadModel(): ServiceReadModel {
       topRegion: null,
       topSeverity: 'clear',
     },
+    bundleSummaries: {},
     nationalExposureSummary: [],
     visibleExposureSummary: [],
     nationalPriorityQueue: [],
@@ -128,6 +129,27 @@ describe('layerControl bundle summaries', () => {
 
     expect(summary.title).toBe('Seismic');
     expect(summary.metric).toContain('3 assets');
+  });
+
+  it('prefers backend-owned bundle summaries when the read model provides them', () => {
+    const summary = buildBundleSummary('medical', createState({
+      readModel: {
+        ...createReadModel(),
+        bundleSummaries: {
+          medical: {
+            bundleId: 'medical',
+            title: 'Medical',
+            metric: '2 medical sites in elevated posture',
+            detail: 'Hospital access verification required across Kanto.',
+            severity: 'priority',
+            availability: 'live',
+          },
+        },
+      },
+    } as Partial<ConsoleState>));
+
+    expect(summary.metric).toContain('2 medical sites');
+    expect(summary.detail).toContain('Hospital access verification');
   });
 
   it('builds a drawer model with presets, bundles, and effective layer state', () => {

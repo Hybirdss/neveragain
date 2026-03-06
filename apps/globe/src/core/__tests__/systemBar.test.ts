@@ -63,6 +63,7 @@ const readModel: ServiceReadModel = {
     topRegion: null,
     topSeverity: 'clear',
   },
+  bundleSummaries: {},
   nationalExposureSummary: [],
   visibleExposureSummary: [],
   nationalPriorityQueue: [],

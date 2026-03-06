@@ -38,6 +38,7 @@ function createState(): AppState {
         topRegion: null,
         topSeverity: 'clear',
       },
+      bundleSummaries: {},
       nationalExposureSummary: [],
       visibleExposureSummary: [],
       nationalPriorityQueue: [],
