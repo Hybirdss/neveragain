@@ -12,7 +12,7 @@ async function start(): Promise<void> {
   // Default: new spatial console
   const app = document.getElementById('app');
   if (!app) throw new Error('Missing #app root');
-  const { bootstrapConsole } = await import('./core/bootstrap');
+  const { bootstrapConsole } = await import('./runtime/consoleRuntime');
   await bootstrapConsole(app);
 }
 

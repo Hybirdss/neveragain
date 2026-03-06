@@ -18,31 +18,16 @@
 import type { Layer } from '@deck.gl/core';
 import type { MapEngine } from '../core/mapEngine';
 import { consoleStore } from '../core/store';
+import {
+  deriveIntensityAnimationFrame,
+  extractWaveAnimationSources,
+} from '../animation/consoleAnimationState';
 import { LAYER_FACTORIES } from './layerFactories';
 import { isLayerEffectivelyVisible, type BundleSettings } from './bundleRegistry';
 import { createAssetLayers } from './assetLayer';
 import { updateWaveData, createWaveLayers, type WaveSource } from './waveLayer';
 import { createIntensityLayer } from './intensityLayer';
 import type { LayerId } from './layerRegistry';
-import type { EarthquakeEvent } from '@namazue/ops/types';
-
-// ── Wave Source Extraction ─────────────────────────────────────
-
-function extractWaveSources(events: EarthquakeEvent[]): WaveSource[] {
-  const now = Date.now();
-  const waveCutoff = now - 300_000;
-
-  return events
-    .filter((e) => e.time > waveCutoff && e.magnitude >= 4.0)
-    .map((e) => ({
-      id: e.id,
-      lat: e.lat,
-      lng: e.lng,
-      depth_km: e.depth_km,
-      magnitude: e.magnitude,
-      originTime: e.time,
-    }));
-}
 
 // ── Compositor ─────────────────────────────────────────────────
 
@@ -105,7 +90,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   // Special: wave sources derived from events
   unsubs.push(
     consoleStore.subscribe('events', (events) => {
-      waveSources = extractWaveSources(events);
+      waveSources = extractWaveAnimationSources(events) as WaveSource[];
     }),
   );
 
@@ -155,9 +140,16 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     const layers: Layer[] = [];
     const vis: Record<LayerId, boolean> = consoleStore.get('layerVisibility');
     const bundleSettings: BundleSettings = consoleStore.get('bundleSettings');
+    const intensityFrame = deriveIntensityAnimationFrame({
+      now,
+      startAt: intensityAnimStart,
+      epicenter: intensityAnimEpicenter,
+      durationMs: INTENSITY_ANIM_DURATION,
+      spreadSpeedKmPerSec: INTENSITY_SPREAD_SPEED,
+    });
 
     // 1. Factory layers (ordered by factory.order)
-    const intensityAnimActive = intensityAnimEpicenter != null && intensityAnimStart > 0;
+    const intensityAnimActive = intensityFrame !== null;
     for (const factory of LAYER_FACTORIES) {
       if (dirty.get(factory.id)) {
         cache.set(factory.id, factory.create(consoleStore.getState()));
@@ -173,13 +165,15 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
     // 1b. Intensity ink-in-water animation override (TIER 2: 50ms interval)
     if (intensityAnimActive) {
-      const elapsed = now - intensityAnimStart;
-      if (elapsed < INTENSITY_ANIM_DURATION) {
+      if (!intensityFrame!.completed) {
         if (now - lastIntensityAnimUpdate >= INTENSITY_ANIM_INTERVAL) {
-          const revealRadiusKm = (elapsed / 1000) * INTENSITY_SPREAD_SPEED;
           const grid = consoleStore.get('intensityGrid');
           if (grid) {
-            const animLayer = createIntensityLayer(grid, intensityAnimEpicenter!, revealRadiusKm);
+            const animLayer = createIntensityLayer(
+              grid,
+              intensityFrame!.epicenter,
+              intensityFrame!.revealRadiusKm,
+            );
             cache.set('intensity', animLayer ? [animLayer] : []);
             lastIntensityAnimUpdate = now;
           }
@@ -235,7 +229,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       running = true;
 
       // Initialize from current store
-      waveSources = extractWaveSources(consoleStore.get('events'));
+      waveSources = extractWaveAnimationSources(consoleStore.get('events')) as WaveSource[];
 
       // Mark all factories dirty for initial render
       for (const factory of LAYER_FACTORIES) {

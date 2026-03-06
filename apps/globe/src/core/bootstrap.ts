@@ -17,7 +17,6 @@ import './console.css';
 
 import { createMapEngine } from './mapEngine';
 import { createViewportManager } from './viewportManager';
-import { createShell } from './shell';
 import { parseDeepLink } from './deepLink';
 import {
   applyConsoleRealtimeError,
@@ -49,6 +48,7 @@ import { loadPreferences, type ConsolePreferences } from './preferences';
 import { formatHospitalTooltip, type Hospital } from '../layers/hospitalLayer';
 import { formatRailTooltip, type RailRoute } from '../layers/railLayer';
 import { formatPowerTooltip, type PowerPlant } from '../layers/powerLayer';
+import { createConsoleShell } from '../shell/consoleShell';
 import type { Vessel } from '../data/aisManager';
 import type { RealtimeSource } from '@namazue/ops/ops/readModelTypes';
 import type { ViewportState as OpsViewportState } from '@namazue/ops/ops/types';
@@ -119,7 +119,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const deepLink = parseDeepLink();
 
   // 1. Shell
-  const shell = createShell(root);
+  const shell = createConsoleShell(root);
 
   // 2. Map engine
   setLoadingProgress(20, 'Initializing map…');
