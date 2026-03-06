@@ -17,6 +17,11 @@ export type LayerId =
   | 'hospitals'
   | 'buildings';
 
+export interface LegendEntry {
+  color: string; // CSS color
+  label: string;
+}
+
 export interface LayerDefinition {
   id: LayerId;
   label: string;
@@ -24,6 +29,7 @@ export interface LayerDefinition {
   category: 'hazard' | 'realtime' | 'infrastructure' | 'built-environment';
   availability: 'live' | 'planned';
   defaultVisible: boolean;
+  legend?: LegendEntry[];
 }
 
 const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
@@ -34,6 +40,12 @@ const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
     category: 'hazard',
     availability: 'live',
     defaultVisible: true,
+    legend: [
+      { color: '#7dd3fc', label: 'M < 4.5' },
+      { color: '#60a5fa', label: 'M 4.5-5.5' },
+      { color: '#fbbf24', label: 'M 5.5-7.0' },
+      { color: '#ef4444', label: 'M \u2265 7.0' },
+    ],
   },
   intensity: {
     id: 'intensity',
@@ -42,6 +54,16 @@ const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
     category: 'hazard',
     availability: 'live',
     defaultVisible: true,
+    legend: [
+      { color: 'rgb(60, 130, 200)', label: 'JMA 2' },
+      { color: 'rgb(80, 200, 100)', label: 'JMA 3' },
+      { color: 'rgb(255, 220, 0)', label: 'JMA 4' },
+      { color: 'rgb(255, 160, 0)', label: 'JMA 5-' },
+      { color: 'rgb(255, 100, 0)', label: 'JMA 5+' },
+      { color: 'rgb(239, 50, 0)', label: 'JMA 6-' },
+      { color: 'rgb(200, 0, 0)', label: 'JMA 6+' },
+      { color: 'rgb(150, 0, 80)', label: 'JMA 7' },
+    ],
   },
   faults: {
     id: 'faults',
@@ -50,6 +72,9 @@ const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
     category: 'hazard',
     availability: 'live',
     defaultVisible: true,
+    legend: [
+      { color: '#ef4444', label: 'Active fault trace' },
+    ],
   },
   ais: {
     id: 'ais',
@@ -58,22 +83,34 @@ const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
     category: 'realtime',
     availability: 'live',
     defaultVisible: true,
+    legend: [
+      { color: '#22d3ee', label: 'Vessel' },
+      { color: '#fbbf24', label: 'In impact zone' },
+    ],
   },
   rail: {
     id: 'rail',
     label: 'Rail',
     bundle: 'lifelines',
     category: 'infrastructure',
-    availability: 'planned',
-    defaultVisible: false,
+    availability: 'live',
+    defaultVisible: true,
+    legend: [
+      { color: '#6ee7b7', label: 'Rail line' },
+      { color: '#fbbf24', label: 'In shake zone' },
+    ],
   },
   power: {
     id: 'power',
     label: 'Power',
     bundle: 'lifelines',
     category: 'infrastructure',
-    availability: 'planned',
-    defaultVisible: false,
+    availability: 'live',
+    defaultVisible: true,
+    legend: [
+      { color: '#facc15', label: 'Power facility' },
+      { color: '#ef4444', label: 'High exposure' },
+    ],
   },
   water: {
     id: 'water',
@@ -96,8 +133,12 @@ const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
     label: 'Hospitals',
     bundle: 'medical',
     category: 'infrastructure',
-    availability: 'planned',
-    defaultVisible: false,
+    availability: 'live',
+    defaultVisible: true,
+    legend: [
+      { color: '#a78bfa', label: 'Hospital' },
+      { color: '#ef4444', label: 'High exposure' },
+    ],
   },
   buildings: {
     id: 'buildings',

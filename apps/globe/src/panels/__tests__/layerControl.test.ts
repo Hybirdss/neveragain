@@ -47,6 +47,7 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
     bundleSettings: createDefaultBundleSettings(),
     bundleDrawerOpen: true,
     panelsVisible: true,
+    showCoordinates: true,
     ...overrides,
   };
 }

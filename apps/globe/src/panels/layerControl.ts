@@ -5,8 +5,9 @@ import {
   getBundleDefinition,
   getOperatorViewPreset,
   isLayerEffectivelyVisible,
+  type BundleDensity,
 } from '../layers/bundleRegistry';
-import { getLayerDefinition, type BundleId, type LayerId } from '../layers/layerRegistry';
+import { getLayerDefinition, type BundleId, type LayerId, type LegendEntry } from '../layers/layerRegistry';
 import { consoleStore, type ConsoleState } from '../core/store';
 import type {
   OperatorBundleCounter,
@@ -174,9 +175,9 @@ function renderDock(state: ConsoleState, model: LayerControlModel): string {
     <div class="nz-bottom-bar__info">
       <span class="nz-bottom-bar__zoom">z${state.viewport.zoom.toFixed(1)}</span>
       <span class="nz-bottom-bar__tier">${state.viewport.tier}</span>
-      <span class="nz-bottom-bar__coords">
+      ${state.showCoordinates ? `<span class="nz-bottom-bar__coords">
         ${state.viewport.center.lat.toFixed(3)}° ${state.viewport.center.lng.toFixed(3)}°
-      </span>
+      </span>` : ''}
     </div>
     <div class="nz-bundle-dock">
       <div class="nz-bundle-dock__bundles">
@@ -200,9 +201,38 @@ function renderDock(state: ConsoleState, model: LayerControlModel): string {
   `;
 }
 
+function renderLegendEntries(layerRows: LayerControlRow[]): string {
+  const entries: Array<{ layerLabel: string; legend: LegendEntry[] }> = [];
+  for (const row of layerRows) {
+    if (!row.visible) continue;
+    const def = getLayerDefinition(row.id);
+    if (def.legend && def.legend.length > 0) {
+      entries.push({ layerLabel: def.label, legend: def.legend });
+    }
+  }
+  if (entries.length === 0) return '';
+
+  return `
+    <div class="nz-bundle-card">
+      <div class="nz-bundle-card__label">Legend</div>
+      <div class="nz-bundle-legend">
+        ${entries.map((e) =>
+          e.legend.map((entry) => `
+            <div class="nz-bundle-legend__row">
+              <span class="nz-bundle-legend__swatch" style="background:${entry.color}"></span>
+              <span class="nz-bundle-legend__label">${entry.label}</span>
+            </div>
+          `).join('')
+        ).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
   const activeBundleEnabled = state.bundleSettings[state.activeBundleId].enabled;
   const activeSummary = buildBundleSummary(state.activeBundleId, state);
+  const density = state.bundleSettings[state.activeBundleId].density;
 
   return `
     <div class="nz-bundle-drawer${state.bundleDrawerOpen ? ' nz-bundle-drawer--open' : ''}">
@@ -211,6 +241,14 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
           <div class="nz-bundle-drawer__eyebrow">Operator View</div>
           <div class="nz-bundle-drawer__title">${model.activeBundle.label}</div>
           <div class="nz-bundle-drawer__detail">${model.activeBundle.description}</div>
+          <div class="nz-bundle-drawer__density">
+            <span class="nz-bundle-drawer__density-label">Density</span>
+            <div class="nz-bundle-drawer__density-group">
+              <button class="nz-density-btn${density === 'minimal' ? ' nz-density-btn--active' : ''}" data-density="minimal">Minimal</button>
+              <button class="nz-density-btn${density === 'standard' ? ' nz-density-btn--active' : ''}" data-density="standard">Standard</button>
+              <button class="nz-density-btn${density === 'dense' ? ' nz-density-btn--active' : ''}" data-density="dense">Dense</button>
+            </div>
+          </div>
         </div>
         <button
           class="nz-bundle-drawer__enable${activeBundleEnabled ? ' nz-bundle-drawer__enable--on' : ''}"
@@ -260,6 +298,7 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
               `).join('')}
             </div>
           </div>
+          ${renderLegendEntries(model.layerRows)}
         </div>
 
         <div class="nz-bundle-drawer__secondary">
@@ -343,6 +382,18 @@ function bindDockInteractions(dock: HTMLElement, drawer: HTMLElement): void {
       toggleLayer(layerId);
     });
   });
+
+  drawer.querySelectorAll<HTMLButtonElement>('[data-density]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const density = btn.dataset.density as BundleDensity;
+      const activeBundleId = consoleStore.get('activeBundleId');
+      const current = consoleStore.get('bundleSettings');
+      consoleStore.set('bundleSettings', {
+        ...current,
+        [activeBundleId]: { ...current[activeBundleId], density },
+      });
+    });
+  });
 }
 
 export function mountLayerControl(dock: HTMLElement, drawerHost: HTMLElement): () => void {
@@ -366,6 +417,7 @@ export function mountLayerControl(dock: HTMLElement, drawerHost: HTMLElement): (
     consoleStore.subscribe('layerVisibility', render),
     consoleStore.subscribe('vessels', render),
     consoleStore.subscribe('readModel', render),
+    consoleStore.subscribe('showCoordinates', render),
   ];
 
   return () => {

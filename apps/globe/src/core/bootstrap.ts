@@ -18,6 +18,7 @@ import './console.css';
 import { createMapEngine } from './mapEngine';
 import { createViewportManager } from './viewportManager';
 import { createShell } from './shell';
+import { parseDeepLink } from './deepLink';
 import {
   applyConsoleRealtimeError,
   deriveConsoleOperationalState,
@@ -39,6 +40,15 @@ import { fetchEventsWithMeta } from '../namazue/serviceEngine';
 import { createAisManager } from '../data/aisManager';
 import { formatVesselTooltip } from '../layers/aisLayer';
 import { formatFaultTooltip } from '../layers/faultLayer';
+import { createCommandPalette } from '../panels/commandPalette';
+import { createKeyboardHelp } from '../panels/keyboardHelp';
+import { createNotificationQueue } from '../panels/notificationQueue';
+import { mountTimelineRail } from '../panels/timelineRail';
+import { createSettingsPanel } from '../panels/settingsPanel';
+import { loadPreferences, type ConsolePreferences } from './preferences';
+import { formatHospitalTooltip, type Hospital } from '../layers/hospitalLayer';
+import { formatRailTooltip, type RailRoute } from '../layers/railLayer';
+import { formatPowerTooltip, type PowerPlant } from '../layers/powerLayer';
 import type { Vessel } from '../data/aisManager';
 import type { RealtimeSource } from '../ops/readModelTypes';
 import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
@@ -146,6 +156,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
 
   const disposeCheck = mountCheckTheseNow(shell.rightRail);
   const disposeLayerControl = mountLayerControl(shell.bottomBar, shell.bottomDrawerHost);
+  const timeline = mountTimelineRail(shell.timelineHost, (event) => selectEvent(event));
 
   const faultContainer = document.createElement('div');
   shell.rightRail.appendChild(faultContainer);
@@ -154,12 +165,45 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     selectEvent(scenario);
   });
 
-  // 6a. Tooltip — vessel + fault hover details
+  // Preferences (loaded early so notification queue + timeline can use them)
+  let prefs = loadPreferences();
+  consoleStore.set('showCoordinates', prefs.display.showCoordinates);
+
+  // 5b. Command Palette (Cmd+K)
+  const palette = createCommandPalette(
+    (lat, lng, zoom) => {
+      engine.map.flyTo({ center: [lng, lat], zoom, duration: 1500 });
+    },
+    (event) => selectEvent(event),
+  );
+
+  // 5c. Notification Queue
+  const notifications = createNotificationQueue(
+    (event) => selectEvent(event),
+    { enabled: prefs.notifications.enabled, minMagnitude: prefs.notifications.minMagnitude },
+  );
+
+  // 6a. Tooltip — hover details for all pickable layers
   engine.setTooltip((info) => {
     if (info.layer?.id === 'ais-vessels' && info.object) {
       const vessel = info.object as Vessel;
       const selected = consoleStore.get('selectedEvent');
       return { html: formatVesselTooltip(vessel, selected) };
+    }
+    if (info.layer?.id === 'hospitals' && info.object) {
+      const hospital = info.object as Hospital;
+      const selected = consoleStore.get('selectedEvent');
+      return { html: formatHospitalTooltip(hospital, selected) };
+    }
+    if (info.layer?.id === 'rail' && info.object) {
+      const route = info.object as RailRoute;
+      const selected = consoleStore.get('selectedEvent');
+      return { html: formatRailTooltip(route, selected) };
+    }
+    if (info.layer?.id === 'power' && info.object) {
+      const plant = info.object as PowerPlant;
+      const selected = consoleStore.get('selectedEvent');
+      return { html: formatPowerTooltip(plant, selected) };
     }
     if (info.layer?.id === 'active-faults' && info.object) {
       const fault = info.object as ActiveFault;
@@ -232,21 +276,155 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   }
 
   // 7. Keyboard shortcuts
+  const kbHelp = createKeyboardHelp();
+
+  // 7a. Settings panel
+  const settings = createSettingsPanel((newPrefs: ConsolePreferences) => {
+    prefs = newPrefs;
+    notifications.configure({ enabled: newPrefs.notifications.enabled, minMagnitude: newPrefs.notifications.minMagnitude });
+    consoleStore.set('showCoordinates', newPrefs.display.showCoordinates);
+  });
+  shell.settingsBtn.addEventListener('click', () => settings.toggle());
+
+  // 7b. Apply initial preferences
+  timeline.setRange(prefs.timeline.defaultRange);
+
+  const BUNDLE_KEYS: Record<string, 'seismic' | 'maritime' | 'lifelines' | 'medical' | 'built-environment'> = {
+    '1': 'seismic',
+    '2': 'maritime',
+    '3': 'lifelines',
+    '4': 'medical',
+    '5': 'built-environment',
+  };
+
+  function selectNextEvent(): void {
+    const events = consoleStore.get('events');
+    if (events.length === 0) return;
+    const sorted = [...events].sort((a, b) => b.time - a.time);
+    const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
+    if (!selectedId) {
+      selectEvent(sorted[0]);
+      return;
+    }
+    const idx = sorted.findIndex((e) => e.id === selectedId);
+    if (idx < sorted.length - 1) selectEvent(sorted[idx + 1]);
+  }
+
+  function selectPrevEvent(): void {
+    const events = consoleStore.get('events');
+    if (events.length === 0) return;
+    const sorted = [...events].sort((a, b) => b.time - a.time);
+    const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
+    if (!selectedId) {
+      selectEvent(sorted[0]);
+      return;
+    }
+    const idx = sorted.findIndex((e) => e.id === selectedId);
+    if (idx > 0) selectEvent(sorted[idx - 1]);
+  }
+
   function handleKeydown(e: KeyboardEvent): void {
+    // Don't capture when typing in an input
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    // Check if keyboard shortcuts are disabled
+    if (!prefs.keyboard.enabled && e.key !== 'Escape') return;
+
     if (e.key === 'Escape') {
+      if (palette.isOpen()) return; // palette handles its own Escape
+      if (settings.isOpen()) { settings.close(); return; }
+      if (kbHelp.isOpen()) { kbHelp.close(); return; }
       deselectEvent();
       return;
     }
-    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
+
+    // Skip modified keys for shortcuts below (Cmd+K handled by palette)
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    if (e.key === '?') {
+      e.preventDefault();
+      kbHelp.toggle();
+      return;
+    }
+
+    if (e.key === ',') {
+      e.preventDefault();
+      settings.toggle();
+      return;
+    }
+
+    if (e.key === 'p' || e.key === 'P') {
       e.preventDefault();
       const visible = !consoleStore.get('panelsVisible');
       consoleStore.set('panelsVisible', visible);
       shell.root.toggleAttribute('data-panels-hidden', !visible);
+      return;
+    }
+
+    if (e.key === 's' || e.key === 'S') {
+      e.preventDefault();
+      consoleStore.set('scenarioMode', !consoleStore.get('scenarioMode'));
+      return;
+    }
+
+    if (e.key === 'b' || e.key === 'B') {
+      e.preventDefault();
+      consoleStore.set('bundleDrawerOpen', !consoleStore.get('bundleDrawerOpen'));
+      return;
+    }
+
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      const vis = consoleStore.get('layerVisibility');
+      consoleStore.set('layerVisibility', { ...vis, faults: !vis.faults });
+      return;
+    }
+
+    if (e.key === 't' || e.key === 'T') {
+      e.preventDefault();
+      timeline.cycleRange();
+      return;
+    }
+
+    if (e.key === 'j' || e.key === 'J') {
+      e.preventDefault();
+      selectNextEvent();
+      return;
+    }
+
+    if (e.key === 'k' || e.key === 'K') {
+      e.preventDefault();
+      selectPrevEvent();
+      return;
+    }
+
+    // 1-5: bundle quick switch
+    const bundleId = BUNDLE_KEYS[e.key];
+    if (bundleId) {
+      e.preventDefault();
+      consoleStore.set('activeBundleId', bundleId);
+      const bundleSettings = consoleStore.get('bundleSettings');
+      consoleStore.set('bundleSettings', {
+        ...bundleSettings,
+        [bundleId]: { ...bundleSettings[bundleId], enabled: true },
+      });
+      return;
     }
   }
   document.addEventListener('keydown', handleKeydown);
 
-  // 8. System bar — mode + event count
+  // 8. Clear scenario event when exiting scenario mode
+  consoleStore.subscribe('scenarioMode', (on) => {
+    if (!on) {
+      const selected = consoleStore.get('selectedEvent');
+      if (selected?.id.startsWith('scenario-')) {
+        deselectEvent();
+      }
+    }
+  });
+
+  // 9. System bar — mode + event count
   consoleStore.subscribe('mode', (mode) => {
     updateSystemBar(mode, consoleStore.get('events').length);
   });
@@ -326,6 +504,19 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       setLoadingProgress(90, 'Using cached data…');
     }
 
+    // Deep link: select event from URL (/event/{id})
+    const deepLink = parseDeepLink();
+    if (deepLink.eventId) {
+      const match = consoleStore.get('events').find((e) => e.id === deepLink.eventId);
+      if (match) selectEvent(match);
+    } else if (deepLink.camera) {
+      engine.map.flyTo({
+        center: [deepLink.camera.lng, deepLink.camera.lat],
+        zoom: deepLink.camera.zoom,
+        duration: 1500,
+      });
+    }
+
     setLoadingProgress(100, 'Ready');
     updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
     dismissLoading();
@@ -354,7 +545,12 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       disposeMaritime();
       disposeCheck();
       disposeLayerControl();
+      timeline.dispose();
       disposeFaultCatalog();
+      palette.dispose();
+      kbHelp.dispose();
+      notifications.dispose();
+      settings.dispose();
       viewport.dispose();
       engine.dispose();
     });

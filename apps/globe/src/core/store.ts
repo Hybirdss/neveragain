@@ -42,6 +42,7 @@ export interface ConsoleState {
   bundleSettings: BundleSettings;
   bundleDrawerOpen: boolean;
   panelsVisible: boolean;
+  showCoordinates: boolean;
 }
 
 // ── Store Implementation ───────────────────────────────────────
@@ -123,6 +124,7 @@ const initialState: ConsoleState = {
   bundleSettings: createDefaultBundleSettings(),
   bundleDrawerOpen: false,
   panelsVisible: true,
+  showCoordinates: true,
 };
 
 export const consoleStore = new ConsoleStore(initialState);
