@@ -84,6 +84,7 @@ describe('buildSystemBarState', () => {
     expect(state.statusText).toContain('Event active');
     expect(state.statusText).toContain('4 events');
     expect(state.statusText).toContain('server fresh');
+    expect(state.statusText).toContain('health watch');
     expect(state.statusText).toContain('conflict');
     expect(state.statusMode).toBe('event');
   });
@@ -145,6 +146,7 @@ describe('buildSystemBarState', () => {
     });
 
     expect(state.statusText).toContain('server degraded');
+    expect(state.statusText).toContain('health watch');
   });
 
   it('falls back to Japan at national zoom even if the viewport center is in Kanto', () => {

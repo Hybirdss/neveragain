@@ -25,12 +25,17 @@ export function buildSystemBarState(input: {
   realtimeStatus: RealtimeStatus;
 }): SystemBarState {
   const parts = [input.mode === 'event' ? 'Event active' : 'System calm'];
+  const healthLevel = input.readModel?.systemHealth.level;
 
   if (input.eventCount > 0) {
     parts.push(`${input.eventCount} events`);
   }
 
   parts.push(`${input.realtimeStatus.source} ${input.realtimeStatus.state}`);
+
+  if (healthLevel) {
+    parts.push(`health ${healthLevel}`);
+  }
 
   if (input.readModel?.eventTruth?.divergenceSeverity === 'material') {
     parts.push('divergence');

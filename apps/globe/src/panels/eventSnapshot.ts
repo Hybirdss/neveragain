@@ -61,20 +61,66 @@ function formatFreshnessLabel(readModel: ServiceReadModel | null, now: number): 
   return `Data ${freshness.state}${age ? ` · ${age}` : ''}`;
 }
 
+function getHealthTone(readModel: ServiceReadModel | null): 'calm' | 'watch' | 'critical' {
+  switch (readModel?.systemHealth.level) {
+    case 'degraded':
+      return 'critical';
+    case 'watch':
+      return 'watch';
+    default:
+      return 'calm';
+  }
+}
+
+function getHealthLabel(readModel: ServiceReadModel | null): string {
+  switch (readModel?.systemHealth.level) {
+    case 'degraded':
+      return 'DEGRADED';
+    case 'watch':
+      return 'WATCH';
+    default:
+      return 'NOMINAL';
+  }
+}
+
+function renderHealthBlock(readModel: ServiceReadModel | null): string {
+  if (!readModel) {
+    return '';
+  }
+
+  const level = readModel.systemHealth.level;
+  const headline = readModel.systemHealth.headline;
+  const detail = readModel.systemHealth.detail;
+  const shouldRender = level !== 'nominal';
+
+  if (!shouldRender) {
+    return '';
+  }
+
+  return `
+    <div class="nz-snap__health nz-snap__health--${level}">
+      <div class="nz-snap__health-headline">${headline}</div>
+      <div class="nz-snap__health-detail">${detail}</div>
+    </div>
+  `;
+}
+
 function renderCalmState(readModel: ServiceReadModel | null, now: number): string {
   const freshness = formatFreshnessLabel(readModel, now);
   const summary = readModel?.operationalOverview.selectionSummary ?? 'No significant seismic activity';
+  const healthMarkup = renderHealthBlock(readModel);
   return `
     <div class="nz-panel" id="nz-event-snapshot">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Situation</span>
-        <span class="nz-snap__status nz-snap__status--calm">NOMINAL</span>
+        <span class="nz-snap__status nz-snap__status--${getHealthTone(readModel)}">${getHealthLabel(readModel)}</span>
       </div>
       <div class="nz-snap__headline">${summary}</div>
       <div class="nz-snap__meta">
         <span class="nz-snap__metric">Monitoring active</span>
         <span class="nz-snap__metric">${freshness}</span>
       </div>
+      ${healthMarkup}
     </div>
   `;
 }
@@ -92,6 +138,7 @@ function renderEventState(
   const freshnessLabel = formatFreshnessLabel(readModel, now);
   const metaLines = [truthLabel, revisionLabel, freshnessLabel].filter((value): value is string => Boolean(value));
   const metaMarkup = metaLines.map((line) => `<div class="nz-snap__metric">${line}</div>`).join('');
+  const healthMarkup = renderHealthBlock(readModel);
 
   return `
     <div class="nz-panel" id="nz-event-snapshot">
@@ -116,6 +163,7 @@ function renderEventState(
       </div>
       ${headline ? `<div class="nz-snap__metric">${headline}</div>` : ''}
       ${metaMarkup ? `<div class="nz-snap__meta">${metaMarkup}</div>` : ''}
+      ${healthMarkup}
       <div class="nz-snap__coords">
         ${event.lat.toFixed(3)}°N ${event.lng.toFixed(3)}°E
       </div>

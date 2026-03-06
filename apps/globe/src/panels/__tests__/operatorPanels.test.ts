@@ -134,6 +134,8 @@ describe('operator panel selectors', () => {
     expect(markup).toContain('2 revisions');
     expect(markup).toContain('Conflict detected');
     expect(markup).toContain('Data fresh');
+    expect(markup).toContain('Conflicting source revisions detected');
+    expect(markup).toContain('2 revisions from server/usgs require operator review.');
   });
 
   it('renders material divergence when the selected event truth is materially inconsistent', () => {
@@ -148,11 +150,21 @@ describe('operator panel selectors', () => {
           locationSpreadKm: 24,
           tsunamiMismatch: true,
         },
+        systemHealth: {
+          level: 'watch',
+          headline: 'Material revision divergence detected',
+          detail: '2 revisions from server/usgs show magnitude spread 0.6, location spread 24 km, tsunami posture mismatch.',
+          flags: ['revision-conflict', 'material-divergence'],
+        },
       }),
       now: Date.parse('2026-03-06T10:00:00.000Z'),
     });
 
     expect(markup).toContain('Material divergence');
+    expect(markup).toContain('Material revision divergence detected');
+    expect(markup).toContain('magnitude spread 0.6');
+    expect(markup).toContain('location spread 24 km');
+    expect(markup).toContain('tsunami posture mismatch');
   });
 
   it('renders operational selection messaging in calm mode when no event is selected', () => {
@@ -172,11 +184,19 @@ describe('operator panel selectors', () => {
           topRegion: null,
           topSeverity: 'clear',
         },
+        systemHealth: {
+          level: 'degraded',
+          headline: 'Primary realtime feed degraded',
+          detail: 'Primary feed is stale; decisions may lag current field conditions.',
+          flags: ['degraded-feed'],
+        },
       }),
       now: Date.parse('2026-03-06T10:00:00.000Z'),
     });
 
     expect(markup).toContain('No operationally significant event selected');
+    expect(markup).toContain('Primary realtime feed degraded');
+    expect(markup).toContain('Primary feed is stale; decisions may lag current field conditions.');
   });
 
   it('uses backend-owned overview messaging for empty exposure and priority panels', () => {
