@@ -805,7 +805,7 @@
 /* ── Scenario Mode Button ─────────────────────────────────── */
 
 /* ── Scenario Watermark Overlay ───────────────────────────── */
-/* Subtle diagonal watermark — visible in screenshots but not distracting */
+/* Repeating diagonal pattern — visible in screenshots but not distracting */
 
 .nz-scenario-overlay {
   position: absolute;
@@ -814,43 +814,16 @@
   pointer-events: none;
   display: none;
   overflow: hidden;
+  /* Repeating SVG text pattern, rotated -30deg */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='200'%3E%3Ctext x='10' y='40' font-family='monospace' font-size='18' font-weight='700' fill='%23fbbf24' opacity='0.06' letter-spacing='2'%3ESIMULATION%3C/text%3E%3Ctext x='260' y='130' font-family='monospace' font-size='18' font-weight='700' fill='%23fbbf24' opacity='0.06' letter-spacing='2'%3ESIMULATION%3C/text%3E%3C/svg%3E");
+  background-size: 520px 200px;
+  transform: rotate(-30deg) scale(1.5);
+  transform-origin: center center;
+  user-select: none;
 }
 
 .nz-console--scenario .nz-scenario-overlay {
   display: block;
-}
-
-.nz-scenario-overlay__watermark {
-  position: absolute;
-  font-family: var(--nz-font-mono);
-  font-size: 56px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: rgba(251, 191, 36, 0.04);
-  white-space: nowrap;
-  transform: rotate(-35deg);
-  user-select: none;
-  pointer-events: none;
-}
-
-.nz-scenario-overlay__watermark:nth-child(1) {
-  top: 8%;
-  left: -5%;
-}
-
-.nz-scenario-overlay__watermark:nth-child(2) {
-  top: 35%;
-  left: 20%;
-}
-
-.nz-scenario-overlay__watermark:nth-child(3) {
-  top: 58%;
-  left: -10%;
-}
-
-.nz-scenario-overlay__watermark:nth-child(4) {
-  top: 82%;
-  left: 15%;
 }
 
 /* ── Scenario Top Banner ─────────────────────────────────── */

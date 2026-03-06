@@ -30,12 +30,7 @@ const SHELL_HTML = `
     </button>
   </div>
 
-  <div class="nz-scenario-overlay" id="nz-scenario-overlay">
-    <div class="nz-scenario-overlay__watermark">シミュレーション</div>
-    <div class="nz-scenario-overlay__watermark">SIMULATION</div>
-    <div class="nz-scenario-overlay__watermark">シミュレーション</div>
-    <div class="nz-scenario-overlay__watermark">SIMULATION</div>
-  </div>
+  <div class="nz-scenario-overlay" id="nz-scenario-overlay"></div>
 
   <div class="nz-scenario-banner" id="nz-scenario-banner">
     <span class="nz-scenario-banner__icon">⚠</span>
