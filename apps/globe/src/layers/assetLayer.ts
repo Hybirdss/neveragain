@@ -1,33 +1,28 @@
 /**
- * Asset Layer — Infrastructure markers on the map.
+ * Asset Layer — Infrastructure icon markers on the map.
  *
  * Shows operator assets from the ops asset catalog.
- * Markers are colored by current severity (clear/watch/priority/critical).
+ * Each asset class has a distinct icon shape (Lucide-based).
+ * Color encodes severity (clear/watch/priority/critical).
  * Visibility controlled by zoom tier (minZoomTier per asset).
+ *
+ * Shape = type (anchor, cross, zap, etc.)
+ * Color = state (green → blue → amber → red)
  */
 
-import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import { OPS_ASSETS } from '../ops/assetCatalog';
 import type { OpsAsset, OpsAssetExposure, OpsSeverity, ZoomTier } from '../ops/types';
+import { ICON_ATLAS_URL, ICON_MAPPING, ASSET_ICON_SIZE } from './iconAtlas';
 
 type RGBA = [number, number, number, number];
 
 const SEVERITY_COLORS: Record<OpsSeverity, RGBA> = {
-  clear: [110, 231, 183, 140],    // calm green
-  watch: [96, 165, 250, 180],     // cool blue
+  clear: [110, 231, 183, 160],    // calm green
+  watch: [96, 165, 250, 200],     // cool blue
   priority: [251, 191, 36, 220],  // amber
   critical: [239, 68, 68, 240],   // red
-};
-
-const CLASS_RADIUS: Record<OpsAsset['class'], number> = {
-  port: 8,
-  rail_hub: 6,
-  hospital: 5,
-  power_substation: 5,
-  water_facility: 5,
-  telecom_hub: 5,
-  building_cluster: 7,
 };
 
 const ZOOM_TIER_ORDER: ZoomTier[] = ['national', 'regional', 'city', 'district'];
@@ -58,22 +53,23 @@ export function createAssetLayers(
 
   const layers: Layer[] = [];
 
-  // Marker dots
-  layers.push(new ScatterplotLayer<AssetDatum>({
+  // Infrastructure icon markers
+  layers.push(new IconLayer<AssetDatum>({
     id: 'asset-markers',
     data: visible,
     pickable: true,
-    stroked: true,
-    filled: true,
-    radiusUnits: 'pixels',
-    lineWidthUnits: 'pixels',
+    autoHighlight: true,
+    highlightColor: [255, 255, 255, 80],
+    iconAtlas: ICON_ATLAS_URL,
+    iconMapping: ICON_MAPPING,
+    getIcon: (d) => d.class,
     getPosition: (d) => [d.lng, d.lat],
-    getRadius: (d) => CLASS_RADIUS[d.class],
-    getFillColor: (d) => SEVERITY_COLORS[d.severity],
-    getLineColor: [255, 255, 255, 80],
-    getLineWidth: 1,
+    getSize: (d) => ASSET_ICON_SIZE[d.class],
+    sizeUnits: 'pixels',
+    sizeMinPixels: 10,
+    getColor: (d) => SEVERITY_COLORS[d.severity],
     updateTriggers: {
-      getFillColor: [exposures],
+      getColor: [exposures],
     },
   }));
 
@@ -89,7 +85,7 @@ export function createAssetLayers(
       getColor: [226, 232, 240, 180],
       getTextAnchor: 'start',
       getAlignmentBaseline: 'center',
-      getPixelOffset: [12, 0],
+      getPixelOffset: [14, 0],
       fontFamily: 'Noto Sans JP, system-ui, sans-serif',
       fontWeight: 500,
       outlineWidth: 2,

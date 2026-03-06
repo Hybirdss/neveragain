@@ -10,10 +10,11 @@
  *   Decommissioning: dim, still shown (radiation risk persists)
  */
 
-import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import type { EarthquakeEvent } from '../types';
 import { isInImpactZone } from './impactZone';
+import { ICON_ATLAS_URL, ICON_MAPPING } from './iconAtlas';
 
 type RGBA = [number, number, number, number];
 
@@ -121,22 +122,23 @@ export function createPowerLayers(
 
   const layers: Layer[] = [];
 
-  layers.push(new ScatterplotLayer<PowerDatum>({
+  layers.push(new IconLayer<PowerDatum>({
     id: 'power',
     data,
     pickable: true,
     autoHighlight: true,
     highlightColor: [251, 191, 36, 200],
-    stroked: true,
-    filled: true,
-    radiusUnits: 'pixels',
-    lineWidthUnits: 'pixels',
+    iconAtlas: ICON_ATLAS_URL,
+    iconMapping: ICON_MAPPING,
+    getIcon: (d) => d.type === 'nuclear' ? 'nuclear' : 'thermal',
     getPosition: (d) => [d.lng, d.lat],
-    getRadius: (d) => {
-      if (d.type === 'nuclear') return d.inZone ? 10 : 7;
-      return d.inZone ? 7 : 4;
+    getSize: (d) => {
+      if (d.type === 'nuclear') return d.inZone ? 24 : 20;
+      return d.inZone ? 18 : 14;
     },
-    getFillColor: (d) => {
+    sizeUnits: 'pixels',
+    sizeMinPixels: 10,
+    getColor: (d): RGBA => {
       if (d.inZone) return ZONE_COLOR;
       if (d.status === 'decommissioning') return DECOM_COLOR;
       if (d.type === 'nuclear') {
@@ -144,14 +146,9 @@ export function createPowerLayers(
       }
       return THERMAL_COLOR;
     },
-    getLineColor: (d) => {
-      if (d.type === 'nuclear') return [255, 255, 255, 140] as RGBA;
-      return [255, 255, 255, 60] as RGBA;
-    },
-    getLineWidth: (d) => d.type === 'nuclear' ? 1.5 : 0.5,
     updateTriggers: {
-      getFillColor: [selectedEvent?.id],
-      getRadius: [selectedEvent?.id],
+      getColor: [selectedEvent?.id],
+      getSize: [selectedEvent?.id],
     },
   }));
 

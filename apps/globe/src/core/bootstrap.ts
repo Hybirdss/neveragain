@@ -244,6 +244,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       now: Date.now(),
       events,
       currentSelectedEventId: selectedOverride?.id ?? consoleStore.get('selectedEvent')?.id ?? null,
+      forceSelection: selectedOverride !== undefined,
       source: lastFetchSource,
       updatedAt: lastUpdatedAt || Date.now(),
       viewport: consoleStore.get('viewport'),

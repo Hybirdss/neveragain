@@ -174,7 +174,7 @@ export function renderEventSnapshotMarkup(input: {
   readModel: ServiceReadModel;
   now?: number;
 }): string {
-  const event = input.readModel.currentEvent ?? input.selectedEvent;
+  const event = input.selectedEvent ?? input.readModel.currentEvent;
   const now = input.now ?? Date.now();
 
   if (input.mode === 'event' && event) {

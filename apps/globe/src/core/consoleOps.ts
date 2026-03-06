@@ -4,7 +4,7 @@ import { computeIntensityGrid } from '../engine/gmpe';
 import { OPS_ASSETS } from '../ops/assetCatalog';
 import { buildOperatorBundleSummaries } from '../ops/bundleSummaries';
 import { buildDefaultBundleDomainOverviews } from '../ops/bundleDomainOverviews';
-import { selectOperationalFocusEvent } from '../ops/eventSelection';
+import { selectOperationalFocusEvent, type SelectedOperationalFocus } from '../ops/eventSelection';
 import { buildAssetExposures } from '../ops/exposure';
 import type { OpsAsset, OpsAssetExposure } from '../ops/types';
 import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
@@ -20,6 +20,8 @@ export interface DeriveConsoleOperationalStateInput {
   now: number;
   events: EarthquakeEvent[];
   currentSelectedEventId: string | null;
+  /** When true, currentSelectedEventId is an explicit user click — bypass ops focus scoring */
+  forceSelection?: boolean;
   source: RealtimeSource;
   updatedAt: number;
   viewport: ConsoleViewportState;
@@ -147,19 +149,33 @@ export function deriveConsoleOperationalState(
   });
 
   const events = [...earthquakeStore.getAll()];
-  const focus = selectOperationalFocusEvent({
-    now: input.now,
-    currentSelectedEventId: input.currentSelectedEventId,
-    candidates: events.map((event) => ({
-      event,
-      envelope: earthquakeStore.getEnvelope(event.id) ?? null,
-      revisionHistory: [...earthquakeStore.getRevisionHistory(event.id)],
-    })),
-  });
 
-  const selectedEvent = focus.selectedEventId
-    ? earthquakeStore.get(focus.selectedEventId) ?? null
-    : null;
+  // When user explicitly clicks an event, bypass ops focus scoring.
+  // selectOperationalFocusEvent filters for "significant" events (M≥4.5, recent)
+  // and would override user clicks on smaller/older earthquakes.
+  let selectedEvent: EarthquakeEvent | null;
+  let focusReason: SelectedOperationalFocus['reason'];
+
+  if (input.forceSelection && input.currentSelectedEventId) {
+    selectedEvent = earthquakeStore.get(input.currentSelectedEventId)
+      ?? events.find((e) => e.id === input.currentSelectedEventId)
+      ?? null;
+    focusReason = 'retain-current';
+  } else {
+    const focus = selectOperationalFocusEvent({
+      now: input.now,
+      currentSelectedEventId: input.currentSelectedEventId,
+      candidates: events.map((event) => ({
+        event,
+        envelope: earthquakeStore.getEnvelope(event.id) ?? null,
+        revisionHistory: [...earthquakeStore.getRevisionHistory(event.id)],
+      })),
+    });
+    selectedEvent = focus.selectedEventId
+      ? earthquakeStore.get(focus.selectedEventId) ?? null
+      : null;
+    focusReason = focus.reason;
+  }
   // Dynamic radius: large events need wider grids to avoid rectangular clipping
   const intensityRadiusDeg = selectedEvent
     ? (selectedEvent.magnitude >= 8.5 ? 8
@@ -200,7 +216,7 @@ export function deriveConsoleOperationalState(
     selectedEvent,
     selectedEventEnvelope: selectedEvent ? earthquakeStore.getEnvelope(selectedEvent.id) ?? null : null,
     selectedEventRevisionHistory: selectedEvent ? [...earthquakeStore.getRevisionHistory(selectedEvent.id)] : [],
-    selectionReason: focus.reason,
+    selectionReason: focusReason,
     tsunamiAssessment,
     impactResults: null,
     assets: OPS_ASSETS,

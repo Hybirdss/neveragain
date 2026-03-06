@@ -7,10 +7,11 @@
  * - Impact zone: red highlight with capacity info
  */
 
-import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import type { EarthquakeEvent } from '../types';
 import { isInImpactZone } from './impactZone';
+import { ICON_ATLAS_URL, ICON_MAPPING } from './iconAtlas';
 
 type RGBA = [number, number, number, number];
 
@@ -124,32 +125,31 @@ export function createHospitalLayers(
 
   const layers: Layer[] = [];
 
-  layers.push(new ScatterplotLayer<HospitalDatum>({
+  layers.push(new IconLayer<HospitalDatum>({
     id: 'hospitals',
     data,
     pickable: true,
     autoHighlight: true,
     highlightColor: [125, 211, 252, 200],
-    stroked: true,
-    filled: true,
-    radiusUnits: 'pixels',
-    lineWidthUnits: 'pixels',
+    iconAtlas: ICON_ATLAS_URL,
+    iconMapping: ICON_MAPPING,
+    getIcon: () => 'hospital',
     getPosition: (d) => [d.lng, d.lat],
-    getRadius: (d) => {
-      if (d.inZone) return 8;
-      if (d.dmat) return 6;
-      return 5;
+    getSize: (d) => {
+      if (d.inZone) return 22;
+      if (d.dmat) return 18;
+      return 16;
     },
-    getFillColor: (d) => {
+    sizeUnits: 'pixels',
+    sizeMinPixels: 10,
+    getColor: (d): RGBA => {
       if (d.inZone) return ZONE_COLOR;
       if (d.dmat) return DMAT_COLOR;
       return NORMAL_COLOR;
     },
-    getLineColor: [255, 255, 255, 120],
-    getLineWidth: 1,
     updateTriggers: {
-      getFillColor: [selectedEvent?.id],
-      getRadius: [selectedEvent?.id],
+      getColor: [selectedEvent?.id],
+      getSize: [selectedEvent?.id],
     },
   }));
 
