@@ -20,6 +20,7 @@ function createState(): AppState {
     viewportState: null,
     serviceReadModel: {
       currentEvent: null,
+      eventTruth: null,
       viewport: null,
       nationalSnapshot: null,
       nationalExposureSummary: [],

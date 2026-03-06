@@ -11,6 +11,7 @@ describe('read model backend contracts', () => {
   it('supports a minimal service read model shape', () => {
     const model: ServiceReadModel = {
       currentEvent: null,
+      eventTruth: null,
       viewport: null,
       nationalSnapshot: null,
       nationalExposureSummary: [],

@@ -14,6 +14,7 @@ import { buildAssetExposures } from '../ops/exposure';
 import { buildOpsPriorities } from '../ops/priorities';
 import { buildScenarioDelta } from '../ops/scenarioDelta';
 import { buildServiceReadModel } from '../ops/serviceReadModel';
+import { earthquakeStore } from '../data/earthquakeStore';
 
 export function initLayerOrchestrator(
   globe: GlobeInstance,
@@ -23,8 +24,10 @@ export function initLayerOrchestrator(
 
   function syncServiceReadModel(): void {
     const ops = store.get('ops');
+    const selectedEvent = store.get('selectedEvent');
     store.set('serviceReadModel', buildServiceReadModel({
-      selectedEvent: store.get('selectedEvent'),
+      selectedEvent,
+      selectedEventEnvelope: selectedEvent ? earthquakeStore.getEnvelope(selectedEvent.id) ?? null : null,
       tsunamiAssessment: store.get('tsunamiAssessment'),
       impactResults: store.get('impactResults'),
       assets: ops.assets,

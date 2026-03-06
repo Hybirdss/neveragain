@@ -1,5 +1,6 @@
 import type { EarthquakeEvent, PrefectureImpact, TsunamiAssessment } from '../types';
 import type { OpsAssetExposure, OpsPriority, ViewportState } from './types';
+import type { CanonicalEventConfidence, CanonicalEventSource } from '../data/eventEnvelope';
 
 export type RealtimeSource = 'server' | 'usgs' | 'fallback';
 export type RealtimeState = 'fresh' | 'stale' | 'degraded';
@@ -20,8 +21,19 @@ export interface OpsSnapshot {
   topImpact: PrefectureImpact | null;
 }
 
+export interface EventTruth {
+  source: CanonicalEventSource;
+  revision: string;
+  issuedAt: number;
+  receivedAt: number;
+  observedAt: number;
+  supersedes: string | null;
+  confidence: CanonicalEventConfidence;
+}
+
 export interface ServiceReadModel {
   currentEvent: EarthquakeEvent | null;
+  eventTruth: EventTruth | null;
   viewport: ViewportState | null;
   nationalSnapshot: OpsSnapshot | null;
   nationalExposureSummary: OpsAssetExposure[];

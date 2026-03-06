@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildServiceReadModel } from '../serviceReadModel';
+import { buildCanonicalEventEnvelope } from '../../data/eventEnvelope';
 
 describe('buildServiceReadModel', () => {
   it('returns national and viewport-ready summaries from the selected event and ops priorities', () => {
@@ -16,6 +17,22 @@ describe('buildServiceReadModel', () => {
         tsunami: true,
         place: { text: 'Sagami corridor' },
       },
+      selectedEventEnvelope: buildCanonicalEventEnvelope({
+        event: {
+          id: 'eq-1',
+          lat: 35,
+          lng: 139,
+          depth_km: 30,
+          magnitude: 7.1,
+          time: 1_700_000_000_000,
+          faultType: 'interface',
+          tsunami: true,
+          place: { text: 'Sagami corridor' },
+        },
+        source: 'server',
+        issuedAt: 1_700_000_002_000,
+        receivedAt: 1_700_000_003_000,
+      }),
       tsunamiAssessment: {
         risk: 'moderate',
         confidence: 'high',
@@ -95,6 +112,8 @@ describe('buildServiceReadModel', () => {
     });
 
     expect(model.currentEvent?.id).toBe('eq-1');
+    expect(model.eventTruth?.source).toBe('server');
+    expect(model.eventTruth?.confidence).toBe('high');
     expect(model.viewport?.activeRegion).toBe('kanto');
     expect(model.nationalExposureSummary).toHaveLength(2);
     expect(model.visibleExposureSummary.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
@@ -106,6 +125,7 @@ describe('buildServiceReadModel', () => {
   it('falls back to the national view when visible assets are not provided yet', () => {
     const model = buildServiceReadModel({
       selectedEvent: null,
+      selectedEventEnvelope: null,
       tsunamiAssessment: null,
       impactResults: null,
       assets: [

@@ -3,12 +3,14 @@ import type {
   PrefectureImpact,
   TsunamiAssessment,
 } from '../types';
-import type { OpsSnapshot, RealtimeStatus, ServiceReadModel } from './readModelTypes';
+import type { CanonicalEventEnvelope } from '../data/eventEnvelope';
+import type { EventTruth, OpsSnapshot, RealtimeStatus, ServiceReadModel } from './readModelTypes';
 import type { OpsAsset, OpsAssetExposure, OpsPriority, ViewportState } from './types';
 import { filterVisibleOpsAssets } from './viewport';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
+  selectedEventEnvelope?: CanonicalEventEnvelope | null;
   tsunamiAssessment: TsunamiAssessment | null;
   impactResults: PrefectureImpact[] | null;
   assets: OpsAsset[];
@@ -34,6 +36,24 @@ function buildOpsSnapshot(input: BuildServiceReadModelInput): OpsSnapshot | null
     headline: topPriority?.title ?? null,
     tsunami: input.tsunamiAssessment,
     topImpact,
+  };
+}
+
+function buildEventTruth(
+  envelope: CanonicalEventEnvelope | null | undefined,
+): EventTruth | null {
+  if (!envelope) {
+    return null;
+  }
+
+  return {
+    source: envelope.source,
+    revision: envelope.revision,
+    issuedAt: envelope.issuedAt,
+    receivedAt: envelope.receivedAt,
+    observedAt: envelope.observedAt,
+    supersedes: envelope.supersedes,
+    confidence: envelope.confidence,
   };
 }
 
@@ -79,6 +99,7 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
 
   return {
     currentEvent: input.selectedEvent,
+    eventTruth: buildEventTruth(input.selectedEventEnvelope),
     viewport: input.viewport ?? null,
     nationalSnapshot: buildOpsSnapshot(input),
     nationalExposureSummary,
