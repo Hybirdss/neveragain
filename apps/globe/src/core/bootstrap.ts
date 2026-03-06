@@ -16,7 +16,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './console.css';
 
 import { createMapEngine } from './mapEngine';
-import { createViewportManager, type ViewportState } from './viewportManager';
+import { createViewportManager } from './viewportManager';
 import { createShell } from './shell';
 import { applyConsoleRealtimeError, deriveConsoleOperationalState } from './consoleOps';
 import { consoleStore } from './store';
@@ -27,10 +27,13 @@ import { mountEventSnapshot } from '../panels/eventSnapshot';
 import { mountRecentFeed } from '../panels/recentFeed';
 import { mountCheckTheseNow } from '../panels/checkTheseNow';
 import { mountAssetExposure } from '../panels/assetExposure';
+import { mountFaultCatalog } from '../panels/faultCatalog';
+import { mountLayerControl } from '../panels/layerControl';
 import { mountMaritimeExposure } from '../panels/maritimeExposure';
 import { fetchEventsWithMeta } from '../namazue/serviceEngine';
 import { createAisManager } from '../data/aisManager';
 import { formatVesselTooltip } from '../layers/aisLayer';
+import { formatFaultTooltip } from '../layers/faultLayer';
 import type { Vessel } from '../data/aisManager';
 import type { RealtimeSource } from '../ops/readModelTypes';
 import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
@@ -106,7 +109,6 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const viewport = createViewportManager(engine.map);
   viewport.subscribe((state) => {
     consoleStore.set('viewport', state);
-    updateBottomBar(state);
     if (consoleStore.get('events').length > 0) {
       syncOperationalTruth();
       return;
@@ -138,22 +140,38 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const disposeMaritime = mountMaritimeExposure(maritimeContainer);
 
   const disposeCheck = mountCheckTheseNow(shell.rightRail);
+  const disposeLayerControl = mountLayerControl(shell.bottomBar, shell.bottomDrawerHost);
 
-  // 6a. Tooltip — vessel hover details
+  const faultContainer = document.createElement('div');
+  shell.rightRail.appendChild(faultContainer);
+  const disposeFaultCatalog = mountFaultCatalog(faultContainer, (fault) => {
+    const scenario = faultToEvent(fault);
+    selectEvent(scenario);
+  });
+
+  // 6a. Tooltip — vessel + fault hover details
   engine.setTooltip((info) => {
     if (info.layer?.id === 'ais-vessels' && info.object) {
       const vessel = info.object as Vessel;
       const selected = consoleStore.get('selectedEvent');
       return { html: formatVesselTooltip(vessel, selected) };
     }
+    if (info.layer?.id === 'active-faults' && info.object) {
+      const fault = info.object as ActiveFault;
+      const scenario = consoleStore.get('scenarioMode');
+      const hint = scenario
+        ? '<div style="color:#fbbf24;font-size:10px;margin-top:4px">Click to run scenario</div>'
+        : '';
+      return { html: formatFaultTooltip(fault) + hint };
+    }
     return null;
   });
 
-  // 6. Picking — earthquakes, faults, empty space
+  // 6. Picking — earthquakes, faults (scenario mode only), empty space
   engine.onClick((info) => {
     if (info.layer?.id === 'earthquakes' && info.object) {
       selectEvent(info.object as EarthquakeEvent);
-    } else if (info.layer?.id === 'active-faults' && info.object) {
+    } else if (info.layer?.id === 'active-faults' && info.object && consoleStore.get('scenarioMode')) {
       const fault = info.object as ActiveFault;
       const scenario = faultToEvent(fault);
       selectEvent(scenario);
@@ -250,35 +268,6 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     shell.statusEl.setAttribute('data-mode', state.statusMode);
   }
 
-  // 9. Bottom bar — viewport info + layer toggles
-  function updateBottomBar(vp: ViewportState): void {
-    const vis = consoleStore.get('layerVisibility');
-    shell.bottomBar.innerHTML = `
-      <div class="nz-bottom-bar__info">
-        <span class="nz-bottom-bar__zoom">z${vp.zoom.toFixed(1)}</span>
-        <span class="nz-bottom-bar__tier">${vp.tier}</span>
-        <span class="nz-bottom-bar__coords">
-          ${vp.center.lat.toFixed(3)}° ${vp.center.lng.toFixed(3)}°
-        </span>
-      </div>
-      <div class="nz-bottom-bar__layers">
-        <button class="nz-layer-btn${vis.faults ? ' nz-layer-btn--on' : ''}" data-layer="faults">Faults</button>
-        <button class="nz-layer-btn${vis.intensity ? ' nz-layer-btn--on' : ''}" data-layer="intensity">Intensity</button>
-        <button class="nz-layer-btn${vis.earthquakes ? ' nz-layer-btn--on' : ''}" data-layer="earthquakes">Quakes</button>
-        <button class="nz-layer-btn${vis.ais ? ' nz-layer-btn--on' : ''}" data-layer="ais">Ships</button>
-      </div>
-    `;
-    // Bind toggle clicks
-    shell.bottomBar.querySelectorAll<HTMLButtonElement>('.nz-layer-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const layer = btn.dataset.layer!;
-        const current = consoleStore.get('layerVisibility');
-        consoleStore.set('layerVisibility', { ...current, [layer]: !current[layer] });
-        updateBottomBar(consoleStore.get('viewport'));
-      });
-    });
-  }
-
   // 11. Load fault data in parallel
   setLoadingProgress(40, 'Loading fault data…');
   loadFaultData();
@@ -326,7 +315,6 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
 
     setLoadingProgress(100, 'Ready');
     updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
-    updateBottomBar(viewport.getState());
     dismissLoading();
   });
 
@@ -352,6 +340,8 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       disposeExpo();
       disposeMaritime();
       disposeCheck();
+      disposeLayerControl();
+      disposeFaultCatalog();
       viewport.dispose();
       engine.dispose();
     });

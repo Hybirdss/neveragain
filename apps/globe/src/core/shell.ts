@@ -24,6 +24,7 @@ const SHELL_HTML = `
 
   <div class="nz-rail nz-rail--left" id="nz-rail-left"></div>
   <div class="nz-rail nz-rail--right" id="nz-rail-right"></div>
+  <div class="nz-bottom-drawer-host" id="nz-bottom-drawer-host"></div>
   <div class="nz-bottom-bar" id="nz-bottom-bar"></div>
 </div>
 `;
@@ -36,6 +37,7 @@ export interface ShellElements {
   statusEl: HTMLElement;
   leftRail: HTMLElement;
   rightRail: HTMLElement;
+  bottomDrawerHost: HTMLElement;
   bottomBar: HTMLElement;
 }
 
@@ -50,6 +52,7 @@ export function createShell(parent: HTMLElement): ShellElements {
     statusEl: parent.querySelector('#nz-status')!,
     leftRail: parent.querySelector('#nz-rail-left')!,
     rightRail: parent.querySelector('#nz-rail-right')!,
+    bottomDrawerHost: parent.querySelector('#nz-bottom-drawer-host')!,
     bottomBar: parent.querySelector('#nz-bottom-bar')!,
   };
 }

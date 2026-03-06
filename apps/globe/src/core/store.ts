@@ -10,6 +10,13 @@ import type { ViewportState } from './viewportManager';
 import type { OpsAssetExposure, OpsPriority } from '../ops/types';
 import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
 import type { Vessel } from '../data/aisManager';
+import {
+  createDefaultBundleSettings,
+  createDefaultLayerVisibility,
+  type BundleSettings,
+  type OperatorViewId,
+} from '../layers/bundleRegistry';
+import type { BundleId, LayerId } from '../layers/layerRegistry';
 
 // ── Console State ──────────────────────────────────────────────
 
@@ -27,7 +34,12 @@ export interface ConsoleState {
   intensityGrid: IntensityGrid | null;
   vessels: Vessel[];
   faults: ActiveFault[];
-  layerVisibility: Record<string, boolean>;
+  scenarioMode: boolean;
+  layerVisibility: Record<LayerId, boolean>;
+  activeBundleId: BundleId;
+  activeViewId: OperatorViewId;
+  bundleSettings: BundleSettings;
+  bundleDrawerOpen: boolean;
   panelsVisible: boolean;
 }
 
@@ -45,6 +57,10 @@ class ConsoleStore {
 
   get<K extends keyof ConsoleState>(key: K): ConsoleState[K] {
     return this.state[key];
+  }
+
+  getState(): ConsoleState {
+    return { ...this.state };
   }
 
   set<K extends keyof ConsoleState>(key: K, value: ConsoleState[K]): void {
@@ -97,15 +113,12 @@ const initialState: ConsoleState = {
   intensityGrid: null,
   vessels: [],
   faults: [],
-  layerVisibility: {
-    earthquakes: true,
-    intensity: true,
-    faults: true,
-    buildings: false,
-    ais: true,
-    rail: false,
-    power: false,
-  },
+  scenarioMode: false,
+  layerVisibility: createDefaultLayerVisibility(),
+  activeBundleId: 'seismic',
+  activeViewId: 'national-impact',
+  bundleSettings: createDefaultBundleSettings(),
+  bundleDrawerOpen: false,
   panelsVisible: true,
 };
 

@@ -7,16 +7,22 @@
  */
 
 import { consoleStore } from '../core/store';
-import { computeMaritimeExposure, type MaritimeExposure } from '../layers/aisLayer';
+import {
+  buildMaritimeOverview,
+  computeMaritimeExposure,
+  type MaritimeExposure,
+} from '../layers/aisLayer';
 
 function renderCalm(vesselCount: number): string {
   if (vesselCount === 0) return '';
+  const overview = buildMaritimeOverview(consoleStore.get('vessels'));
   return `
-    <div class="nz-panel nz-panel--collapsed" id="nz-maritime">
+    <div class="nz-panel" id="nz-maritime">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Maritime</span>
-        <span class="nz-maritime__count">${vesselCount} tracked</span>
+        <span class="nz-maritime__count">${overview.totalTracked} tracked</span>
       </div>
+      <div class="nz-maritime__summary">${overview.summary}</div>
     </div>
   `;
 }

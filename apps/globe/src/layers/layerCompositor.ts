@@ -29,6 +29,7 @@ import { createAssetLayers } from './assetLayer';
 import { createIntensityLayer } from './intensityLayer';
 import { createFaultLayer } from './faultLayer';
 import { createAisLayers } from './aisLayer';
+import { isLayerEffectivelyVisible } from './bundleRegistry';
 import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
 import type { Vessel } from '../data/aisManager';
 import type { OpsAssetExposure } from '../ops/types';
@@ -101,6 +102,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     selectedId = event?.id ?? null;
     selectedEvent = event;
     dirtyEarthquake = true;
+    dirtyFaults = true; // selected fault highlight
     dirtyAis = true; // impact zone highlighting
   });
 
@@ -111,6 +113,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
   const unsubViewport = consoleStore.subscribe('viewport', () => {
     dirtyAssets = true;
+    dirtyFaults = true; // zoom-based fault filtering
   });
 
   const unsubIntensity = consoleStore.subscribe('intensityGrid', (grid) => {
@@ -138,31 +141,36 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
     // Layer visibility from store
     const vis = consoleStore.get('layerVisibility');
+    const bundleSettings = consoleStore.get('bundleSettings');
+    const isVisible = (layerId: 'earthquakes' | 'intensity' | 'faults' | 'ais') =>
+      isLayerEffectivelyVisible(layerId, vis[layerId], bundleSettings);
 
     // Layer order (bottom to top):
-    // 1. Faults  2. Intensity  3. AIS  4. Earthquakes  5. Assets  6. Waves
-
-    if (dirtyFaults) {
-      faultLayer = createFaultLayer(faults);
-      dirtyFaults = false;
-    }
-    if (faultLayer && vis.faults) {
-      layers.push(faultLayer);
-    }
+    // 1. Intensity  2. Faults  3. AIS  4. Earthquakes  5. Assets  6. Waves
+    // Faults ABOVE intensity so they remain visible and pickable in impact zones.
 
     if (dirtyIntensity) {
       intensityLayer = createIntensityLayer(intensityGrid);
       dirtyIntensity = false;
     }
-    if (intensityLayer && vis.intensity) {
+    if (intensityLayer && isVisible('intensity')) {
       layers.push(intensityLayer);
+    }
+
+    if (dirtyFaults) {
+      const zoom = consoleStore.get('viewport').zoom;
+      faultLayer = createFaultLayer(faults, zoom, selectedId);
+      dirtyFaults = false;
+    }
+    if (faultLayer && isVisible('faults')) {
+      layers.push(faultLayer);
     }
 
     if (dirtyAis) {
       aisLayers = createAisLayers(vessels, selectedEvent);
       dirtyAis = false;
     }
-    if (vis.ais) {
+    if (isVisible('ais')) {
       layers.push(...aisLayers);
     }
 
@@ -170,7 +178,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       earthquakeLayer = createEarthquakeLayer(eventData, selectedId);
       dirtyEarthquake = false;
     }
-    if (earthquakeLayer && vis.earthquakes) {
+    if (earthquakeLayer && isVisible('earthquakes')) {
       layers.push(earthquakeLayer);
     }
 
@@ -179,7 +187,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       assetLayers = createAssetLayers(tier, exposures);
       dirtyAssets = false;
     }
-    if (vis.earthquakes) {
+    if (isVisible('earthquakes')) {
       layers.push(...assetLayers);
     }
 

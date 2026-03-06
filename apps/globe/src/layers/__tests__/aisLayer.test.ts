@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeMaritimeExposure, formatVesselTooltip } from '../aisLayer';
+import {
+  buildMaritimeOverview,
+  computeMaritimeExposure,
+  formatVesselTooltip,
+} from '../aisLayer';
 import type { Vessel } from '../../data/aisManager';
 import type { EarthquakeEvent } from '../../types';
 
@@ -65,5 +69,15 @@ describe('aisLayer', () => {
 
     expect(tooltip).toContain('HIGH PRIORITY');
     expect(tooltip).toContain('IN IMPACT ZONE');
+  });
+
+  it('builds a richer calm-state overview than a raw tracked count', () => {
+    const overview = buildMaritimeOverview(vessels);
+
+    expect(overview.totalTracked).toBe(2);
+    expect(overview.highPriorityTracked).toBe(1);
+    expect(overview.underwayCount).toBe(2);
+    expect(overview.summary).toContain('2 tracked');
+    expect(overview.summary).toContain('1 high-priority');
   });
 });
