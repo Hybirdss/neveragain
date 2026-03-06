@@ -2,6 +2,7 @@ export type AppRoute = 'service' | 'lab' | 'legacy';
 
 export const LAB_TAB_IDS = [
   'console',
+  'design',
   'states',
   'components',
   'architecture',

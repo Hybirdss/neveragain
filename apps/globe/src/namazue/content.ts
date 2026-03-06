@@ -184,6 +184,13 @@ export const LAB_TABS: LabTab[] = [
     body: 'This is the live surface we are designing toward. The route is product-first, not documentation-first.',
   },
   {
+    id: 'design',
+    label: 'Design System',
+    kicker: 'Visual Foundation',
+    title: 'Every pixel is a decision. Every token is a contract.',
+    body: 'The complete visual language for an operator-grade spatial console. Colors, typography, surfaces, severity, spacing, and motion.',
+  },
+  {
     id: 'states',
     label: 'States',
     kicker: 'Operational Sequence',
@@ -299,6 +306,151 @@ export const ARCHITECTURE_CARDS: ArchitectureCard[] = [
     body: 'Cloudflare Pages must resolve nested routes directly so `/lab` and `/legacy` can be checked on the live domain.',
     items: ['SPA fallback via `_redirects`', 'Keep route links absolute', 'Preserve direct reload behavior on live URLs'],
   },
+];
+
+/* ================================================================
+   DESIGN SYSTEM DATA
+   ================================================================ */
+
+export interface DesignColor {
+  name: string;
+  token: string;
+  value: string;
+  usage: string;
+}
+
+export interface DesignTypeSpec {
+  label: string;
+  family: 'display' | 'body' | 'mono';
+  weight: string;
+  size: string;
+  tracking: string;
+  sample: string;
+}
+
+export interface DesignSurface {
+  name: string;
+  level: string;
+  desc: string;
+}
+
+export interface DesignSeveritySpec {
+  id: 'clear' | 'watch' | 'priority' | 'critical';
+  name: string;
+  desc: string;
+  color: string;
+  glow: string;
+  surface: string;
+}
+
+export interface DesignSpacing {
+  token: string;
+  px: number;
+}
+
+export interface DesignMotion {
+  name: string;
+  easing: string;
+  duration: string;
+  use: string;
+}
+
+export const DESIGN_COLORS: DesignColor[] = [
+  { name: 'Background 0', token: '--nz-bg-0', value: '#040a11', usage: 'Page foundation' },
+  { name: 'Background 1', token: '--nz-bg-1', value: '#07111c', usage: 'Primary background' },
+  { name: 'Background 2', token: '--nz-bg-2', value: '#0b1624', usage: 'Elevated background' },
+  { name: 'Background 3', token: '--nz-bg-3', value: '#0f1d2f', usage: 'Highest background' },
+  { name: 'Surface 0', token: '--nz-surface-0', value: 'rgba(8,18,30,0.88)', usage: 'Card base' },
+  { name: 'Surface 1', token: '--nz-surface-1', value: 'rgba(11,22,36,0.92)', usage: 'Elevated card' },
+  { name: 'Surface 2', token: '--nz-surface-2', value: 'rgba(14,27,42,0.85)', usage: 'Nested element' },
+  { name: 'Text 100', token: '--nz-text-100', value: '#f0f6fc', usage: 'Primary text' },
+  { name: 'Text 80', token: '--nz-text-80', value: '#c9d6e3', usage: 'Secondary text' },
+  { name: 'Text 60', token: '--nz-text-60', value: '#8da2b5', usage: 'Muted text' },
+  { name: 'Text 40', token: '--nz-text-40', value: '#5a7286', usage: 'Subdued text' },
+  { name: 'Text 20', token: '--nz-text-20', value: '#3a4f62', usage: 'Hint / disabled' },
+  { name: 'Accent', token: '--nz-accent', value: '#5ba3e6', usage: 'Primary interactive' },
+  { name: 'Accent Bright', token: '--nz-accent-bright', value: '#8ec8ff', usage: 'Active / highlight' },
+  { name: 'Safe', token: '--nz-safe', value: '#5ec99e', usage: 'Clear / nominal' },
+  { name: 'Warning', token: '--nz-warn', value: '#e8a44c', usage: 'Watch / elevated' },
+  { name: 'Danger', token: '--nz-danger', value: '#e85c5c', usage: 'Critical / urgent' },
+];
+
+export const DESIGN_TYPE_SPECS: DesignTypeSpec[] = [
+  { label: 'Display XL', family: 'display', weight: '700', size: '88px', tracking: '-0.06em', sample: 'namazue.dev' },
+  { label: 'Display LG', family: 'display', weight: '700', size: '52px', tracking: '-0.05em', sample: 'Earthquake Operations Console' },
+  { label: 'Display MD', family: 'display', weight: '600', size: '28px', tracking: '-0.04em', sample: 'Event Snapshot' },
+  { label: 'Display SM', family: 'display', weight: '600', size: '22px', tracking: '-0.04em', sample: 'Asset Exposure' },
+  { label: 'Display XS', family: 'display', weight: '600', size: '18px', tracking: '-0.03em', sample: 'Panel Title' },
+  { label: 'Body', family: 'body', weight: '400', size: '14px', tracking: 'normal', sample: 'The console is ready for replay, scenario review, and asset inspection.' },
+  { label: 'Body Small', family: 'body', weight: '400', size: '13px', tracking: 'normal', sample: 'Harbor operations visible in calm watch posture.' },
+  { label: 'Mono Label', family: 'mono', weight: '600', size: '11px', tracking: '0.14em', sample: 'OPERATIONAL IMPACT ELEVATED' },
+  { label: 'Mono Code', family: 'mono', weight: '400', size: '12px', tracking: '0.02em', sample: '--nz-accent: #5ba3e6' },
+  { label: 'Mono Small', family: 'mono', weight: '500', size: '10px', tracking: '0.12em', sample: 'TOKYO METRO OPERATIONS' },
+];
+
+export const DESIGN_SURFACES: DesignSurface[] = [
+  { name: 'Page', level: 'level-0', desc: 'Root background. Darkest layer. No elevation.' },
+  { name: 'Card', level: 'level-1', desc: 'Primary card surface. Slight inner glow on top edge.' },
+  { name: 'Elevated', level: 'level-2', desc: 'Nested panels and overlays. Medium shadow.' },
+  { name: 'Float', level: 'level-3', desc: 'Tooltips and popovers. Backdrop blur active.' },
+  { name: 'Glow', level: 'level-glow', desc: 'Accent-highlighted cards. Gradient border top. Analyst notes.' },
+];
+
+export const DESIGN_SEVERITY_SPECS: DesignSeveritySpec[] = [
+  {
+    id: 'clear',
+    name: 'Clear',
+    desc: 'Nominal operations. No action required.',
+    color: '#5ec99e',
+    glow: 'rgba(94,201,158,0.20)',
+    surface: 'rgba(94,201,158,0.07)',
+  },
+  {
+    id: 'watch',
+    name: 'Watch',
+    desc: 'Monitoring active. Situation awareness elevated.',
+    color: '#5ba3e6',
+    glow: 'rgba(91,163,230,0.25)',
+    surface: 'rgba(91,163,230,0.08)',
+  },
+  {
+    id: 'priority',
+    name: 'Priority',
+    desc: 'Action expected. Inspection or verification needed.',
+    color: '#e8a44c',
+    glow: 'rgba(232,164,76,0.22)',
+    surface: 'rgba(232,164,76,0.07)',
+  },
+  {
+    id: 'critical',
+    name: 'Critical',
+    desc: 'Immediate action. Operational disruption likely.',
+    color: '#e85c5c',
+    glow: 'rgba(232,92,92,0.22)',
+    surface: 'rgba(232,92,92,0.07)',
+  },
+];
+
+export const DESIGN_SPACING: DesignSpacing[] = [
+  { token: 'space-1', px: 4 },
+  { token: 'space-2', px: 8 },
+  { token: 'space-3', px: 12 },
+  { token: 'space-4', px: 16 },
+  { token: 'space-5', px: 20 },
+  { token: 'space-6', px: 24 },
+  { token: 'space-7', px: 32 },
+  { token: 'space-8', px: 40 },
+  { token: 'space-9', px: 48 },
+  { token: 'space-10', px: 64 },
+  { token: 'space-11', px: 80 },
+  { token: 'space-12', px: 96 },
+];
+
+export const DESIGN_MOTIONS: DesignMotion[] = [
+  { name: 'Fast', easing: 'cubic-bezier(0.16, 1, 0.3, 1)', duration: '120ms', use: 'Micro-feedback: button press, hover color' },
+  { name: 'Normal', easing: 'cubic-bezier(0.16, 1, 0.3, 1)', duration: '200ms', use: 'Standard transitions: panels, badges, borders' },
+  { name: 'Smooth', easing: 'cubic-bezier(0.4, 0, 0.2, 1)', duration: '380ms', use: 'Layout shifts, content entrance' },
+  { name: 'Spring', easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', duration: '500ms', use: 'Playful emphasis, tooltip bounce' },
 ];
 
 export const VOICE_CARDS: VoiceCard[] = [

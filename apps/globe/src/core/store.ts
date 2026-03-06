@@ -1,0 +1,90 @@
+/**
+ * Console Store — Reactive state for the new spatial console.
+ *
+ * Reuses the proven pub/sub pattern from the legacy store,
+ * but with a state shape designed for the Japan-wide console.
+ */
+
+import type { EarthquakeEvent } from '../types';
+import type { ViewportState, ZoomTier } from './viewportManager';
+
+// ── Console State ──────────────────────────────────────────────
+
+export type ConsoleMode = 'calm' | 'event';
+
+export interface ConsoleState {
+  mode: ConsoleMode;
+  viewport: ViewportState;
+  selectedEvent: EarthquakeEvent | null;
+  events: EarthquakeEvent[];
+  layerVisibility: Record<string, boolean>;
+  panelsVisible: boolean;
+}
+
+// ── Store Implementation ───────────────────────────────────────
+
+type Listener<T> = (value: T, prev: T) => void;
+
+class ConsoleStore {
+  private state: ConsoleState;
+  private listeners = new Map<keyof ConsoleState, Set<Listener<any>>>();
+
+  constructor(initial: ConsoleState) {
+    this.state = { ...initial };
+  }
+
+  get<K extends keyof ConsoleState>(key: K): ConsoleState[K] {
+    return this.state[key];
+  }
+
+  set<K extends keyof ConsoleState>(key: K, value: ConsoleState[K]): void {
+    const prev = this.state[key];
+    if (prev === value) return;
+    this.state[key] = value;
+    const subs = this.listeners.get(key);
+    if (subs) {
+      for (const fn of subs) {
+        try { fn(value, prev); }
+        catch (err) { console.error(`[ConsoleStore] Error on "${String(key)}":`, err); }
+      }
+    }
+  }
+
+  subscribe<K extends keyof ConsoleState>(key: K, fn: Listener<ConsoleState[K]>): () => void {
+    if (!this.listeners.has(key)) {
+      this.listeners.set(key, new Set());
+    }
+    this.listeners.get(key)!.add(fn);
+    return () => { this.listeners.get(key)?.delete(fn); };
+  }
+}
+
+// ── Default State ──────────────────────────────────────────────
+
+const defaultViewport: ViewportState = {
+  center: { lat: 35.68, lng: 139.69 },
+  zoom: 5.5,
+  bounds: [122, 24, 150, 46],
+  tier: 'national' as ZoomTier,
+  pitch: 0,
+  bearing: 0,
+};
+
+const initialState: ConsoleState = {
+  mode: 'calm',
+  viewport: defaultViewport,
+  selectedEvent: null,
+  events: [],
+  layerVisibility: {
+    earthquakes: true,
+    intensity: true,
+    faults: true,
+    buildings: false,
+    ais: false,
+    rail: false,
+    power: false,
+  },
+  panelsVisible: true,
+};
+
+export const consoleStore = new ConsoleStore(initialState);

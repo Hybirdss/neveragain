@@ -1,0 +1,413 @@
+/* ================================================================
+   NAMAZUE SPATIAL CONSOLE — Core Layout
+   Fullscreen map + floating panels
+   ================================================================ */
+
+/* ── Fonts ──────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+/* ── Tokens ─────────────────────────────────────────────────── */
+
+:root {
+  --nz-bg-base: #0a0e14;
+  --nz-bg-map: #0d1520;
+  --nz-panel-bg: rgba(12, 17, 24, 0.85);
+  --nz-panel-border: rgba(30, 37, 48, 0.6);
+  --nz-panel-blur: 16px;
+
+  --nz-separator: #1e2530;
+
+  --nz-info: #7dd3fc;
+  --nz-calm: #6ee7b7;
+  --nz-watch: #60a5fa;
+  --nz-priority: #fbbf24;
+  --nz-critical: #ef4444;
+
+  --nz-text-primary: #e2e8f0;
+  --nz-text-secondary: #94a3b8;
+  --nz-text-muted: #475569;
+
+  --nz-font-ui: 'Noto Sans JP', system-ui, sans-serif;
+  --nz-font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
+
+  --nz-rail-width: 320px;
+  --nz-system-bar-height: 36px;
+  --nz-bottom-bar-height: 48px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────── */
+
+.nz-console *,
+.nz-console *::before,
+.nz-console *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Console Root ───────────────────────────────────────────── */
+
+.nz-console {
+  position: fixed;
+  inset: 0;
+  background: var(--nz-bg-base);
+  color: var(--nz-text-primary);
+  font-family: var(--nz-font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Map (fullscreen, behind everything) ────────────────────── */
+
+.nz-map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* MapLibre overrides */
+.nz-map .maplibregl-canvas {
+  outline: none;
+}
+
+.nz-map .maplibregl-ctrl-attrib {
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+/* ── System Bar ─────────────────────────────────────────────── */
+
+.nz-system-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nz-system-bar-height);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--nz-panel-bg);
+  backdrop-filter: blur(var(--nz-panel-blur));
+  -webkit-backdrop-filter: blur(var(--nz-panel-blur));
+  border-bottom: 1px solid var(--nz-panel-border);
+  font-family: var(--nz-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.nz-system-bar__brand {
+  color: var(--nz-text-primary);
+  font-weight: 600;
+}
+
+.nz-system-bar__sep {
+  width: 1px;
+  height: 14px;
+  background: var(--nz-separator);
+}
+
+.nz-system-bar__region {
+  color: var(--nz-text-secondary);
+}
+
+.nz-system-bar__status {
+  color: var(--nz-calm);
+  margin-left: auto;
+}
+
+.nz-system-bar__status[data-mode="event"] {
+  color: var(--nz-priority);
+}
+
+/* ── Rails (floating side panels) ───────────────────────────── */
+
+.nz-rail {
+  position: absolute;
+  top: calc(var(--nz-system-bar-height) + 12px);
+  bottom: calc(var(--nz-bottom-bar-height) + 12px);
+  width: var(--nz-rail-width);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.nz-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.nz-rail--left {
+  left: 12px;
+}
+
+.nz-rail--right {
+  right: 12px;
+}
+
+/* ── Panel Card (base for all floating panels) ──────────────── */
+
+.nz-panel {
+  background: var(--nz-panel-bg);
+  backdrop-filter: blur(var(--nz-panel-blur));
+  -webkit-backdrop-filter: blur(var(--nz-panel-blur));
+  border: 1px solid var(--nz-panel-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+.nz-panel--collapsed {
+  padding: 8px 14px;
+}
+
+.nz-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.nz-panel__title {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--nz-text-muted);
+}
+
+/* ── Bottom Bar ─────────────────────────────────────────────── */
+
+.nz-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nz-bottom-bar-height);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--nz-panel-bg);
+  backdrop-filter: blur(var(--nz-panel-blur));
+  -webkit-backdrop-filter: blur(var(--nz-panel-blur));
+  border-top: 1px solid var(--nz-panel-border);
+}
+
+/* ── Panels-hidden state (Tab toggle) ───────────────────────── */
+
+.nz-console[data-panels-hidden] .nz-system-bar,
+.nz-console[data-panels-hidden] .nz-rail,
+.nz-console[data-panels-hidden] .nz-bottom-bar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* ── Event Snapshot Panel ───────────────────────────────────── */
+
+.nz-snap__status {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nz-snap__status--calm { color: var(--nz-calm); }
+.nz-snap__status--info { color: var(--nz-info); }
+.nz-snap__status--watch { color: var(--nz-watch); }
+.nz-snap__status--priority { color: var(--nz-priority); }
+.nz-snap__status--critical { color: var(--nz-critical); }
+
+.nz-snap__headline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.nz-snap__metrics {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.nz-snap__metric-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nz-snap__metric-value {
+  font-family: var(--nz-font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.nz-snap__metric-label {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--nz-text-muted);
+}
+
+.nz-snap__metric {
+  font-size: 12px;
+  color: var(--nz-text-secondary);
+}
+
+.nz-snap__coords {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* ── Recent Feed Panel ──────────────────────────────────────── */
+
+.nz-feed__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nz-feed__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.nz-feed__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nz-feed__item--active {
+  background: rgba(125, 211, 252, 0.08);
+}
+
+.nz-feed__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nz-feed__dot--info { background: var(--nz-info); }
+.nz-feed__dot--watch { background: var(--nz-watch); }
+.nz-feed__dot--priority { background: var(--nz-priority); }
+.nz-feed__dot--critical { background: var(--nz-critical); }
+
+.nz-feed__mag {
+  font-family: var(--nz-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.nz-feed__place {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nz-feed__time {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  flex-shrink: 0;
+}
+
+.nz-feed__empty {
+  font-size: 11px;
+  color: var(--nz-text-muted);
+  padding: 8px 0;
+}
+
+/* ── Bottom Bar Content ─────────────────────────────────────── */
+
+.nz-bottom-bar__info {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.nz-bottom-bar__zoom {
+  color: var(--nz-text-secondary);
+}
+
+.nz-bottom-bar__tier {
+  color: var(--nz-info);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+.nz-bottom-bar__coords {
+  color: var(--nz-text-muted);
+}
+
+.nz-bottom-bar__fps {
+  margin-left: auto;
+  color: var(--nz-text-muted);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  :root {
+    --nz-rail-width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .nz-rail--right {
+    display: none;
+  }
+
+  .nz-rail--left {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: auto;
+    bottom: calc(var(--nz-bottom-bar-height) + 8px);
+    max-height: 40vh;
+  }
+}

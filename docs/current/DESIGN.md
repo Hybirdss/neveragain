@@ -259,12 +259,35 @@ Text muted:         #475569
 - No decorative display fonts
 - Japanese-first, tight tracking on large type
 
+### Visual Hierarchy — 3 Layers
+
+Every screen has exactly 3 visual layers. This is non-negotiable.
+
+**A. Background Layer (world-building)**
+- Dark basemap, coastlines, admin boundaries, city labels
+- Exists but never dominates; barely visible
+- Never the star of the screen
+
+**B. Event Layer (what is happening)**
+- Earthquake dots, P/S-wave propagation rings, intensity field
+- THIS is the star of the screen
+- Time-based animation: danger spreads, not just painted
+- P-wave: thin cyan ring expanding at 6 km/s
+- S-wave: thick amber ring expanding at 3.5 km/s
+- Intensity: ink-in-water spread, not static heatmap
+
+**C. Operations Layer (what to do about it)**
+- Asset markers, priority highlights, corridor stress
+- THIS is the conclusion of the screen
+- Always answers: "what do I check first?"
+
 ### Motion
 
 - Still by default
 - Motion only when meaning changes
-- Allowed: impact field expansion, wave propagation, severity illumination, replay scrub, scenario recompute
-- Forbidden: decorative pulses, background drift, spring animations
+- Allowed: wave propagation, intensity spread, severity pulse, replay scrub, scenario recompute
+- Forbidden: decorative pulses, background drift, spring animations, glow/bloom effects
+- The 3-second wave sequence IS the product moment (see Event Mode)
 
 ### Tone
 
@@ -281,35 +304,32 @@ NOT a chatbot. NOT a news anchor. NOT consumer reassurance copy.
 
 ```
 apps/globe/src/
-  core/                          Framework (city-agnostic)
-    mapEngine.ts                   MapLibre + Deck.gl init
-    layerRegistry.ts               DataLayer interface + registry
-    panelSystem.ts                 Slot-based panel manager
-    viewportManager.ts             Viewport-driven data loading
-    store.ts                       Central reactive state
-    theme.ts                       Dark map style + CSS tokens
+  core/                          Console framework
+    mapEngine.ts                   MapLibre + MapboxOverlay (interleaved)
+    viewportManager.ts             Zoom tier + camera state tracking
+    store.ts                       ConsoleStore (reactive pub/sub)
+    shell.ts                       Fullscreen map + floating panel DOM
+    bootstrap.ts                   Entry point: wires everything
+    console.css                    Design tokens + HUD panel styles
 
-  layers/                        Each is an independent plugin
-    buildings/index.ts             Tile3DLayer (PLATEAU)
-    earthquakes/index.ts           ScatterplotLayer
-    intensity/index.ts             HeatmapLayer (GMPE)
-    faults/index.ts                GeoJsonLayer
-    ais/index.ts                   ScatterplotLayer (ships)
-    rail/index.ts                  PathLayer + positions
-    power/index.ts                 PathLayer + substations
-    hazard/index.ts                J-SHIS tiles
+  layers/                        deck.gl layer factories
+    earthquakeLayer.ts             ScatterplotLayer + pulse animation
+    waveLayer.ts                   P/S-wave propagation rings
+    intensityLayer.ts              HeatmapLayer (GMPE)
+    faultLayer.ts                  GeoJsonLayer (active faults)
+    aisLayer.ts                    ScatterplotLayer (ships)
+    railLayer.ts                   PathLayer + positions
+    layerCompositor.ts             Orchestrator + animation loop
 
-  panels/                        Each is an independent module
-    systemBar.ts
-    eventSnapshot.ts
-    assetExposure.ts
-    checkTheseNow.ts
-    analystNote.ts
-    replayRail.ts
-    layerControl.ts
+  panels/                        HUD-style floating panels
+    eventSnapshot.ts               Current situation at a glance
+    recentFeed.ts                  Compact earthquake list
+    checkTheseNow.ts               Priority action queue
+    assetExposure.ts               Asset severity display
 
-  ops/                           Existing ops domain (keep + expand)
-  engine/                        Existing GMPE engine (keep)
+  ops/                           Operational domain (keep + expand)
+  engine/                        GMPE engine (keep as-is)
+  namazue/                       Legacy service page + lab workbench
 ```
 
 ### Layer Plugin Interface
@@ -347,15 +367,24 @@ interface PanelModule {
 
 ---
 
-## Build Phases
+## Build Phases (Frontend)
 
 | Phase | Scope | Deliverable |
 |-------|-------|------------|
-| P0 | Core framework | mapEngine, layerRegistry, panelSystem, viewportManager, store |
-| P1 | Base layers | Dark map + earthquakes + intensity + faults + ops panels |
-| P2 | Buildings | PLATEAU Tile3DLayer, 34 cities, viewport-based loading |
-| P3 | Infrastructure | AIS ships + rail network + power grid |
-| P4 | Interaction | Replay rail + scenario shift + building color response |
+| P0 | Core runtime | mapEngine + MapboxOverlay, viewportManager, consoleStore, shell |
+| P1 | Wave + dots | Earthquake ScatterplotLayer, P/S-wave ring animation, pulse |
+| P2 | HUD panels | Event snapshot, recent feed, system bar, bottom bar info |
+| P3 | Intensity | HeatmapLayer from GMPE, ink-in-water spread animation |
+| P4 | Faults + hazard | GeoJsonLayer for active faults, J-SHIS hazard tiles |
+| P5 | PLATEAU spike | Tile3DLayer risk validation: load/memory/z-order/color |
+| P6 | AIS ships | ScatterplotLayer real-time via AISstream WebSocket |
+| P7 | Rail network | PathLayer + ODPT positions, corridor stress view |
+| P8 | Ops panels | Check These Now, asset exposure, action queue |
+| P9 | Replay + scenario | Timeline scrub, scenario shift, split comparison |
+| P10 | Performance | Stable data refs, updateTriggers, picking policy, FPS gate |
+
+Build order note: P5 (PLATEAU) is a spike, not a commitment. If Tile3DLayer
+proves too heavy, buildings become city-tier progressive enhancement only.
 
 ---
 
@@ -365,7 +394,10 @@ interface PanelModule {
 - Chatbot-first workflow
 - Consumer mobile app
 - Agency-specific workflow engines
-- Cinematic over-design
+- Cinematic over-design (glow, bloom, neon, spring physics)
+- All layers visible simultaneously
+- Dashboard-card layout (this is a HUD, not a dashboard)
+- 3D buildings as default (city-tier only, progressive enhancement)
 
 ## Success Criteria
 

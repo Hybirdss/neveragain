@@ -10,8 +10,17 @@ async function start(): Promise<void> {
     return;
   }
 
-  const { bootstrapNamazueApp } = await import('./namazue/app');
-  bootstrapNamazueApp(route);
+  if (route === 'lab') {
+    const { bootstrapNamazueApp } = await import('./namazue/app');
+    bootstrapNamazueApp(route);
+    return;
+  }
+
+  // Default: new spatial console
+  const app = document.getElementById('app');
+  if (!app) throw new Error('Missing #app root');
+  const { bootstrapConsole } = await import('./core/bootstrap');
+  await bootstrapConsole(app);
 }
 
 start().catch((error) => {

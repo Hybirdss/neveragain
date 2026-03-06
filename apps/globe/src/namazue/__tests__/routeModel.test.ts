@@ -23,6 +23,7 @@ describe('LAB_TAB_IDS', () => {
   it('keeps the approved workbench tab order stable', () => {
     expect(LAB_TAB_IDS).toEqual([
       'console',
+      'design',
       'states',
       'components',
       'architecture',
