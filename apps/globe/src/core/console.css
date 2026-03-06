@@ -546,6 +546,114 @@
   50% { opacity: 1; }
 }
 
+.nz-feed__cal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  margin-left: 2px;
+}
+
+.nz-feed__cal-btn svg {
+  display: block;
+}
+
+.nz-feed__range-tag {
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--nz-text-muted);
+  margin-left: auto;
+}
+
+/* ── Custom Range Picker ──────────────────────────────────── */
+
+.nz-feed__range-picker {
+  padding: 6px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nz-feed__range-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nz-feed__range-label {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--nz-text-muted);
+  width: 32px;
+  flex-shrink: 0;
+}
+
+.nz-feed__range-input {
+  flex: 1;
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--nz-panel-border);
+  background: rgba(12, 17, 24, 0.6);
+  color: var(--nz-text-primary);
+  color-scheme: dark;
+  outline: none;
+}
+
+.nz-feed__range-input:focus {
+  border-color: var(--nz-info);
+}
+
+.nz-feed__range-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.nz-feed__range-hint {
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  color: var(--nz-text-muted);
+  flex: 1;
+}
+
+.nz-feed__range-hint--error {
+  color: var(--nz-critical);
+}
+
+.nz-feed__range-apply,
+.nz-feed__range-clear {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--nz-panel-border);
+  background: transparent;
+  color: var(--nz-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nz-feed__range-apply:hover {
+  border-color: var(--nz-info);
+  color: var(--nz-info);
+}
+
+.nz-feed__range-apply:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nz-feed__range-clear:hover {
+  border-color: var(--nz-text-secondary);
+  color: var(--nz-text-primary);
+}
+
 /* ── Bottom Bar Content ─────────────────────────────────────── */
 
 .nz-bottom-bar__info {
