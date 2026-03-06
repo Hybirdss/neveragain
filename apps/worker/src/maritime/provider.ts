@@ -1,4 +1,4 @@
-import { buildSyntheticMaritimeSnapshot, getAisCoverageProfile, type AisCoverageProfileId, type Vessel, type VesselType } from '@namazue/db';
+import { getAisCoverageProfile, type AisCoverageProfileId, type Vessel, type VesselType } from '@namazue/db';
 import type { MaritimeFallbackReason, MaritimeProviderDiagnostics, MaritimeSnapshotProvider } from './service.ts';
 
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
@@ -71,7 +71,7 @@ export function createMaritimeSnapshotProvider(
     provider: 'live',
     async loadProfileSnapshot(profileId: AisCoverageProfileId, now: number) {
       const liveSnapshots: Array<Awaited<ReturnType<typeof collectAisstreamSnapshot>> | Awaited<ReturnType<typeof collectAishubSnapshot>>> = [];
-      let preferredFallback: ReturnType<typeof buildSyntheticFallback> | null = null;
+      let preferredFallback: ReturnType<typeof buildEmptyFallback> | null = null;
 
       if (aishubUsername && fetchImpl) {
         try {
@@ -85,20 +85,20 @@ export function createMaritimeSnapshotProvider(
           if (snapshot.totalTracked > 0) {
             liveSnapshots.push(snapshot);
           } else if (!preferredFallback) {
-            preferredFallback = buildSyntheticFallback(
+            preferredFallback = buildEmptyFallback(
               profileId,
               now,
               'no-live-data',
               {
                 ...snapshot.diagnostics,
-                sourceMix: ['synthetic'],
+                sourceMix: [],
               },
             );
           }
         } catch (error) {
           console.warn('[maritime] AISHub provider failed, continuing without AISHub snapshot:', error);
           if (!preferredFallback) {
-            preferredFallback = buildSyntheticFallback(
+            preferredFallback = buildEmptyFallback(
               profileId,
               now,
               'upstream-error',
@@ -107,7 +107,7 @@ export function createMaritimeSnapshotProvider(
                 upstreamPhase: 'upstream-error',
                 messagesReceived: 0,
                 transport: 'http-poll',
-                sourceMix: ['synthetic'],
+                sourceMix: [],
                 lastError: error instanceof Error ? error.message : String(error),
               },
             );
@@ -129,23 +129,23 @@ export function createMaritimeSnapshotProvider(
           if (snapshot.totalTracked > 0) {
             liveSnapshots.push(snapshot);
           } else if (!preferredFallback) {
-            preferredFallback = buildSyntheticFallback(
+            preferredFallback = buildEmptyFallback(
               profileId,
               now,
               'no-live-data',
               {
                 ...snapshot.diagnostics,
-                sourceMix: ['synthetic'],
+                sourceMix: [],
               },
             );
           }
         } catch (error) {
-          console.warn('[maritime] AISstream provider failed, falling back to synthetic snapshot:', error);
+          console.warn('[maritime] AISstream provider failed, returning empty maritime snapshot:', error);
           const errorMessage = error instanceof Error ? error.message : String(error);
           const fallbackReason = errorMessage === 'AISstream websocket connect timeout'
             ? 'connect-timeout'
             : 'upstream-error';
-          preferredFallback = buildSyntheticFallback(
+          preferredFallback = buildEmptyFallback(
             profileId,
             now,
             fallbackReason,
@@ -161,7 +161,7 @@ export function createMaritimeSnapshotProvider(
         return mergeLiveSnapshots(profileId, now, liveSnapshots);
       }
 
-      return preferredFallback ?? buildSyntheticFallback(profileId, now, 'not-configured');
+      return preferredFallback ?? buildEmptyFallback(profileId, now, 'not-configured');
     },
   };
 }
@@ -170,7 +170,7 @@ function createSyntheticProvider(fallbackReason: MaritimeFallbackReason): Mariti
   return {
     provider: 'synthetic',
     async loadProfileSnapshot(profileId: AisCoverageProfileId, now: number) {
-      return buildSyntheticFallback(profileId, now, fallbackReason);
+      return buildEmptyFallback(profileId, now, fallbackReason);
     },
   };
 }
@@ -440,14 +440,19 @@ function mergeLiveSnapshots(
   };
 }
 
-function buildSyntheticFallback(
+function buildEmptyFallback(
   profileId: AisCoverageProfileId,
   now: number,
   fallbackReason: MaritimeFallbackReason,
   diagnostics?: MaritimeProviderDiagnostics,
 ) {
+  const profile = getAisCoverageProfile(profileId);
   return {
-    ...buildSyntheticMaritimeSnapshot({ profileId, now }),
+    source: 'synthetic' as const,
+    profile,
+    generatedAt: now,
+    totalTracked: 0,
+    vessels: [],
     fallbackReason,
     diagnostics: diagnostics ?? buildFallbackDiagnostics(fallbackReason),
   };
@@ -463,7 +468,7 @@ function buildFallbackDiagnostics(
       upstreamPhase: 'not-configured',
       messagesReceived: 0,
       transport: 'websocket-constructor',
-      sourceMix: ['synthetic'],
+      sourceMix: [],
       socketOpened: false,
       subscriptionSent: false,
     };
@@ -479,7 +484,7 @@ function buildFallbackDiagnostics(
       : fallbackReason,
     messagesReceived: 0,
     transport: 'websocket-constructor',
-    sourceMix: ['synthetic'],
+    sourceMix: [],
     socketOpened: false,
     subscriptionSent: false,
     closeCode,

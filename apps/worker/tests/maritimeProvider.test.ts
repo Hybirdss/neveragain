@@ -12,8 +12,10 @@ test('maritime provider falls back to synthetic snapshots when no AIS key is con
   assert.equal(snapshot.diagnostics.attemptedLive, false);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'not-configured');
   assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
+  assert.deepEqual(snapshot.diagnostics.sourceMix, []);
   assert.equal(snapshot.profile.id, 'japan-wide');
-  assert.ok(snapshot.totalTracked > 122);
+  assert.equal(snapshot.totalTracked, 0);
+  assert.deepEqual(snapshot.vessels, []);
 });
 
 test('maritime provider can build a live snapshot from AISHub polling when configured', async () => {
@@ -298,8 +300,10 @@ test('maritime provider falls back to synthetic snapshots when AISstream fails',
   assert.equal(snapshot.diagnostics.attemptedLive, true);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'upstream-error');
   assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
+  assert.deepEqual(snapshot.diagnostics.sourceMix, []);
   assert.match(snapshot.diagnostics.lastError ?? '', /socket unavailable/);
-  assert.ok(snapshot.totalTracked > 122);
+  assert.equal(snapshot.totalTracked, 0);
+  assert.deepEqual(snapshot.vessels, []);
 });
 
 test('maritime provider falls back when AISstream never opens', async () => {
@@ -321,7 +325,9 @@ test('maritime provider falls back when AISstream never opens', async () => {
   assert.equal(snapshot.diagnostics.upstreamPhase, 'connect-timeout');
   assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
   assert.equal(snapshot.diagnostics.messagesReceived, 0);
-  assert.ok(snapshot.totalTracked > 122);
+  assert.deepEqual(snapshot.diagnostics.sourceMix, []);
+  assert.equal(snapshot.totalTracked, 0);
+  assert.deepEqual(snapshot.vessels, []);
 });
 
 test('maritime provider marks sockets that close before open as upstream handshake failures', async () => {
@@ -353,10 +359,13 @@ test('maritime provider marks sockets that close before open as upstream handsha
   assert.equal(snapshot.diagnostics.attemptedLive, true);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'closed-before-open');
   assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
+  assert.deepEqual(snapshot.diagnostics.sourceMix, []);
   assert.equal(snapshot.diagnostics.socketOpened, false);
   assert.equal(snapshot.diagnostics.subscriptionSent, false);
   assert.equal(snapshot.diagnostics.closeCode, 1006);
   assert.equal(snapshot.diagnostics.closeReason, 'upstream closed');
+  assert.equal(snapshot.totalTracked, 0);
+  assert.deepEqual(snapshot.vessels, []);
 });
 
 class FakeWebSocket {
