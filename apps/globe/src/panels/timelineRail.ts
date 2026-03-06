@@ -7,8 +7,9 @@
  *
  * Interactions:
  *   - Click dot to select event
- *   - Scroll wheel to cycle range (24h ↔ 7d)
+ *   - Scroll wheel to navigate between events (up=older, down=newer)
  *   - 24H / 7D buttons to switch range
+ *   - T key to cycle range
  *
  * This is the temporal dimension that transforms a map into an
  * operations console. Operators can see how the situation evolved.
@@ -104,13 +105,17 @@ function renderTimeline(
     const pct = ((e.time - start) / duration) * 100;
     const r = dotRadius(e.magnitude);
     const color = severityColor(e.magnitude);
-    const selected = e.id === selectedId ? ' nz-tl__dot--selected' : '';
+    const isSelected = e.id === selectedId;
+    const selected = isSelected ? ' nz-tl__dot--selected' : '';
+    const label = isSelected
+      ? `<span class="nz-tl__dot-label">M${e.magnitude.toFixed(1)} · ${e.place.text}</span>`
+      : '';
     return `<div
       class="nz-tl__dot${selected}"
       data-event-id="${e.id}"
       style="left:${pct.toFixed(2)}%;width:${r * 2}px;height:${r * 2}px;background:${color}"
       title="M${e.magnitude.toFixed(1)} · ${e.place.text}"
-    ></div>`;
+    >${label}</div>`;
   }).join('');
 
   const timeLabels = generateTimeLabels(now, range);
@@ -184,9 +189,9 @@ export function mountTimelineRail(
     });
   }
 
-  // Wheel scroll to cycle range
+  // Wheel scroll navigates between events (down=newer, up=older)
+  let wheelCooldown = false;
   function handleWheel(e: WheelEvent): void {
-    // Only handle when hovering the timeline
     const tl = container.querySelector('.nz-tl');
     if (!tl) return;
 
@@ -195,14 +200,29 @@ export function mountTimelineRail(
         e.clientY < rect.top || e.clientY > rect.bottom) return;
 
     e.preventDefault();
+    if (wheelCooldown) return;
+    wheelCooldown = true;
+    setTimeout(() => { wheelCooldown = false; }, 120);
 
-    const idx = RANGES.indexOf(range);
-    if (e.deltaY > 0 && idx < RANGES.length - 1) {
-      range = RANGES[idx + 1];
-      render();
-    } else if (e.deltaY < 0 && idx > 0) {
-      range = RANGES[idx - 1];
-      render();
+    const events = consoleStore.get('events');
+    if (events.length === 0) return;
+
+    const sorted = [...events].sort((a, b) => b.time - a.time);
+    const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
+
+    if (!selectedId) {
+      // Nothing selected — pick the most recent
+      onEventSelect(sorted[0]);
+      return;
+    }
+
+    const idx = sorted.findIndex((ev) => ev.id === selectedId);
+    if (e.deltaY > 0) {
+      // Scroll down → newer (toward index 0)
+      if (idx > 0) onEventSelect(sorted[idx - 1]);
+    } else {
+      // Scroll up → older (toward higher index)
+      if (idx < sorted.length - 1) onEventSelect(sorted[idx + 1]);
     }
   }
 

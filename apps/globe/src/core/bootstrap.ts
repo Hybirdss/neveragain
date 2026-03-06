@@ -141,7 +141,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   setLoadingProgress(30, 'Mounting panels…');
   const snapContainer = document.createElement('div');
   shell.leftRail.appendChild(snapContainer);
-  const disposeSnapshot = mountEventSnapshot(snapContainer);
+  const disposeSnapshot = mountEventSnapshot(snapContainer, () => deselectEvent());
 
   const feedContainer = document.createElement('div');
   shell.leftRail.appendChild(feedContainer);

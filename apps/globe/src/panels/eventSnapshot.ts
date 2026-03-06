@@ -141,6 +141,7 @@ function renderEventState(
       <div class="nz-panel__header">
         <span class="nz-panel__title">Event Truth</span>
         <span class="nz-snap__status nz-snap__status--${sev}">${sevLabel}</span>
+        <button class="nz-snap__dismiss" id="nz-snap-dismiss" title="Deselect (Esc)">×</button>
       </div>
       <div class="nz-snap__headline">${event.place.text}</div>
       <div class="nz-snap__metrics">
@@ -185,7 +186,10 @@ export function renderEventSnapshotMarkup(input: {
 
 // ── Mount / Bind ───────────────────────────────────────────────
 
-export function mountEventSnapshot(container: HTMLElement): () => void {
+export function mountEventSnapshot(
+  container: HTMLElement,
+  onDeselect?: () => void,
+): () => void {
   function render(): void {
     const selected = consoleStore.get('selectedEvent');
     const mode = consoleStore.get('mode');
@@ -195,6 +199,12 @@ export function mountEventSnapshot(container: HTMLElement): () => void {
       selectedEvent: selected,
       readModel,
     });
+
+    // Bind deselect button
+    if (onDeselect) {
+      const btn = container.querySelector('#nz-snap-dismiss');
+      if (btn) btn.addEventListener('click', onDeselect);
+    }
   }
 
   let renderScheduled = false;

@@ -257,6 +257,24 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.nz-snap__dismiss {
+  background: none;
+  border: none;
+  color: var(--nz-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.nz-snap__dismiss:hover {
+  color: var(--nz-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .nz-snap__status--calm { color: var(--nz-calm); }
 .nz-snap__status--info { color: var(--nz-info); }
 .nz-snap__status--watch { color: var(--nz-watch); }
@@ -319,6 +337,31 @@
   letter-spacing: 0.02em;
 }
 
+.nz-snap__health {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border-left: 3px solid var(--nz-watch);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.nz-snap__health--degraded {
+  border-left-color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.nz-snap__health-headline {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  margin-bottom: 2px;
+}
+
+.nz-snap__health-detail {
+  font-size: 10px;
+  color: var(--nz-text-secondary);
+}
+
 /* ── Recent Feed Panel ──────────────────────────────────────── */
 
 .nz-feed__count {
@@ -331,6 +374,10 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 .nz-feed__item {
@@ -386,6 +433,27 @@
   font-size: 10px;
   color: var(--nz-text-muted);
   flex-shrink: 0;
+}
+
+.nz-feed__depth {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  flex-shrink: 0;
+}
+
+.nz-feed__tsunami {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--nz-critical);
+  margin-left: 4px;
+}
+
+.nz-feed__more {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  text-align: center;
+  padding: 6px 0 2px;
 }
 
 .nz-feed__empty {
@@ -833,6 +901,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 .nz-check__item {
@@ -1470,6 +1542,29 @@
   transform: translate(-50%, -50%) scale(1.6);
   box-shadow: 0 0 12px currentColor;
   z-index: 3;
+  animation: nz-tl-pulse 2s ease-in-out infinite;
+}
+
+@keyframes nz-tl-pulse {
+  0%, 100% { box-shadow: 0 0 12px currentColor; }
+  50% { box-shadow: 0 0 20px currentColor, 0 0 4px currentColor; }
+}
+
+.nz-tl__dot-label {
+  position: absolute;
+  bottom: calc(50% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  background: rgba(9, 13, 19, 0.88);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--nz-panel-border);
 }
 
 .nz-tl__now {

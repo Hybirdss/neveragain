@@ -1,12 +1,15 @@
 /**
  * Recent Feed Panel — Left rail, below event snapshot.
  *
- * Compact list of recent earthquakes.
+ * Scrollable list of recent earthquakes (up to 30).
  * Click to select -> map flies to event + wave animation triggers.
+ * Selected item auto-scrolls into view.
  */
 
 import { consoleStore } from '../core/store';
 import type { EarthquakeEvent } from '../types';
+
+const MAX_FEED_ITEMS = 30;
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -23,19 +26,32 @@ function severityDot(mag: number): string {
   return 'info';
 }
 
+function depthLabel(km: number): string {
+  if (km <= 30) return 'shallow';
+  if (km <= 70) return `${Math.round(km)}km`;
+  return 'deep';
+}
+
 function renderFeed(events: EarthquakeEvent[], selectedId: string | null): string {
-  const items = events.slice(0, 8).map((e) => {
+  const visible = events.slice(0, MAX_FEED_ITEMS);
+  const items = visible.map((e) => {
     const active = e.id === selectedId ? ' nz-feed__item--active' : '';
     const sev = severityDot(e.magnitude);
+    const tsunami = e.tsunami ? '<span class="nz-feed__tsunami">津波</span>' : '';
     return `
       <div class="nz-feed__item${active}" data-event-id="${e.id}">
         <span class="nz-feed__dot nz-feed__dot--${sev}"></span>
         <span class="nz-feed__mag">M${e.magnitude.toFixed(1)}</span>
-        <span class="nz-feed__place">${e.place.text}</span>
+        <span class="nz-feed__place">${e.place.text}${tsunami}</span>
+        <span class="nz-feed__depth">${depthLabel(e.depth_km)}</span>
         <span class="nz-feed__time">${formatTimeAgo(e.time)}</span>
       </div>
     `;
   }).join('');
+
+  const moreLabel = events.length > MAX_FEED_ITEMS
+    ? `<div class="nz-feed__more">${events.length - MAX_FEED_ITEMS} more not shown</div>`
+    : '';
 
   return `
     <div class="nz-panel" id="nz-recent-feed">
@@ -45,6 +61,7 @@ function renderFeed(events: EarthquakeEvent[], selectedId: string | null): strin
       </div>
       <div class="nz-feed__list">
         ${items || '<div class="nz-feed__empty">No events in range</div>'}
+        ${moreLabel}
       </div>
     </div>
   `;
@@ -67,6 +84,12 @@ export function mountRecentFeed(
         if (event) onSelect(event);
       });
     });
+
+    // Scroll selected item into view
+    const activeEl = container.querySelector('.nz-feed__item--active');
+    if (activeEl) {
+      activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
 
   let renderScheduled = false;
