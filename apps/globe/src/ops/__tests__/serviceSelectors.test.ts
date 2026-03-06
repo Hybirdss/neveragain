@@ -19,9 +19,12 @@ function createState(): AppState {
     },
     serviceReadModel: {
       currentEvent: null,
-      opsSnapshot: null,
-      assetExposureSummary: [],
-      priorityQueue: [],
+      viewport: null,
+      nationalSnapshot: null,
+      nationalExposureSummary: [],
+      visibleExposureSummary: [],
+      nationalPriorityQueue: [],
+      visiblePriorityQueue: [],
       freshnessStatus: {
         source: 'server',
         state: 'fresh',
@@ -97,6 +100,7 @@ describe('selectServiceBackendState', () => {
     const selected = selectServiceBackendState(createState());
 
     expect(selected.readModel.freshnessStatus.state).toBe('fresh');
+    expect(selected.readModel.visibleExposureSummary).toHaveLength(0);
     expect(selected.realtimeStatus.source).toBe('server');
     expect(selected.replayMilestones[0]?.kind).toBe('event_locked');
     expect(selected.scenarioDelta?.changeSummary[0]).toContain('+0.4');

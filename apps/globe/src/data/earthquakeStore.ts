@@ -17,6 +17,12 @@
  */
 
 import type { EarthquakeEvent } from '../types';
+import {
+  buildCanonicalEventEnvelope,
+  pickPreferredEventEnvelope,
+  type CanonicalEventEnvelope,
+  type CanonicalEventSource,
+} from './eventEnvelope';
 
 export type EarthquakeFilter = {
   minMagnitude?: number;
@@ -29,13 +35,19 @@ type ChangeListener = (events: ReadonlyArray<EarthquakeEvent>) => void;
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+export interface EarthquakeUpsertOptions {
+  source?: CanonicalEventSource;
+  issuedAt?: number;
+  receivedAt?: number;
+}
+
 class EarthquakeStore {
-  private byId = new Map<string, EarthquakeEvent>();
+  private byId = new Map<string, CanonicalEventEnvelope>();
   private sortedCache: EarthquakeEvent[] | null = null;
   private listeners = new Set<ChangeListener>();
 
   /** Insert or update earthquakes. Deduplicates by ID. */
-  upsert(events: EarthquakeEvent[]): { added: number; updated: number } {
+  upsert(events: EarthquakeEvent[], options: EarthquakeUpsertOptions = {}): { added: number; updated: number } {
     let added = 0;
     let updated = 0;
 
@@ -48,15 +60,24 @@ class EarthquakeStore {
         continue;
       }
 
+      const incoming = buildCanonicalEventEnvelope({
+        event,
+        source: options.source ?? 'server',
+        issuedAt: options.issuedAt,
+        receivedAt: options.receivedAt,
+      });
       const existing = this.byId.get(event.id);
       if (existing) {
-        // Update only if data is newer or different
-        if (event.time >= existing.time || event.magnitude !== existing.magnitude) {
-          this.byId.set(event.id, event);
+        const preferred = pickPreferredEventEnvelope(existing, incoming);
+        if (preferred !== existing) {
+          this.byId.set(event.id, {
+            ...preferred,
+            supersedes: existing.revision,
+          });
           updated++;
         }
       } else {
-        this.byId.set(event.id, event);
+        this.byId.set(event.id, incoming);
         added++;
       }
     }
@@ -71,6 +92,11 @@ class EarthquakeStore {
 
   /** Get a single earthquake by ID. */
   get(id: string): EarthquakeEvent | undefined {
+    return this.byId.get(id)?.event;
+  }
+
+  /** Get the canonical envelope for a single earthquake. */
+  getEnvelope(id: string): CanonicalEventEnvelope | undefined {
     return this.byId.get(id);
   }
 
@@ -78,9 +104,16 @@ class EarthquakeStore {
   getAll(): ReadonlyArray<EarthquakeEvent> {
     if (!this.sortedCache) {
       this.sortedCache = Array.from(this.byId.values())
-        .sort((a, b) => b.time - a.time);
+        .sort((a, b) => b.event.time - a.event.time)
+        .map((entry) => entry.event);
     }
     return this.sortedCache;
+  }
+
+  /** Get all canonical envelopes, sorted by observed time descending. */
+  getAllEnvelopes(): ReadonlyArray<CanonicalEventEnvelope> {
+    return Array.from(this.byId.values())
+      .sort((a, b) => b.event.time - a.event.time);
   }
 
   /** Get earthquakes from the last N hours, sorted newest first. */
@@ -136,7 +169,7 @@ class EarthquakeStore {
     let pruned = 0;
 
     for (const [id, event] of this.byId) {
-      if (event.time < cutoff) {
+      if (event.event.time < cutoff) {
         this.byId.delete(id);
         pruned++;
       }

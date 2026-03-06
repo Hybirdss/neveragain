@@ -1,5 +1,5 @@
 import type { EarthquakeEvent, PrefectureImpact, TsunamiAssessment } from '../types';
-import type { OpsAssetExposure, OpsPriority } from './types';
+import type { OpsAssetExposure, OpsPriority, ViewportState } from './types';
 
 export type RealtimeSource = 'server' | 'usgs' | 'fallback';
 export type RealtimeState = 'fresh' | 'stale' | 'degraded';
@@ -22,9 +22,12 @@ export interface OpsSnapshot {
 
 export interface ServiceReadModel {
   currentEvent: EarthquakeEvent | null;
-  opsSnapshot: OpsSnapshot | null;
-  assetExposureSummary: OpsAssetExposure[];
-  priorityQueue: OpsPriority[];
+  viewport: ViewportState | null;
+  nationalSnapshot: OpsSnapshot | null;
+  nationalExposureSummary: OpsAssetExposure[];
+  visibleExposureSummary: OpsAssetExposure[];
+  nationalPriorityQueue: OpsPriority[];
+  visiblePriorityQueue: OpsPriority[];
   freshnessStatus: RealtimeStatus;
 }
 

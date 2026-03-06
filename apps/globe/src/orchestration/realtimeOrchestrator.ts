@@ -87,7 +87,11 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[], meta: RealtimePollMet
   if (store.get('mode') !== 'realtime') return;
 
   // Delegate dedup + storage to earthquakeStore
-  earthquakeStore.upsert(newEvents);
+  earthquakeStore.upsert(newEvents, {
+    source: meta.source === 'fallback' ? 'usgs' : meta.source,
+    issuedAt: meta.updatedAt,
+    receivedAt: Date.now(),
+  });
   earthquakeStore.prune();
 
   // Read all events from store (sorted newest-first by default)

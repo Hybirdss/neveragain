@@ -4,14 +4,16 @@ import type {
   TsunamiAssessment,
 } from '../types';
 import type { OpsSnapshot, RealtimeStatus, ServiceReadModel } from './readModelTypes';
-import type { OpsAssetExposure, OpsPriority } from './types';
+import type { OpsAssetExposure, OpsPriority, ViewportState } from './types';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
   tsunamiAssessment: TsunamiAssessment | null;
   impactResults: PrefectureImpact[] | null;
+  viewport?: ViewportState | null;
   exposures: OpsAssetExposure[];
   priorities: OpsPriority[];
+  visibleAssetIds?: string[];
   freshnessStatus: RealtimeStatus;
 }
 
@@ -34,12 +36,42 @@ function buildOpsSnapshot(input: BuildServiceReadModelInput): OpsSnapshot | null
   };
 }
 
+function filterVisibleExposures(
+  exposures: OpsAssetExposure[],
+  visibleAssetIds?: string[],
+): OpsAssetExposure[] {
+  if (!visibleAssetIds) {
+    return exposures;
+  }
+
+  const visible = new Set(visibleAssetIds);
+  return exposures.filter((entry) => visible.has(entry.assetId));
+}
+
+function filterVisiblePriorities(
+  priorities: OpsPriority[],
+  visibleAssetIds?: string[],
+): OpsPriority[] {
+  if (!visibleAssetIds) {
+    return priorities;
+  }
+
+  const visible = new Set(visibleAssetIds);
+  return priorities.filter((entry) => entry.assetId !== null && visible.has(entry.assetId));
+}
+
 export function buildServiceReadModel(input: BuildServiceReadModelInput): ServiceReadModel {
+  const nationalExposureSummary = input.exposures;
+  const nationalPriorityQueue = input.priorities;
+
   return {
     currentEvent: input.selectedEvent,
-    opsSnapshot: buildOpsSnapshot(input),
-    assetExposureSummary: input.exposures,
-    priorityQueue: input.priorities,
+    viewport: input.viewport ?? null,
+    nationalSnapshot: buildOpsSnapshot(input),
+    nationalExposureSummary,
+    visibleExposureSummary: filterVisibleExposures(input.exposures, input.visibleAssetIds),
+    nationalPriorityQueue,
+    visiblePriorityQueue: filterVisiblePriorities(input.priorities, input.visibleAssetIds),
     freshnessStatus: input.freshnessStatus,
   };
 }
