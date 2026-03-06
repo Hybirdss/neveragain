@@ -346,15 +346,16 @@
   gap: 6px;
   padding: 5px 8px;
   margin: -12px -12px 8px -12px;
-  background: rgba(148, 163, 184, 0.08);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.25);
   border-radius: 10px 10px 0 0;
 }
 
 .nz-snap__scenario-icon {
   font-size: 12px;
   line-height: 1;
-  opacity: 0.5;
+  color: #fbbf24;
+  opacity: 0.7;
 }
 
 .nz-snap__scenario-label {
@@ -362,11 +363,32 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--nz-text-secondary);
+  color: #fbbf24;
 }
 
 .nz-panel--scenario {
-  border-color: rgba(148, 163, 184, 0.25);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+/* ── Scenario Metrics (30yr probability) ─────────────────── */
+
+.nz-snap__metrics--scenario {
+  border-left: 2px solid rgba(251, 191, 36, 0.4);
+  padding-left: 8px;
+}
+
+.nz-snap__metric-value--scenario {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.nz-snap__source {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+  opacity: 0.7;
 }
 
 .nz-snap__health {
@@ -793,7 +815,7 @@
   font-size: 56px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: rgba(148, 163, 184, 0.04);
+  color: rgba(251, 191, 36, 0.04);
   white-space: nowrap;
   transform: rotate(-35deg);
   user-select: none;
@@ -834,8 +856,8 @@
   justify-content: center;
   gap: 8px;
   padding: 4px 16px;
-  background: rgba(30, 37, 48, 0.85);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(30, 28, 12, 0.9);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.25);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   font-family: var(--nz-font-mono);
@@ -849,21 +871,21 @@
 .nz-scenario-banner__icon {
   font-size: 12px;
   line-height: 1;
-  opacity: 0.6;
+  color: #fbbf24;
 }
 
 .nz-scenario-banner__text {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--nz-text-secondary);
+  color: #fbbf24;
 }
 
 .nz-scenario-banner__sub {
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--nz-text-muted);
+  color: rgba(251, 191, 36, 0.6);
 }
 
 /* ── Scenario Mode — panel tag injection ──────────────────── */
@@ -877,9 +899,9 @@
   padding: 1px 5px;
   margin-left: auto;
   border-radius: 2px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  color: var(--nz-text-muted);
-  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
 }
 
 /* ── Scenario Mode — system bar badge ─────────────────────── */
@@ -892,9 +914,9 @@
   letter-spacing: 0.06em;
   padding: 2px 7px;
   border-radius: 3px;
-  color: var(--nz-text-secondary);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(148, 163, 184, 0.08);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
 }
 
 .nz-console--scenario .nz-scenario-sysbar-badge {
@@ -924,9 +946,9 @@
 }
 
 .nz-scenario-btn--on {
-  border-color: var(--nz-text-secondary);
+  border-color: #fbbf24;
   color: #0a0e14;
-  background: var(--nz-text-secondary);
+  background: #fbbf24;
 }
 
 .nz-bottom-bar__sep {
@@ -1502,11 +1524,6 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.nz-fault__item--active {
-  background: rgba(239, 68, 68, 0.08);
-  border-left-color: var(--nz-critical);
-}
-
 .nz-fault__item-top {
   display: flex;
   align-items: center;
@@ -1552,17 +1569,84 @@
 
 .nz-fault__item--clickable:hover {
   background: rgba(251, 191, 36, 0.06);
-  border-left-color: var(--nz-priority);
+  border-left-color: #fbbf24;
 }
 
-.nz-fault__mode {
-  color: var(--nz-priority);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+.nz-fault__item--active {
+  background: rgba(251, 191, 36, 0.08);
+  border-left-color: #fbbf24;
 }
 
 .nz-fault__sep {
   opacity: 0.4;
+}
+
+/* ── Fault Catalog — Scenario Mode ──────────────────────── */
+
+.nz-panel--scenario-faults {
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.nz-fault__hint {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: rgba(251, 191, 36, 0.6);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.nz-fault__list--scenario {
+  max-height: 420px;
+}
+
+.nz-fault__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nz-fault__dot--info { background: var(--nz-info); }
+.nz-fault__dot--watch { background: var(--nz-watch); }
+.nz-fault__dot--priority { background: var(--nz-priority); }
+.nz-fault__dot--critical { background: var(--nz-critical); }
+
+.nz-fault__item-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 14px;
+  margin-top: 1px;
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+}
+
+.nz-fault__type-tag {
+  color: var(--nz-text-muted);
+  font-weight: 500;
+}
+
+.nz-fault__prob-value {
+  color: var(--nz-text-secondary);
+  font-weight: 600;
+}
+
+.nz-fault__prob-value.nz-fault__prob--high {
+  color: #fbbf24;
+}
+
+.nz-fault__prob-value.nz-fault__prob--mid {
+  color: #f59e0b;
+}
+
+.nz-fault__prob-value.nz-fault__prob--unknown {
+  color: var(--nz-text-muted);
+  font-style: italic;
+}
+
+.nz-fault__interval {
+  color: var(--nz-text-muted);
+  margin-left: auto;
 }
 
 /* ── Command Palette ───────────────────────────────────── */
@@ -2802,47 +2886,51 @@
 /* ── Intensity Legend ───────────────────────────────────────── */
 .nz-intensity-legend {
   position: absolute;
-  bottom: calc(var(--nz-bottom-bar-height) + 16px);
-  right: calc(var(--nz-rail-width) + 24px);
+  bottom: calc(var(--nz-bottom-bar-height) + 12px);
+  left: 16px;
   z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   background: var(--nz-panel-bg);
   backdrop-filter: blur(var(--nz-panel-blur));
   -webkit-backdrop-filter: blur(var(--nz-panel-blur));
   border: 1px solid var(--nz-panel-border);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  padding: 4px 8px;
   font-family: var(--nz-font-mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--nz-text-secondary);
   pointer-events: auto;
   animation: nz-panel-enter 0.3s ease-out;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.04);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
 
 .nz-intensity-legend__title {
-  font-size: 9px;
+  font-size: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--nz-text-muted);
-  margin-bottom: 6px;
+  margin-right: 4px;
+  white-space: nowrap;
 }
 
-.nz-intensity-legend__row {
+.nz-intensity-legend__chip {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 16px;
+  gap: 2px;
+  padding: 0 3px;
 }
 
 .nz-intensity-legend__swatch {
-  width: 18px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
 }
 
 .nz-intensity-legend__label {
-  font-size: 10px;
-  min-width: 20px;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .nz-intensity-legend[hidden] {

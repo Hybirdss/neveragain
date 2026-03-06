@@ -1,26 +1,16 @@
 /**
- * Fault Catalog Panel — Right rail, toggleable fault database.
+ * Fault Catalog Panel — Scenario mode HERP fault selector.
  *
- * Shows active faults visible in the current viewport.
- * Sorted by estimated Mw (highest risk first).
- * Scenario mode: click a fault → run scenario.
- * Normal mode: read-only info display.
+ * In scenario mode (S key): Shows ALL 22 HERP-evaluated faults as a selectable
+ * list, like the recent feed. Click a fault → run scenario.
+ *
+ * In normal mode: hidden by bootstrap (display:none on container).
  */
 
 import { consoleStore } from '../core/store';
-import { filterFaultsByZoom } from '../layers/faultLayer';
 import type { ActiveFault } from '../types';
 
 type FaultClickHandler = (fault: ActiveFault) => void;
-
-function faultTypeLabel(type: string): string {
-  switch (type) {
-    case 'crustal': return 'Crustal';
-    case 'interface': return 'Interface';
-    case 'intraslab': return 'Intraslab';
-    default: return type;
-  }
-}
 
 function riskClass(mw: number): string {
   if (mw >= 8.0) return 'critical';
@@ -29,72 +19,61 @@ function riskClass(mw: number): string {
   return 'info';
 }
 
-function filterByViewport(faults: ActiveFault[], bounds: number[]): ActiveFault[] {
-  const [west, south, east, north] = bounds;
-  return faults.filter((f) =>
-    f.segments.some(([lng, lat]) =>
-      lng >= west && lng <= east && lat >= south && lat <= north
-    )
-  );
+function faultTypeTag(type: string): string {
+  switch (type) {
+    case 'interface': return '海溝型';
+    case 'intraslab': return 'スラブ内';
+    case 'crustal': return '活断層';
+    default: return type;
+  }
 }
 
-function renderCatalog(
-  faults: ActiveFault[],
+function probColor(prob: string): string {
+  if (prob.includes('70') || prob.includes('80') || prob.includes('90')) return 'nz-fault__prob--high';
+  if (prob.includes('14') || prob.includes('30') || prob.includes('16')) return 'nz-fault__prob--mid';
+  if (prob.includes('未評価') || prob.includes('不明')) return 'nz-fault__prob--unknown';
+  return '';
+}
+
+function renderScenarioList(
+  allFaults: ActiveFault[],
   selectedEventId: string | null,
-  scenarioMode: boolean,
 ): string {
-  // In normal mode, only show M7.0+ to avoid clutter
-  const displayFaults = scenarioMode ? faults : faults.filter((f) => f.estimatedMw >= 7.0);
+  const sorted = [...allFaults].sort((a, b) => {
+    if (a.faultType === 'interface' && b.faultType !== 'interface') return -1;
+    if (b.faultType === 'interface' && a.faultType !== 'interface') return 1;
+    return b.estimatedMw - a.estimatedMw;
+  });
 
-  if (displayFaults.length === 0) {
-    return `
-      <div class="nz-panel nz-panel--collapsed" id="nz-fault-catalog">
-        <div class="nz-panel__header">
-          <span class="nz-panel__title">Active Faults</span>
-          <span class="nz-fault__count">${faults.length} in view</span>
-        </div>
-        <div class="nz-fault__empty">Zoom in to see smaller faults</div>
-      </div>
-    `;
-  }
-
-  const items = displayFaults.map((f) => {
+  const items = sorted.map((f) => {
     const risk = riskClass(f.estimatedMw);
     const isSelected = selectedEventId === `scenario-${f.id}`;
     const activeClass = isSelected ? ' nz-fault__item--active' : '';
-    const clickable = scenarioMode ? ' nz-fault__item--clickable' : '';
 
     return `
-      <div class="nz-fault__item${activeClass}${clickable}" data-fault-id="${f.id}">
+      <div class="nz-fault__item nz-fault__item--clickable${activeClass}" data-fault-id="${f.id}">
         <div class="nz-fault__item-top">
+          <span class="nz-fault__dot nz-fault__dot--${risk}"></span>
           <span class="nz-fault__mw nz-fault__mw--${risk}">M${f.estimatedMw.toFixed(1)}</span>
           <span class="nz-fault__name">${f.name}</span>
         </div>
-        <div class="nz-fault__item-meta">
-          <span class="nz-fault__type">${faultTypeLabel(f.faultType)}</span>
-          <span class="nz-fault__sep">·</span>
-          <span class="nz-fault__depth">${f.depthKm}km</span>
-          <span class="nz-fault__sep">·</span>
-          <span class="nz-fault__length">${Math.round(f.lengthKm)}km</span>
-          <span class="nz-fault__sep">·</span>
-          <span class="nz-fault__prob">${f.probability30yr}</span>
+        <div class="nz-fault__item-bottom">
+          <span class="nz-fault__type-tag">${faultTypeTag(f.faultType)}</span>
+          <span class="nz-fault__prob-value ${probColor(f.probability30yr)}">${f.probability30yr}</span>
+          <span class="nz-fault__interval">${f.interval}</span>
         </div>
       </div>
     `;
   }).join('');
 
-  const modeLabel = scenarioMode ? 'SCENARIO MODE' : '';
-  const totalLabel = displayFaults.length < faults.length
-    ? `${displayFaults.length}/${faults.length} shown`
-    : `${faults.length} in view`;
-
   return `
-    <div class="nz-panel" id="nz-fault-catalog">
+    <div class="nz-panel nz-panel--scenario-faults" id="nz-fault-catalog">
       <div class="nz-panel__header">
-        <span class="nz-panel__title">Active Faults</span>
-        <span class="nz-fault__count">${modeLabel ? `<span class="nz-fault__mode">${modeLabel}</span> ` : ''}${totalLabel}</span>
+        <span class="nz-panel__title">HERP 活断層シナリオ</span>
+        <span class="nz-fault__count">${allFaults.length}</span>
       </div>
-      <div class="nz-fault__list">${items}</div>
+      <div class="nz-fault__hint">クリックでシナリオ実行</div>
+      <div class="nz-fault__list nz-fault__list--scenario">${items}</div>
     </div>
   `;
 }
@@ -103,37 +82,24 @@ export function mountFaultCatalog(
   container: HTMLElement,
   onFaultClick: FaultClickHandler,
 ): () => void {
-  let visibleFaults: ActiveFault[] = [];
-
   function render(): void {
     const faults = consoleStore.get('faults');
-    const vp = consoleStore.get('viewport');
     const selectedEventId = consoleStore.get('selectedEvent')?.id ?? null;
-    const vis = consoleStore.get('layerVisibility');
     const scenarioMode = consoleStore.get('scenarioMode');
 
-    if (!vis.faults || faults.length === 0) {
+    if (!scenarioMode) {
       container.innerHTML = '';
       return;
     }
 
-    // Apply same zoom-based filtering as the map layer
-    const zoomFiltered = filterFaultsByZoom(faults, vp.zoom);
-    visibleFaults = filterByViewport(zoomFiltered, vp.bounds);
-    visibleFaults.sort((a, b) => b.estimatedMw - a.estimatedMw);
-
-    container.innerHTML = renderCatalog(visibleFaults, selectedEventId, scenarioMode);
-
-    // Only bind click handlers in scenario mode
-    if (scenarioMode) {
-      container.querySelectorAll<HTMLElement>('.nz-fault__item').forEach((el) => {
-        el.addEventListener('click', () => {
-          const faultId = el.dataset.faultId;
-          const fault = visibleFaults.find((f) => f.id === faultId);
-          if (fault) onFaultClick(fault);
-        });
+    container.innerHTML = renderScenarioList(faults, selectedEventId);
+    container.querySelectorAll<HTMLElement>('.nz-fault__item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const faultId = el.dataset.faultId;
+        const fault = faults.find((f) => f.id === faultId);
+        if (fault) onFaultClick(fault);
       });
-    }
+    });
   }
 
   let renderScheduled = false;
@@ -148,16 +114,12 @@ export function mountFaultCatalog(
 
   render();
   const unsub1 = consoleStore.subscribe('faults', scheduleRender);
-  const unsub2 = consoleStore.subscribe('viewport', scheduleRender);
-  const unsub3 = consoleStore.subscribe('selectedEvent', scheduleRender);
-  const unsub4 = consoleStore.subscribe('layerVisibility', scheduleRender);
-  const unsub5 = consoleStore.subscribe('scenarioMode', scheduleRender);
+  const unsub2 = consoleStore.subscribe('selectedEvent', scheduleRender);
+  const unsub3 = consoleStore.subscribe('scenarioMode', scheduleRender);
 
   return () => {
     unsub1();
     unsub2();
     unsub3();
-    unsub4();
-    unsub5();
   };
 }

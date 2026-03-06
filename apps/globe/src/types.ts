@@ -55,6 +55,7 @@ export interface ActiveFault {
   faultType: FaultType;
   interval: string;     // e.g. "1000-2000年"
   probability30yr: string; // e.g. "ほぼ0-5%"
+  source?: string;      // HERP evaluation document reference
 }
 
 // ============================================================

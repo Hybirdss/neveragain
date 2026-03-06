@@ -11,7 +11,7 @@
 
 import { consoleStore } from '../core/store';
 import type { ServiceReadModel } from '../ops/readModelTypes';
-import type { EarthquakeEvent } from '../types';
+import type { ActiveFault, EarthquakeEvent } from '../types';
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -125,6 +125,13 @@ function isScenarioEvent(event: EarthquakeEvent): boolean {
   return event.id.startsWith('scenario-');
 }
 
+function getScenarioFault(event: EarthquakeEvent): ActiveFault | null {
+  if (!isScenarioEvent(event)) return null;
+  const faultId = event.id.replace('scenario-', '');
+  const faults = consoleStore.get('faults');
+  return faults.find((f) => f.id === faultId) ?? null;
+}
+
 function renderScenarioTag(): string {
   return `
     <div class="nz-snap__scenario-tag">
@@ -152,6 +159,35 @@ function renderEventState(
 
   const jstTime = new Date(event.time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
 
+  // Scenario events: show HERP 30yr probability + recurrence instead of elapsed time
+  const fault = scenario ? getScenarioFault(event) : null;
+
+  const metricsBlock = scenario && fault
+    ? `<div class="nz-snap__metrics nz-snap__metrics--scenario">
+        <div class="nz-snap__metric-group">
+          <span class="nz-snap__metric-value nz-snap__metric-value--scenario">${fault.probability30yr}</span>
+          <span class="nz-snap__metric-label">30年確率</span>
+        </div>
+        <div class="nz-snap__metric-group">
+          <span class="nz-snap__metric-value">${fault.interval}</span>
+          <span class="nz-snap__metric-label">再現間隔</span>
+        </div>
+      </div>`
+    : `<div class="nz-snap__metrics">
+        <div class="nz-snap__metric-group">
+          <span class="nz-snap__metric-value">${formatTimeAgo(event.time)}</span>
+          <span class="nz-snap__metric-label">Elapsed</span>
+        </div>
+        <div class="nz-snap__metric-group">
+          <span class="nz-snap__metric-value">${jstTime} <span class="nz-snap__tz">JST</span></span>
+          <span class="nz-snap__metric-label">Local Time</span>
+        </div>
+      </div>`;
+
+  const sourceBlock = scenario && fault?.source
+    ? `<div class="nz-snap__source">${fault.source}</div>`
+    : '';
+
   return `
     <div class="nz-panel nz-panel--sev-${sev}${scenario ? ' nz-panel--scenario' : ''}" id="nz-event-snapshot">
       ${scenario ? renderScenarioTag() : ''}
@@ -164,19 +200,11 @@ function renderEventState(
       <div class="nz-snap__mag-depth">${Math.round(event.depth_km)}km deep</div>
       <div class="nz-snap__sev-bar nz-snap__sev-bar--${sev}"></div>
       <div class="nz-snap__headline">${event.place.text}</div>
-      <div class="nz-snap__metrics">
-        <div class="nz-snap__metric-group">
-          <span class="nz-snap__metric-value">${formatTimeAgo(event.time)}</span>
-          <span class="nz-snap__metric-label">Elapsed</span>
-        </div>
-        <div class="nz-snap__metric-group">
-          <span class="nz-snap__metric-value">${jstTime} <span class="nz-snap__tz">JST</span></span>
-          <span class="nz-snap__metric-label">Local Time</span>
-        </div>
-      </div>
+      ${metricsBlock}
       ${headline ? `<div class="nz-snap__metric">${headline}</div>` : ''}
       ${metaMarkup ? `<div class="nz-snap__meta">${metaMarkup}</div>` : ''}
       ${healthMarkup}
+      ${sourceBlock}
       <div class="nz-snap__coords">
         ${event.lat.toFixed(3)}°N ${event.lng.toFixed(3)}°E
       </div>

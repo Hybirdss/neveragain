@@ -37,6 +37,7 @@ import {
   createInactiveSequence,
   type WaveSequenceState,
 } from './waveSequence';
+import { jma05ThresholdKm } from '../engine/gmpe';
 import { createDistanceRingLayers } from './distanceRings';
 import { createAfterShockZoneLayers } from './aftershockZone';
 import { createBearingLineLayers } from './bearingLines';
@@ -100,11 +101,12 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let sequence: WaveSequenceState = createInactiveSequence();
 
   // Intensity animation state
-  const INTENSITY_SPREAD_SPEED = 250;
+  // Spread speed derived per-event: maxRadiusKm / durationSec
   const INTENSITY_ANIM_DURATION = 3000;
   const INTENSITY_ANIM_INTERVAL = 50;
   let intensityAnimStart = 0;
   let intensityAnimEpicenter: { lat: number; lng: number } | null = null;
+  let intensityAnimMaxRadiusKm = 0;
   let lastIntensityAnimUpdate = 0;
 
   // Calm pulse state — slow breathing for recent earthquake dots
@@ -270,6 +272,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     if (event && grid) {
       intensityAnimStart = Date.now();
       intensityAnimEpicenter = { lat: event.lat, lng: event.lng };
+      intensityAnimMaxRadiusKm = jma05ThresholdKm(event.magnitude);
       lastIntensityAnimUpdate = 0;
       requestRender();
     }
@@ -393,7 +396,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       const elapsed = now - intensityAnimStart;
       if (elapsed < INTENSITY_ANIM_DURATION) {
         if (now - lastIntensityAnimUpdate >= INTENSITY_ANIM_INTERVAL) {
-          const revealRadiusKm = (elapsed / 1000) * INTENSITY_SPREAD_SPEED;
+          const revealRadiusKm = (elapsed / INTENSITY_ANIM_DURATION) * intensityAnimMaxRadiusKm;
           const grid = consoleStore.get('intensityGrid');
           if (grid) {
             const animLayer = createIntensityLayer(grid, intensityAnimEpicenter!, revealRadiusKm);

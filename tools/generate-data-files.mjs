@@ -15,7 +15,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const outDir = join(__dirname, '..', 'public', 'data');
+const outDir = join(__dirname, '..', 'apps', 'globe', 'public', 'data');
 
 // ============================================================
 // Japan grid parameters (0.1° resolution)
@@ -89,6 +89,7 @@ function generateVs30Grid() {
   }
 
   const grid = {
+    _provenance: 'DEV_PLACEHOLDER — synthetic Vs30 from terrain heuristics. Replace with J-SHIS API data for production.',
     cols: COLS,
     rows: ROWS,
     latMin: LAT_MIN,
@@ -98,7 +99,7 @@ function generateVs30Grid() {
   };
 
   writeFileSync(join(outDir, 'vs30-grid.json'), JSON.stringify(grid));
-  console.log(`  → vs30-grid.json (${(JSON.stringify(grid).length / 1024).toFixed(0)}KB)`);
+  console.log(`  → vs30-grid.json (${(JSON.stringify(grid).length / 1024).toFixed(0)}KB) [DEV PLACEHOLDER]`);
 }
 
 // ============================================================
@@ -146,6 +147,7 @@ function generateSlopeGrid() {
   }
 
   const grid = {
+    _provenance: 'DEV_PLACEHOLDER — synthetic slope from terrain heuristics. Replace with GSI DEM data for production.',
     cols: COLS,
     rows: ROWS,
     latMin: LAT_MIN,
@@ -155,7 +157,7 @@ function generateSlopeGrid() {
   };
 
   writeFileSync(join(outDir, 'slope-grid.json'), JSON.stringify(grid));
-  console.log(`  → slope-grid.json (${(JSON.stringify(grid).length / 1024).toFixed(0)}KB)`);
+  console.log(`  → slope-grid.json (${(JSON.stringify(grid).length / 1024).toFixed(0)}KB) [DEV PLACEHOLDER]`);
 }
 
 // ============================================================
@@ -234,131 +236,174 @@ function generatePrefectures() {
 function generateActiveFaults() {
   console.log('Generating active faults catalog...');
 
+  // All probability, interval, and Mw values sourced from HERP official evaluations.
+  // Source: tools/data/herp-faults.ts (地震調査研究推進本部 長期評価)
+  // Geometry: approximate polylines for visual display.
+  //
+  // DO NOT add faults with brain-made probability calculations.
+  // If HERP has not evaluated a fault, use '未評価' for probability30yr and interval.
+
   const faults = [
-    {
-      id: 'mtl', name: '中央構造線断層帯', nameEn: 'Median Tectonic Line',
-      segments: [[132.0, 33.8], [133.0, 34.0], [134.0, 34.1], [135.0, 34.3], [136.0, 34.5], [136.5, 34.8]],
-      lengthKm: 360, estimatedMw: 7.8, depthKm: 15, faultType: 'crustal',
-      interval: '1000-2000年', probability30yr: '0-5%',
-    },
-    {
-      id: 'itoigawa-shizuoka', name: '糸魚川-静岡構造線断層帯', nameEn: 'Itoigawa-Shizuoka Tectonic Line',
-      segments: [[137.85, 36.97], [138.0, 36.5], [138.2, 36.0], [138.3, 35.5], [138.4, 35.1]],
-      lengthKm: 150, estimatedMw: 7.4, depthKm: 15, faultType: 'crustal',
-      interval: '1000年', probability30yr: '14-30%',
-    },
-    {
-      id: 'atera', name: '阿寺断層帯', nameEn: 'Atera Fault',
-      segments: [[137.3, 35.5], [137.4, 35.7], [137.5, 35.9]],
-      lengthKm: 66, estimatedMw: 7.0, depthKm: 15, faultType: 'crustal',
-      interval: '1800年', probability30yr: '6-11%',
-    },
-    {
-      id: 'tachikawa', name: '立川断層帯', nameEn: 'Tachikawa Fault',
-      segments: [[139.25, 35.65], [139.35, 35.72], [139.45, 35.78]],
-      lengthKm: 33, estimatedMw: 6.7, depthKm: 10, faultType: 'crustal',
-      interval: '10000-15000年', probability30yr: '0.5-2%',
-    },
-    {
-      id: 'miura', name: '三浦半島断層群', nameEn: 'Miura Peninsula Fault Group',
-      segments: [[139.6, 35.15], [139.65, 35.22], [139.7, 35.3]],
-      lengthKm: 22, estimatedMw: 6.5, depthKm: 10, faultType: 'crustal',
-      interval: '1600-1900年', probability30yr: '6-11%',
-    },
-    {
-      id: 'futagawa-hinagu', name: '布田川・日奈久断層帯', nameEn: 'Futagawa-Hinagu Fault Zone',
-      segments: [[130.6, 32.6], [130.7, 32.7], [130.8, 32.8], [130.9, 32.9], [131.0, 33.0]],
-      lengthKm: 101, estimatedMw: 7.2, depthKm: 12, faultType: 'crustal',
-      interval: '8100-26000年', probability30yr: 'ほぼ0%',
-    },
-    {
-      id: 'arima-takatsuki', name: '有馬-高槻断層帯', nameEn: 'Arima-Takatsuki Fault Zone',
-      segments: [[135.2, 34.82], [135.35, 34.85], [135.5, 34.88], [135.65, 34.87]],
-      lengthKm: 55, estimatedMw: 6.9, depthKm: 15, faultType: 'crustal',
-      interval: '1000-2000年', probability30yr: 'ほぼ0-0.03%',
-    },
-    {
-      id: 'uemachi', name: '上町断層帯', nameEn: 'Uemachi Fault',
-      segments: [[135.5, 34.55], [135.52, 34.65], [135.51, 34.75]],
-      lengthKm: 42, estimatedMw: 6.8, depthKm: 13, faultType: 'crustal',
-      interval: '8000年', probability30yr: '2-3%',
-    },
-    {
-      id: 'rokko-awaji', name: '六甲・淡路島断層帯', nameEn: 'Rokko-Awaji Fault Zone',
-      segments: [[134.9, 34.5], [135.0, 34.55], [135.15, 34.65], [135.25, 34.72], [135.35, 34.78]],
-      lengthKm: 71, estimatedMw: 7.1, depthKm: 15, faultType: 'crustal',
-      interval: '1000-2000年', probability30yr: 'ほぼ0%',
-    },
-    {
-      id: 'nobi', name: '濃尾断層帯', nameEn: 'Nobi Fault',
-      segments: [[136.5, 35.3], [136.6, 35.5], [136.7, 35.7], [136.8, 35.9]],
-      lengthKm: 80, estimatedMw: 7.1, depthKm: 15, faultType: 'crustal',
-      interval: '1500-2500年', probability30yr: 'ほぼ0%',
-    },
+    // ── Subduction Zones (海溝型) ──
     {
       id: 'nankai-trough', name: '南海トラフ', nameEn: 'Nankai Trough',
       segments: [[131.5, 31.5], [133.0, 32.5], [134.5, 33.0], [136.0, 33.5], [137.5, 34.0], [138.5, 34.5]],
       lengthKm: 700, estimatedMw: 9.1, depthKm: 20, faultType: 'interface',
-      interval: '100-200年', probability30yr: '70-80%',
+      interval: '88.2年', probability30yr: '70〜80%',
+      source: 'HERP 南海トラフの地震活動の長期評価（第二版）2013, 確率更新2024',
     },
     {
       id: 'sagami-trough', name: '相模トラフ', nameEn: 'Sagami Trough',
       segments: [[139.0, 34.5], [139.5, 34.8], [140.0, 35.0], [140.5, 35.2]],
       lengthKm: 250, estimatedMw: 8.0, depthKm: 25, faultType: 'interface',
-      interval: '200-300年', probability30yr: '0-6%',
+      interval: '200〜400年', probability30yr: 'ほぼ0〜6%',
+      source: 'HERP 相模トラフ沿いの地震活動の長期評価（第二版）2014',
     },
     {
       id: 'japan-trench-tohoku', name: '日本海溝（東北沖）', nameEn: 'Japan Trench (Tohoku)',
       segments: [[142.0, 36.0], [142.5, 37.0], [143.0, 38.0], [143.5, 39.0], [143.8, 40.0]],
       lengthKm: 500, estimatedMw: 9.0, depthKm: 24, faultType: 'interface',
-      interval: '600年', probability30yr: 'ほぼ0%',
-    },
-    {
-      id: 'noto', name: '能登半島北岸断層', nameEn: 'Noto Peninsula North Coast Fault',
-      segments: [[136.5, 37.3], [136.8, 37.4], [137.0, 37.5], [137.2, 37.5]],
-      lengthKm: 60, estimatedMw: 7.0, depthKm: 10, faultType: 'crustal',
-      interval: '不明', probability30yr: '不明',
-    },
-    {
-      id: 'hatagawa', name: '棚倉断層帯', nameEn: 'Tanagura Fault Zone',
-      segments: [[140.3, 36.8], [140.4, 37.0], [140.5, 37.2], [140.55, 37.4]],
-      lengthKm: 70, estimatedMw: 7.0, depthKm: 15, faultType: 'crustal',
-      interval: '3000-6000年', probability30yr: 'ほぼ0%',
-    },
-    {
-      id: 'morimoto-togashi', name: '森本・富樫断層帯', nameEn: 'Morimoto-Togashi Fault',
-      segments: [[136.6, 36.45], [136.65, 36.55], [136.68, 36.65]],
-      lengthKm: 26, estimatedMw: 6.5, depthKm: 12, faultType: 'crustal',
-      interval: '3000年', probability30yr: '2-8%',
-    },
-    {
-      id: 'sanage-takahama', name: '猿投-高浜断層帯', nameEn: 'Sanage-Takahama Fault',
-      segments: [[137.0, 34.9], [137.1, 35.0], [137.2, 35.1], [137.3, 35.2]],
-      lengthKm: 40, estimatedMw: 6.8, depthKm: 12, faultType: 'crustal',
-      interval: '不明', probability30yr: '不明',
-    },
-    {
-      id: 'yamada', name: '山田断層帯', nameEn: 'Yamada Fault Zone',
-      segments: [[135.5, 35.4], [135.6, 35.5], [135.7, 35.6]],
-      lengthKm: 33, estimatedMw: 6.7, depthKm: 15, faultType: 'crustal',
-      interval: '不明', probability30yr: '不明',
+      interval: '600年程度', probability30yr: 'ほぼ0%',
+      source: 'HERP 日本海溝沿いの地震活動の長期評価（第二版）2019',
     },
     {
       id: 'kuril-trench', name: '千島海溝', nameEn: 'Kuril Trench',
       segments: [[144.5, 42.5], [145.0, 43.0], [146.0, 44.0], [147.0, 45.0]],
       lengthKm: 350, estimatedMw: 8.8, depthKm: 30, faultType: 'interface',
-      interval: '340-380年', probability30yr: '7-40%',
+      interval: '340〜380年', probability30yr: '7〜40%',
+      source: 'HERP 千島海溝沿いの地震活動の長期評価（第三版）2017',
+    },
+    // ── Major Crustal Faults (主要活断層帯) — HERP evaluated ──
+    {
+      id: 'mtl', name: '中央構造線断層帯', nameEn: 'Median Tectonic Line',
+      segments: [[132.0, 33.8], [133.0, 34.0], [134.0, 34.1], [135.0, 34.3], [136.0, 34.5], [136.5, 34.8]],
+      lengthKm: 360, estimatedMw: 8.0, depthKm: 15, faultType: 'crustal',
+      interval: '約1000年以上', probability30yr: 'ほぼ0〜5%',
+      source: 'HERP 中央構造線断層帯の長期評価（第二版）2017',
+    },
+    {
+      id: 'itoigawa-shizuoka', name: '糸魚川-静岡構造線断層帯', nameEn: 'Itoigawa-Shizuoka Tectonic Line',
+      segments: [[137.85, 36.97], [138.0, 36.5], [138.2, 36.0], [138.3, 35.5], [138.4, 35.1]],
+      lengthKm: 150, estimatedMw: 7.7, depthKm: 15, faultType: 'crustal',
+      interval: '約1000年', probability30yr: '14〜30%',
+      source: 'HERP 糸魚川-静岡構造線断層帯の長期評価（第二版）2015',
+    },
+    {
+      id: 'atera', name: '阿寺断層帯', nameEn: 'Atera Fault',
+      segments: [[137.3, 35.5], [137.4, 35.7], [137.5, 35.9]],
+      lengthKm: 66, estimatedMw: 6.9, depthKm: 15, faultType: 'crustal',
+      interval: '約1800年', probability30yr: '6〜11%',
+      source: 'HERP 阿寺断層帯の長期評価 2004',
+    },
+    {
+      id: 'tachikawa', name: '立川断層帯', nameEn: 'Tachikawa Fault',
+      segments: [[139.25, 35.65], [139.35, 35.72], [139.45, 35.78]],
+      lengthKm: 33, estimatedMw: 7.4, depthKm: 10, faultType: 'crustal',
+      interval: '10000〜15000年', probability30yr: '0.5〜2%',
+      source: 'HERP 立川断層帯の長期評価 2003',
+    },
+    {
+      id: 'miura', name: '三浦半島断層群', nameEn: 'Miura Peninsula Fault Group',
+      segments: [[139.6, 35.15], [139.65, 35.22], [139.7, 35.3]],
+      lengthKm: 22, estimatedMw: 6.7, depthKm: 10, faultType: 'crustal',
+      interval: '1600〜1900年', probability30yr: '6〜11%',
+      source: 'HERP 三浦半島断層群の長期評価 2003',
+    },
+    {
+      id: 'futagawa-hinagu', name: '布田川・日奈久断層帯', nameEn: 'Futagawa-Hinagu Fault Zone',
+      segments: [[130.6, 32.6], [130.7, 32.7], [130.8, 32.8], [130.9, 32.9], [131.0, 33.0]],
+      lengthKm: 101, estimatedMw: 7.2, depthKm: 12, faultType: 'crustal',
+      interval: '8100〜26000年', probability30yr: 'ほぼ0%',
+      source: 'HERP 布田川断層帯・日奈久断層帯の長期評価（一部改訂）2013',
+    },
+    {
+      id: 'arima-takatsuki', name: '有馬-高槻断層帯', nameEn: 'Arima-Takatsuki Fault Zone',
+      segments: [[135.2, 34.82], [135.35, 34.85], [135.5, 34.88], [135.65, 34.87]],
+      lengthKm: 55, estimatedMw: 7.5, depthKm: 15, faultType: 'crustal',
+      interval: '1000〜2000年', probability30yr: 'ほぼ0〜0.03%',
+      source: 'HERP 有馬-高槻断層帯の長期評価 2005',
+    },
+    {
+      id: 'uemachi', name: '上町断層帯', nameEn: 'Uemachi Fault',
+      segments: [[135.5, 34.55], [135.52, 34.65], [135.51, 34.75]],
+      lengthKm: 42, estimatedMw: 7.5, depthKm: 13, faultType: 'crustal',
+      interval: '約8000年', probability30yr: '2〜3%',
+      source: 'HERP 上町断層帯の長期評価 2004',
+    },
+    {
+      id: 'rokko-awaji', name: '六甲・淡路島断層帯', nameEn: 'Rokko-Awaji Island Fault Zone',
+      segments: [[134.9, 34.5], [135.0, 34.55], [135.15, 34.65], [135.25, 34.72], [135.35, 34.78]],
+      lengthKm: 71, estimatedMw: 7.9, depthKm: 15, faultType: 'crustal',
+      interval: '1000〜2000年', probability30yr: 'ほぼ0〜0.04%',
+      source: 'HERP 六甲・淡路島断層帯の長期評価 2005',
+    },
+    {
+      id: 'nobi', name: '濃尾断層帯', nameEn: 'Nobi Fault',
+      segments: [[136.5, 35.3], [136.6, 35.5], [136.7, 35.7], [136.8, 35.9]],
+      lengthKm: 80, estimatedMw: 7.3, depthKm: 15, faultType: 'crustal',
+      interval: '1500〜2500年', probability30yr: 'ほぼ0%',
+      source: 'HERP 濃尾断層帯の長期評価 2005',
+    },
+    {
+      id: 'noto', name: '能登半島北岸断層', nameEn: 'Noto Peninsula North Coast Fault',
+      segments: [[136.5, 37.3], [136.8, 37.4], [137.0, 37.5], [137.2, 37.5]],
+      lengthKm: 60, estimatedMw: 7.6, depthKm: 10, faultType: 'crustal',
+      interval: '未評価', probability30yr: '未評価',
+      source: '令和6年能登半島地震評価 2024（確率評価は今後の課題）',
+    },
+    {
+      id: 'hatagawa', name: '棚倉断層帯', nameEn: 'Tanagura Fault Zone',
+      segments: [[140.3, 36.8], [140.4, 37.0], [140.5, 37.2], [140.55, 37.4]],
+      lengthKm: 70, estimatedMw: 7.0, depthKm: 15, faultType: 'crustal',
+      interval: '3000〜6000年', probability30yr: 'ほぼ0%',
+      source: 'HERP個別評価なし。再現間隔はGEM+古地震データ',
+    },
+    {
+      id: 'morimoto-togashi', name: '森本・富樫断層帯', nameEn: 'Morimoto-Togashi Fault',
+      segments: [[136.6, 36.45], [136.65, 36.55], [136.68, 36.65]],
+      lengthKm: 26, estimatedMw: 7.2, depthKm: 12, faultType: 'crustal',
+      interval: '約3000年', probability30yr: '2〜8%',
+      source: 'HERP 森本・富樫断層帯の長期評価 2005',
+    },
+    {
+      id: 'sanage-takahama', name: '猿投-高浜断層帯', nameEn: 'Sanage-Takahama Fault',
+      segments: [[137.0, 34.9], [137.1, 35.0], [137.2, 35.1], [137.3, 35.2]],
+      lengthKm: 40, estimatedMw: 6.9, depthKm: 12, faultType: 'crustal',
+      interval: '未評価', probability30yr: '未評価',
+      source: 'HERP未評価（データ不足）',
+    },
+    {
+      id: 'yamada', name: '山田断層帯', nameEn: 'Yamada Fault Zone',
+      segments: [[135.5, 35.4], [135.6, 35.5], [135.7, 35.6]],
+      lengthKm: 33, estimatedMw: 6.7, depthKm: 15, faultType: 'crustal',
+      interval: '未評価', probability30yr: '未評価',
+      source: 'HERP未評価',
     },
     {
       id: 'ishikari-teichi', name: '石狩低地東縁断層帯', nameEn: 'Ishikari Lowland East Edge Fault',
       segments: [[141.2, 42.5], [141.3, 42.8], [141.4, 43.1], [141.5, 43.4]],
-      lengthKm: 80, estimatedMw: 7.1, depthKm: 15, faultType: 'crustal',
-      interval: '1000-2000年', probability30yr: 'ほぼ0-0.009%',
+      lengthKm: 80, estimatedMw: 7.9, depthKm: 15, faultType: 'crustal',
+      interval: '1000〜2000年以上', probability30yr: 'ほぼ0〜0.009%',
+      source: 'HERP 石狩低地東縁断層帯の長期評価 2010',
+    },
+    {
+      id: 'atotsugawa', name: '跡津川断層帯', nameEn: 'Atotsugawa Fault Zone',
+      segments: [[137.0, 36.3], [137.2, 36.4], [137.4, 36.5]],
+      lengthKm: 69, estimatedMw: 7.9, depthKm: 15, faultType: 'crustal',
+      interval: '2300〜2700年', probability30yr: 'ほぼ0〜0.003%',
+      source: 'HERP 跡津川断層帯の長期評価 2004',
+    },
+    {
+      id: 'kannawa-kozu-matsuda', name: '神縄・国府津-松田断層帯', nameEn: 'Kannawa-Kozu-Matsuda Fault',
+      segments: [[139.1, 35.3], [139.15, 35.35], [139.2, 35.4]],
+      lengthKm: 25, estimatedMw: 7.5, depthKm: 15, faultType: 'crustal',
+      interval: '800〜2600年', probability30yr: '0.2〜16%',
+      source: 'HERP 神縄・国府津-松田断層帯の長期評価 2005',
     },
   ];
 
   writeFileSync(join(outDir, 'active-faults.json'), JSON.stringify(faults, null, 0));
-  console.log(`  → active-faults.json (${faults.length} faults)`);
+  console.log(`  → active-faults.json (${faults.length} HERP-sourced faults)`);
 }
 
 // ============================================================
@@ -412,6 +457,7 @@ function generateHazardGrid() {
   }
 
   const grid = {
+    _provenance: 'DEV_PLACEHOLDER — synthetic hazard from distance heuristics. Replace with J-SHIS API data for production.',
     cols: COLS,
     rows: ROWS,
     latMin: LAT_MIN,
@@ -421,7 +467,7 @@ function generateHazardGrid() {
   };
 
   writeFileSync(join(outDir, 'jshis-hazard-grid.json'), JSON.stringify(grid));
-  console.log(`  → jshis-hazard-grid.json (${(JSON.stringify(grid).length / 1024).toFixed(0)}KB)`);
+  console.log(`  → jshis-hazard-grid.json (${(JSON.stringify(grid).length / 1024).toFixed(0)}KB) [DEV PLACEHOLDER]`);
 }
 
 // ============================================================

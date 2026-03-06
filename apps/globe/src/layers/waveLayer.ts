@@ -15,11 +15,12 @@
  */
 
 import { ScatterplotLayer } from '@deck.gl/layers';
+import { jma05ThresholdKm } from '../engine/gmpe';
 
 const VP_KM_S = 6.0;
 const VS_KM_S = 3.5;
-const MAX_RADIUS_KM = 800;
-const FADE_START_KM = 300;
+// FADE_START ratio: fade begins at 40% of max radius
+const FADE_START_RATIO = 0.4;
 
 export interface WaveSource {
   id: string;
@@ -42,17 +43,19 @@ function computeRing(
   elapsedSec: number,
   baseColor: [number, number, number],
   maxAlpha: number,
+  maxRadiusKm: number,
 ): WaveRingDatum | null {
   if (elapsedSec <= 0) return null;
   const surfaceKm = velocityKmS * elapsedSec;
-  if (surfaceKm > MAX_RADIUS_KM) return null;
+  if (surfaceKm > maxRadiusKm) return null;
 
   const totalKm = Math.sqrt(surfaceKm * surfaceKm + source.depth_km * source.depth_km);
   const radiusMeters = totalKm * 1000;
 
+  const fadeStartKm = maxRadiusKm * FADE_START_RATIO;
   let opacity = 1.0;
-  if (surfaceKm > FADE_START_KM) {
-    opacity = Math.max(0, 1 - (surfaceKm - FADE_START_KM) / (MAX_RADIUS_KM - FADE_START_KM));
+  if (surfaceKm > fadeStartKm) {
+    opacity = Math.max(0, 1 - (surfaceKm - fadeStartKm) / (maxRadiusKm - fadeStartKm));
   }
   const magScale = Math.min(1, (source.magnitude - 3) / 4);
   opacity *= Math.max(0.3, magScale);
@@ -77,13 +80,14 @@ export function updateWaveData(sources: WaveSource[], currentTime: number): void
   const sRings: WaveRingDatum[] = [];
 
   for (const source of sources) {
+    const maxRKm = jma05ThresholdKm(source.magnitude);
     const elapsedSec = (currentTime - source.originTime) / 1000;
-    if (elapsedSec < 0 || elapsedSec > MAX_RADIUS_KM / VS_KM_S + 10) continue;
+    if (elapsedSec < 0 || elapsedSec > maxRKm / VS_KM_S + 10) continue;
 
-    const p = computeRing(source, VP_KM_S, elapsedSec, [125, 211, 252], 160);
+    const p = computeRing(source, VP_KM_S, elapsedSec, [125, 211, 252], 160, maxRKm);
     if (p) pRings.push(p);
 
-    const s = computeRing(source, VS_KM_S, elapsedSec, [251, 191, 36], 220);
+    const s = computeRing(source, VS_KM_S, elapsedSec, [251, 191, 36], 220, maxRKm);
     if (s) sRings.push(s);
   }
 

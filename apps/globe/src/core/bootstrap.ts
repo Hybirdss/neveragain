@@ -158,6 +158,22 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     selectEvent(event);
   });
 
+  // Fault catalog — in left rail, toggled with recent feed by scenario mode
+  const faultContainer = document.createElement('div');
+  shell.leftRail.insertBefore(faultContainer, feedContainer.nextSibling);
+  const disposeFaultCatalog = mountFaultCatalog(faultContainer, (fault) => {
+    const scenario = faultToEvent(fault);
+    selectEvent(scenario);
+  });
+
+  // Toggle feed vs fault catalog visibility based on scenario mode
+  function syncScenarioPanels(scenarioOn: boolean): void {
+    feedContainer.style.display = scenarioOn ? 'none' : '';
+    faultContainer.style.display = scenarioOn ? '' : 'none';
+  }
+  syncScenarioPanels(consoleStore.get('scenarioMode'));
+  consoleStore.subscribe('scenarioMode', syncScenarioPanels);
+
   const expoContainer = document.createElement('div');
   shell.leftRail.appendChild(expoContainer);
   const disposeExpo = mountAssetExposure(expoContainer);
@@ -180,13 +196,6 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const legendContainer = document.createElement('div');
   shell.root.appendChild(legendContainer);
   const disposeLegend = mountIntensityLegend(legendContainer);
-
-  const faultContainer = document.createElement('div');
-  shell.rightRail.appendChild(faultContainer);
-  const disposeFaultCatalog = mountFaultCatalog(faultContainer, (fault) => {
-    const scenario = faultToEvent(fault);
-    selectEvent(scenario);
-  });
 
   // Preferences (loaded early so notification queue + timeline can use them)
   let prefs = loadPreferences();

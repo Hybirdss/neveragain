@@ -123,22 +123,14 @@ function estimateMw(lengthKm?: number | null): number | null {
   return Math.round((5.08 + 1.16 * Math.log10(lengthKm)) * 10) / 10;
 }
 
-function estimateProb30yr(recurrenceYears?: number | null): number | null {
-  if (!recurrenceYears || recurrenceYears <= 0) return null;
-  // Simplified Poisson: P = 1 - exp(-T/R) where T=30
-  return Math.round((1 - Math.exp(-30 / recurrenceYears)) * 1000) / 1000;
-}
+// REMOVED: estimateProb30yr() — was using simplified Poisson P=1-exp(-30/R)
+// which is NOT the official HERP method (BPT model with elapsed time).
+// 30-year probabilities must come from HERP official evaluations only.
+// For faults without HERP evaluation, probability is null (displayed as "未評価").
 
-function estimateRecurrence(slipRate?: number | null, lengthKm?: number | null): number | null {
-  // Rough estimate: displacement per event / slip rate
-  // Average displacement ~ 10^(Mw-4) meters (Wells & Coppersmith)
-  if (!slipRate || slipRate <= 0 || !lengthKm) return null;
-  const mw = estimateMw(lengthKm);
-  if (!mw) return null;
-  const displacement = Math.pow(10, mw - 4); // meters
-  const recurrence = displacement / (slipRate / 1000); // slip rate in mm/yr → m/yr
-  return Math.round(recurrence);
-}
+// REMOVED: estimateRecurrence() — was using brain-made displacement/slipRate
+// which produced nonsensical values (e.g. 428510 years).
+// Recurrence intervals must come from GEM data or HERP paleoseismic assessments.
 
 function coordsToWKT(feature: GEMFeature): string {
   if (feature.geometry.type === 'MultiLineString') {
@@ -195,9 +187,11 @@ async function main() {
       const faultType = mapSlipType(p.slip_type);
       const lengthKm = calcFaultLength(f) ?? parseTupleValue(p.length_pref) ?? parseTupleValue(p.length_max) ?? null;
       const slipRate = parseTupleValue(p.net_slip_rate as string | undefined);
-      const recurrence = parseTupleValue(p.recurrence_interval_pref) ?? parseTupleValue(p.recurrence_interval_max) ?? estimateRecurrence(slipRate, lengthKm);
+      // Recurrence: only from GEM data (no brain-made estimates)
+      const recurrence = parseTupleValue(p.recurrence_interval_pref) ?? parseTupleValue(p.recurrence_interval_max) ?? null;
       const mw = estimateMw(lengthKm);
-      const prob30 = estimateProb30yr(recurrence);
+      // Probability: null for GEM faults — only HERP evaluations are authoritative
+      const prob30 = null;
       const wkt = coordsToWKT(f);
 
       try {
