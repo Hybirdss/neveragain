@@ -98,10 +98,21 @@ describe('buildOperatorBundleSummaries', () => {
     });
 
     expect(summaries.seismic!.metric).toContain('3 assets');
+    expect(summaries.seismic!.trust).toBe('confirmed');
+    expect(summaries.seismic!.counters).toEqual([
+      { id: 'affected-assets', label: 'Affected', value: 3, tone: 'priority' },
+      { id: 'visible-assets', label: 'Visible', value: 3, tone: 'priority' },
+    ]);
     expect(summaries.maritime!.metric).toContain('122 tracked');
+    expect(summaries.maritime!.counters).toEqual([
+      { id: 'tracked', label: 'Tracked', value: 122, tone: 'clear' },
+      { id: 'high-priority', label: 'High Priority', value: 34, tone: 'priority' },
+      { id: 'underway', label: 'Underway', value: 98, tone: 'watch' },
+    ]);
     expect(summaries.lifelines!.metric).toContain('1 rail hub');
     expect(summaries.medical!.metric).toContain('1 medical site');
     expect(summaries['built-environment']!.detail).toContain('city-tier');
+    expect(summaries['built-environment']!.trust).toBe('pending');
   });
 
   it('keeps calm standby wording when there is no active event or affected assets', () => {
@@ -122,8 +133,10 @@ describe('buildOperatorBundleSummaries', () => {
     });
 
     expect(summaries.seismic!.metric).toContain('No elevated');
+    expect(summaries.seismic!.trust).toBe('confirmed');
     expect(summaries.maritime!.metric).toContain('No tracked traffic');
     expect(summaries.maritime!.detail).toContain('standing by');
+    expect(summaries.maritime!.counters).toEqual([]);
     expect(summaries.lifelines!.detail).toContain('standing by');
     expect(summaries.medical!.detail).toContain('standing by');
   });

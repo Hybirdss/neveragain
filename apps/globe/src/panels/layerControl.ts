@@ -8,12 +8,12 @@ import {
 } from '../layers/bundleRegistry';
 import { getLayerDefinition, type BundleId, type LayerId } from '../layers/layerRegistry';
 import { consoleStore, type ConsoleState } from '../core/store';
+import type { OperatorBundleCounter, OperatorBundleSummary } from '../ops/readModelTypes';
 
-export interface BundleSummary {
-  title: string;
-  metric: string;
-  detail: string;
-}
+export type BundleSummary = Pick<
+  OperatorBundleSummary,
+  'title' | 'metric' | 'detail' | 'trust' | 'counters'
+>;
 
 export interface LayerControlRow {
   id: LayerId;
@@ -52,6 +52,8 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
       title: backendSummary.title,
       metric: backendSummary.metric,
       detail: backendSummary.detail,
+      trust: backendSummary.trust,
+      counters: backendSummary.counters,
     };
   }
 
@@ -59,7 +61,27 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
     title: definition.label,
     metric: 'Bundle truth syncing',
     detail: `${definition.description} Awaiting initial backend summary.`,
+    trust: 'pending',
+    counters: [],
   };
+}
+
+function renderCounter(counter: OperatorBundleCounter): string {
+  return `
+    <span class="nz-bundle-counter nz-bundle-counter--${counter.tone}">
+      <span class="nz-bundle-counter__label">${counter.label}</span>
+      <span class="nz-bundle-counter__value">${counter.value}</span>
+    </span>
+  `;
+}
+
+function renderSummaryMeta(summary: BundleSummary): string {
+  return `
+    <div class="nz-bundle-summary-meta">
+      <span class="nz-bundle-trust nz-bundle-trust--${summary.trust}">${summary.trust}</span>
+      ${summary.counters.map(renderCounter).join('')}
+    </div>
+  `;
 }
 
 export function buildLayerControlModel(state: ConsoleState): LayerControlModel {
@@ -129,6 +151,7 @@ function renderDock(state: ConsoleState, model: LayerControlModel): string {
 
 function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
   const activeBundleEnabled = state.bundleSettings[state.activeBundleId].enabled;
+  const activeSummary = buildBundleSummary(state.activeBundleId, state);
 
   return `
     <div class="nz-bundle-drawer${state.bundleDrawerOpen ? ' nz-bundle-drawer--open' : ''}">
@@ -159,8 +182,9 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
         <div class="nz-bundle-drawer__primary">
           <div class="nz-bundle-card">
             <div class="nz-bundle-card__label">Active Summary</div>
-            <div class="nz-bundle-card__metric">${buildBundleSummary(state.activeBundleId, state).metric}</div>
-            <div class="nz-bundle-card__detail">${buildBundleSummary(state.activeBundleId, state).detail}</div>
+            <div class="nz-bundle-card__metric">${activeSummary.metric}</div>
+            <div class="nz-bundle-card__detail">${activeSummary.detail}</div>
+            ${renderSummaryMeta(activeSummary)}
           </div>
           <div class="nz-bundle-card">
             <div class="nz-bundle-card__label">Layers</div>
@@ -186,6 +210,7 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
               <span class="nz-bundle-summary-card__title">${entry.summary.title}</span>
               <span class="nz-bundle-summary-card__metric">${entry.summary.metric}</span>
               <span class="nz-bundle-summary-card__detail">${entry.summary.detail}</span>
+              ${renderSummaryMeta(entry.summary)}
             </button>
           `).join('')}
         </div>

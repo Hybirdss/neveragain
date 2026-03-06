@@ -81,6 +81,11 @@ export function refreshConsoleBundleTruth(input: {
       exposures: input.exposures,
       operationalOverview: baseReadModel.operationalOverview,
       maritimeOverview: buildMaritimeOverview(input.vessels),
+      trustLevel: baseReadModel.systemHealth.level === 'degraded'
+        ? 'degraded'
+        : baseReadModel.systemHealth.level === 'watch'
+          ? 'review'
+          : 'confirmed',
     }),
     freshnessStatus: input.realtimeStatus,
   };

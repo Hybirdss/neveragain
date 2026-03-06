@@ -243,12 +243,13 @@ export function createEmptyServiceReadModel(
   freshnessStatus: RealtimeStatus,
   viewport: ViewportState | null = null,
 ): ServiceReadModel {
+  const systemHealth = buildSystemHealth(freshnessStatus, null);
   return {
     currentEvent: null,
     eventTruth: null,
     viewport,
     nationalSnapshot: null,
-    systemHealth: buildSystemHealth(freshnessStatus, null),
+    systemHealth,
     operationalOverview: {
       selectionReason: null,
       selectionSummary: 'No operationally significant event selected',
@@ -272,6 +273,7 @@ export function createEmptyServiceReadModel(
         topSeverity: 'clear',
       },
       maritimeOverview: null,
+      trustLevel: 'confirmed',
     }),
     nationalExposureSummary: [],
     visibleExposureSummary: [],
@@ -388,13 +390,19 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
     hasEvent: input.selectedEvent !== null,
     hasViewport: Boolean(input.viewport),
   });
+  const systemHealth = buildSystemHealth(input.freshnessStatus, eventTruth);
+  const trustLevel = systemHealth.level === 'degraded'
+    ? 'degraded'
+    : systemHealth.level === 'watch'
+      ? 'review'
+      : 'confirmed';
 
   return {
     currentEvent: input.selectedEvent,
     eventTruth,
     viewport: input.viewport ?? null,
     nationalSnapshot: buildOpsSnapshot(input),
-    systemHealth: buildSystemHealth(input.freshnessStatus, eventTruth),
+    systemHealth,
     operationalOverview,
     bundleSummaries: buildOperatorBundleSummaries({
       selectedEvent: input.selectedEvent,
@@ -402,6 +410,7 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
       exposures: input.exposures,
       operationalOverview,
       maritimeOverview: input.maritimeOverview ?? null,
+      trustLevel,
     }),
     nationalExposureSummary,
     visibleExposureSummary,

@@ -58,6 +58,8 @@ describe('layerControl bundle summaries', () => {
     expect(summary.title).toBe('Maritime');
     expect(summary.metric).toContain('No tracked traffic');
     expect(summary.detail).toContain('standing by');
+    expect(summary.trust).toBe('confirmed');
+    expect(summary.counters).toEqual([]);
   });
 
   it('surfaces seismic truth when the seismic bundle is active', () => {
@@ -73,6 +75,10 @@ describe('layerControl bundle summaries', () => {
             detail: 'Primary operational pressure centered on Kanto.',
             severity: 'priority',
             availability: 'live',
+            trust: 'review',
+            counters: [
+              { id: 'affected-assets', label: 'Affected', value: 3, tone: 'priority' },
+            ],
           },
         },
       },
@@ -80,6 +86,10 @@ describe('layerControl bundle summaries', () => {
 
     expect(summary.title).toBe('Seismic');
     expect(summary.metric).toContain('3 assets');
+    expect(summary.trust).toBe('review');
+    expect(summary.counters).toEqual([
+      { id: 'affected-assets', label: 'Affected', value: 3, tone: 'priority' },
+    ]);
   });
 
   it('prefers backend-owned bundle summaries when the read model provides them', () => {
@@ -94,6 +104,8 @@ describe('layerControl bundle summaries', () => {
             detail: 'Hospital access verification required across Kanto.',
             severity: 'priority',
             availability: 'live',
+            trust: 'confirmed',
+            counters: [],
           },
         },
       },
@@ -101,6 +113,7 @@ describe('layerControl bundle summaries', () => {
 
     expect(summary.metric).toContain('2 medical sites');
     expect(summary.detail).toContain('Hospital access verification');
+    expect(summary.trust).toBe('confirmed');
   });
 
   it('builds a drawer model with presets, bundles, and effective layer state', () => {

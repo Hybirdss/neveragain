@@ -69,6 +69,15 @@ export type OperatorBundleId =
   | 'medical'
   | 'built-environment';
 
+export type OperatorBundleTrust = 'confirmed' | 'review' | 'degraded' | 'pending';
+
+export interface OperatorBundleCounter {
+  id: string;
+  label: string;
+  value: number;
+  tone: OpsSeverity;
+}
+
 export interface OperatorBundleSummary {
   bundleId: OperatorBundleId;
   title: string;
@@ -76,6 +85,8 @@ export interface OperatorBundleSummary {
   detail: string;
   severity: OpsSeverity;
   availability: 'live' | 'planned';
+  trust: OperatorBundleTrust;
+  counters: OperatorBundleCounter[];
 }
 
 export type OperatorBundleSummaries = Partial<Record<OperatorBundleId, OperatorBundleSummary>>;

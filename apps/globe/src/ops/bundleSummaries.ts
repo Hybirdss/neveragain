@@ -1,7 +1,9 @@
 import type { EarthquakeEvent } from '../types';
 import type {
   OperationalOverview,
+  OperatorBundleCounter,
   OperatorBundleSummaries,
+  OperatorBundleTrust,
 } from './readModelTypes';
 import type { OpsAsset, OpsAssetClass, OpsAssetExposure, OpsSeverity } from './types';
 
@@ -19,6 +21,7 @@ interface BuildOperatorBundleSummariesInput {
   exposures: OpsAssetExposure[];
   operationalOverview: OperationalOverview;
   maritimeOverview?: MaritimeTelemetryOverview | null;
+  trustLevel?: Exclude<OperatorBundleTrust, 'pending'>;
 }
 
 function severityRank(severity: OpsSeverity): number {
@@ -77,6 +80,26 @@ function summarizeClassExposure(
   };
 }
 
+function resolveBundleTrust(
+  availability: 'live' | 'planned',
+  trustLevel: Exclude<OperatorBundleTrust, 'pending'> | undefined,
+): OperatorBundleTrust {
+  if (availability === 'planned') {
+    return 'pending';
+  }
+
+  return trustLevel ?? 'confirmed';
+}
+
+function buildCounter(
+  id: string,
+  label: string,
+  value: number,
+  tone: OpsSeverity,
+): OperatorBundleCounter {
+  return { id, label, value, tone };
+}
+
 export function buildOperatorBundleSummaries(
   input: BuildOperatorBundleSummariesInput,
 ): OperatorBundleSummaries {
@@ -85,6 +108,8 @@ export function buildOperatorBundleSummaries(
   const medical = summarizeClassExposure('hospital', input.assets, input.exposures);
   const topRegion = formatRegion(input.operationalOverview.topRegion);
   const hasEvent = input.selectedEvent !== null;
+  const liveTrust = resolveBundleTrust('live', input.trustLevel);
+  const plannedTrust = resolveBundleTrust('planned', input.trustLevel);
 
   return {
     seismic: {
@@ -98,6 +123,21 @@ export function buildOperatorBundleSummaries(
         : 'National seismic truth is standing by for the next significant event.',
       severity: input.operationalOverview.topSeverity,
       availability: 'live',
+      trust: liveTrust,
+      counters: [
+        buildCounter(
+          'affected-assets',
+          'Affected',
+          input.operationalOverview.nationalAffectedAssetCount,
+          input.operationalOverview.topSeverity,
+        ),
+        buildCounter(
+          'visible-assets',
+          'Visible',
+          input.operationalOverview.visibleAffectedAssetCount,
+          input.operationalOverview.topSeverity,
+        ),
+      ],
     },
     maritime: {
       bundleId: 'maritime',
@@ -116,6 +156,14 @@ export function buildOperatorBundleSummaries(
           : 'AIS telemetry and coastal shipping posture are standing by.',
       severity: ports.topSeverity,
       availability: 'live',
+      trust: liveTrust,
+      counters: input.maritimeOverview
+        ? [
+            buildCounter('tracked', 'Tracked', input.maritimeOverview.totalTracked, 'clear'),
+            buildCounter('high-priority', 'High Priority', input.maritimeOverview.highPriorityTracked, 'priority'),
+            buildCounter('underway', 'Underway', input.maritimeOverview.underwayCount, 'watch'),
+          ]
+        : [],
     },
     lifelines: {
       bundleId: 'lifelines',
@@ -128,6 +176,10 @@ export function buildOperatorBundleSummaries(
         : 'Rail, power, water, and telecom views are standing by for corridor stress.',
       severity: rail.topSeverity,
       availability: rail.count > 0 ? 'live' : 'planned',
+      trust: rail.count > 0 ? liveTrust : plannedTrust,
+      counters: rail.count > 0
+        ? [buildCounter('rail-hubs', 'Rail Hubs', rail.count, rail.topSeverity)]
+        : [],
     },
     medical: {
       bundleId: 'medical',
@@ -140,6 +192,10 @@ export function buildOperatorBundleSummaries(
         : 'Medical access and hospital readiness are standing by.',
       severity: medical.topSeverity,
       availability: medical.count > 0 ? 'live' : 'planned',
+      trust: medical.count > 0 ? liveTrust : plannedTrust,
+      counters: medical.count > 0
+        ? [buildCounter('medical-sites', 'Sites', medical.count, medical.topSeverity)]
+        : [],
     },
     'built-environment': {
       bundleId: 'built-environment',
@@ -152,6 +208,8 @@ export function buildOperatorBundleSummaries(
         : 'City-tier built-environment overlays will activate once an operator focus event is selected.',
       severity: input.operationalOverview.topSeverity,
       availability: 'planned',
+      trust: plannedTrust,
+      counters: [],
     },
   };
 }

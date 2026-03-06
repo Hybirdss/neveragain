@@ -158,8 +158,18 @@ describe('buildServiceReadModel', () => {
     expect(model.operationalOverview.topRegion).toBe('kanto');
     expect(model.operationalOverview.impactSummary).toMatch(/1 visible asset/);
     expect(model.bundleSummaries.seismic?.metric).toContain('2 assets');
+    expect(model.bundleSummaries.seismic?.trust).toBe('review');
+    expect(model.bundleSummaries.seismic?.counters).toEqual([
+      { id: 'affected-assets', label: 'Affected', value: 2, tone: 'priority' },
+      { id: 'visible-assets', label: 'Visible', value: 1, tone: 'priority' },
+    ]);
     expect(model.bundleSummaries.maritime?.metric).toContain('122 tracked');
     expect(model.bundleSummaries.maritime?.detail).toContain('Port of Tokyo');
+    expect(model.bundleSummaries.maritime?.counters).toEqual([
+      { id: 'tracked', label: 'Tracked', value: 122, tone: 'clear' },
+      { id: 'high-priority', label: 'High Priority', value: 34, tone: 'priority' },
+      { id: 'underway', label: 'Underway', value: 98, tone: 'watch' },
+    ]);
   });
 
   it('falls back to the national view when visible assets are not provided yet', () => {
@@ -216,6 +226,8 @@ describe('buildServiceReadModel', () => {
     expect(model.systemHealth.level).toBe('nominal');
     expect(model.operationalOverview.impactSummary).toMatch(/1 asset in elevated posture nationwide/);
     expect(model.bundleSummaries.lifelines?.detail).toContain('standing by');
+    expect(model.bundleSummaries.maritime?.trust).toBe('confirmed');
+    expect(model.bundleSummaries.maritime?.counters).toEqual([]);
   });
 
   it('escalates system health and selection messaging when the realtime feed is degraded', () => {
@@ -267,6 +279,7 @@ describe('buildServiceReadModel', () => {
     expect(model.operationalOverview.selectionReason).toBe('auto-select');
     expect(model.operationalOverview.selectionSummary).toMatch(/auto-selected/i);
     expect(model.operationalOverview.impactSummary).toBe('No assets in elevated posture');
+    expect(model.bundleSummaries.seismic?.trust).toBe('degraded');
   });
 
   it('surfaces material revision divergence for operator review when source revisions disagree', () => {
