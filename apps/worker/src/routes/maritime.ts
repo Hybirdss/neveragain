@@ -1,45 +1,23 @@
 import { Hono } from 'hono';
-import {
-  buildSyntheticMaritimeSnapshot,
-  parseAisCoverageProfileId,
-} from '@namazue/db';
 import type { Env } from '../index.ts';
 
 export const maritimeRoute = new Hono<{ Bindings: Env }>();
 
-function parseFinite(value: string | undefined): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+const HUB_NAME = 'japan-maritime-hub';
+const HUB_URL = 'https://maritime-hub/snapshot';
 
 maritimeRoute.get('/vessels', async (c) => {
-  const west = parseFinite(c.req.query('west'));
-  const south = parseFinite(c.req.query('south'));
-  const east = parseFinite(c.req.query('east'));
-  const north = parseFinite(c.req.query('north'));
-  const limit = parseFinite(c.req.query('limit'));
-  const profileId = parseAisCoverageProfileId(c.req.query('profile'));
+  if (!c.env.MARITIME_HUB) {
+    return c.json({ error: 'Maritime hub unavailable' }, 503);
+  }
 
-  const bounds: [number, number, number, number] | undefined = west !== null && south !== null && east !== null && north !== null
-    ? [west, south, east, north]
-    : undefined;
+  const hubRequestUrl = new URL(HUB_URL);
+  hubRequestUrl.search = new URL(c.req.url).search;
+  const stub = c.env.MARITIME_HUB.getByName(HUB_NAME);
+  const response = await stub.fetch(hubRequestUrl.toString());
 
-  const snapshot = buildSyntheticMaritimeSnapshot({
-    profileId,
-    bounds,
-    limit: limit !== null ? Math.floor(limit) : undefined,
-  });
-
-  return c.json({
-    source: snapshot.source,
-    profile: {
-      id: snapshot.profile.id,
-      label: snapshot.profile.label,
-    },
-    generated_at: snapshot.generatedAt,
-    total_tracked: snapshot.totalTracked,
-    visible_count: snapshot.vessels.length,
-    vessels: snapshot.vessels,
+  return new Response(response.body, {
+    status: response.status,
+    headers: response.headers,
   });
 });

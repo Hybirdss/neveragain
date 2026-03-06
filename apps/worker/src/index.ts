@@ -7,13 +7,17 @@ import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
 import { maritimeRoute } from './routes/maritime.ts';
 import { handleCron } from './routes/cron.ts';
+export { MaritimeHub } from './durableObjects/maritimeHub.ts';
 
 export interface Env {
   DATABASE_URL: string;
   XAI_API_KEY: string;
   RATE_LIMIT: KVNamespace;
+  MARITIME_HUB: DurableObjectNamespace;
   ALLOWED_ORIGINS?: string;
   INTERNAL_API_TOKEN?: string;
+  AISSTREAM_API_KEY?: string;
+  AIS_SNAPSHOT_TTL_MS?: number;
 }
 
 const app = new Hono<{ Bindings: Env }>();

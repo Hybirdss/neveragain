@@ -1,0 +1,34 @@
+name = "namazue-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers dev subdomain (always on for testing)
+workers_dev = true
+
+# Smart Placement: closer to Neon DB (ap-southeast-1)
+[placement]
+mode = "smart"
+
+[vars]
+ALLOWED_ORIGINS = "https://namazue.dev,https://www.namazue.dev"
+AIS_SNAPSHOT_TTL_MS = 5000
+
+# KV namespace for rate limiting
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "9cd827bb4fcc4a3ea2ed9f2e1eed9c78"
+
+[[durable_objects.bindings]]
+name = "MARITIME_HUB"
+class_name = "MaritimeHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MaritimeHub"]
+
+# Cron triggers — every minute for JMA polling + analysis generation
+[triggers]
+crons = [
+  "* * * * *",
+]

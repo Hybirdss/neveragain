@@ -3,8 +3,38 @@ import assert from 'node:assert/strict';
 
 import { maritimeRoute } from '../src/routes/maritime.ts';
 
-test('maritime route returns a wider japan-wide snapshot by default', async () => {
-  const response = await maritimeRoute.request('http://example.com/vessels');
+test('maritime route forwards maritime queries to the durable object hub', async () => {
+  let forwardedUrl = '';
+  const response = await maritimeRoute.request(
+    'http://example.com/vessels?profile=japan-wide&west=138.5&south=33.5&east=141.5&north=36.5&limit=25',
+    undefined,
+    {
+      MARITIME_HUB: {
+        getByName(name: string) {
+          assert.equal(name, 'japan-maritime-hub');
+          return {
+            fetch(request: Request | string | URL) {
+              forwardedUrl = String(request);
+              return Response.json({
+                source: 'synthetic',
+                profile: { id: 'japan-wide', label: 'Japan Wide' },
+                generated_at: 123,
+                refreshed_at: 123,
+                total_tracked: 356,
+                visible_count: 25,
+                vessels: [],
+                provenance: {
+                  cache_status: 'miss',
+                  snapshot_age_ms: 0,
+                  provider: 'synthetic',
+                },
+              });
+            },
+          };
+        },
+      },
+    } as never,
+  );
   assert.equal(response.status, 200);
 
   const payload = await response.json() as {
@@ -12,33 +42,24 @@ test('maritime route returns a wider japan-wide snapshot by default', async () =
     profile: { id: string };
     total_tracked: number;
     visible_count: number;
-    vessels: unknown[];
+    provenance: { cache_status: string };
   };
 
   assert.equal(payload.source, 'synthetic');
   assert.equal(payload.profile.id, 'japan-wide');
-  assert.ok(payload.total_tracked > 122);
-  assert.equal(payload.vessels.length, payload.visible_count);
+  assert.equal(payload.total_tracked, 356);
+  assert.equal(payload.visible_count, 25);
+  assert.equal(payload.provenance.cache_status, 'miss');
+  assert.match(
+    forwardedUrl,
+    /https:\/\/maritime-hub\/snapshot\?profile=japan-wide&west=138.5&south=33.5&east=141.5&north=36.5&limit=25/,
+  );
 });
 
-test('maritime route can filter to a requested bbox', async () => {
-  const response = await maritimeRoute.request(
-    'http://example.com/vessels?west=138.5&south=33.5&east=141.5&north=36.5&profile=japan-wide',
-  );
-  assert.equal(response.status, 200);
+test('maritime route returns 503 when the durable object binding is unavailable', async () => {
+  const response = await maritimeRoute.request('http://example.com/vessels', undefined, {} as never);
+  assert.equal(response.status, 503);
 
-  const payload = await response.json() as {
-    visible_count: number;
-    total_tracked: number;
-    vessels: Array<{ lat: number; lng: number }>;
-  };
-
-  assert.ok(payload.total_tracked >= payload.visible_count);
-  assert.ok(payload.visible_count > 0);
-  assert.ok(payload.vessels.every((v) => (
-    v.lng >= 138.5 &&
-    v.lng <= 141.5 &&
-    v.lat >= 33.5 &&
-    v.lat <= 36.5
-  )));
+  const payload = await response.json() as { error: string };
+  assert.equal(payload.error, 'Maritime hub unavailable');
 });
