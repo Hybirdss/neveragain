@@ -92,3 +92,24 @@ test('prepareAnalysisForDelivery re-normalizes stale narrative fields before ser
   assert.equal(normalized.expert.historical_comparison, null);
   assert.deepEqual(normalized.expert.notable_features, []);
 });
+
+test('prepareAnalysisForDelivery rewrites overconfident tsunami-none wording on read', () => {
+  const normalized = prepareAnalysisForDelivery({
+    ...STALE_ANALYSIS,
+    facts: {
+      ...STALE_ANALYSIS.facts,
+      tsunami: { risk: 'none' },
+    },
+    dashboard: {
+      ...STALE_ANALYSIS.dashboard,
+      one_liner: {
+        en: 'No tsunami expected from this earthquake.',
+        ja: 'この地震による津波の心配はありません。',
+        ko: '이 지진으로 인한 쓰나미 우려는 없습니다.',
+      },
+    },
+  }, EVENT);
+
+  assert.match(normalized.dashboard.one_liner.ko, /쓰나미 위험이 낮아 보이지만 공식 발표는 계속 확인/);
+  assert.match(normalized.dashboard.one_liner.en, /Tsunami risk is currently indicated as low/i);
+});
