@@ -111,7 +111,7 @@ function updateLoading(status: string, percent: number): void {
 
 // ── Bootstrap ──
 
-async function bootstrap(): Promise<void> {
+export async function bootstrapLegacyApp(): Promise<void> {
   // 1. DOM layout
   updateLoading('Building layout…', 10);
   const layout = createLayout();
@@ -302,12 +302,10 @@ async function bootstrap(): Promise<void> {
 
 // ── Entry Point ──
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/tile-cache-sw.js').catch((err) => {
-    console.warn('[sw] Registration failed:', err);
-  });
+export function registerLegacyServiceWorker(): void {
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/tile-cache-sw.js').catch((err) => {
+      console.warn('[sw] Registration failed:', err);
+    });
+  }
 }
-
-bootstrap().catch((err) => {
-  console.error('[Namazue] Bootstrap failed:', err);
-});

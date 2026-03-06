@@ -11,6 +11,7 @@ These are the only product/design documents that should drive new work.
 
 - `review/console-review-design.md`
 - `review/console-review-implementation-plan.md`
+- `review/live-shell-architecture.md`
 
 ## Current Product Definition
 
