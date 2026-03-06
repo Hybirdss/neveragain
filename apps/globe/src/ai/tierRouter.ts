@@ -1,8 +1,8 @@
 /**
  * Tier Router — Client-side analysis tier classification
  *
- * Determines whether to trigger AI analysis and at what tier
- * based on earthquake parameters.
+ * Determines what realtime generation tier to use based on
+ * earthquake parameters. User-triggered reads are handled separately.
  */
 
 import type { EarthquakeEvent } from '../types';
@@ -35,10 +35,12 @@ export function classifyTier(event: EarthquakeEvent): ClientTier {
 }
 
 /**
- * Should we fetch analysis on click? All tiers except skip.
+ * User clicks should always fetch analysis now that the API can
+ * return an immediate deterministic answer without waiting for AI.
  */
 export function shouldFetchOnClick(event: EarthquakeEvent): boolean {
-  return classifyTier(event) !== 'skip';
+  void event;
+  return true;
 }
 
 function isJapanRegion(lat: number, lng: number): boolean {

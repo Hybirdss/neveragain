@@ -4,7 +4,7 @@
  * Client flow:
  *   POST /api/analyze { event_id }
  *   - Returns cached analysis if already generated
- *   - Returns 202 (pending) if not generated yet
+ *   - Otherwise returns an immediate canonical analysis built from facts
  *
  * Server/internal flow:
  *   POST /api/analyze/generate { event_id }
@@ -18,6 +18,7 @@ import { callGrok } from '../lib/grok.ts';
 import { buildContext } from '../context/builder.ts';
 import { checkRateLimit } from '../lib/rateLimit.ts';
 import { prepareAnalysisForDelivery } from '../lib/analysisDelivery.ts';
+import { isJapanEvent, planAnalyzeCacheMiss } from '../lib/analyzeOnMiss.ts';
 import {
   analyses, earthquakes, classifyLocation,
   inferFaultType as inferFaultTypeGeo,
@@ -33,6 +34,15 @@ export const analyzeRoute = new Hono<{ Bindings: Env }>();
 interface AnalysisCacheRow {
   analysis: unknown;
   context?: unknown;
+}
+
+interface BuiltAnalysisSnapshot {
+  event: typeof earthquakes.$inferSelect;
+  tier: AnalysisTier;
+  facts: Record<string, unknown>;
+  storedModel: string;
+  usage: { input_tokens: number; output_tokens: number };
+  analysis: unknown;
 }
 
 async function getLatestAnalysis(
@@ -82,10 +92,6 @@ function classifyTier(mag: number, isJapan: boolean): AnalysisTier {
   if (mag >= 8.0) return 'S';
   if (mag >= 6.0) return 'A';
   return 'B';
-}
-
-function isJapan(lat: number, lng: number): boolean {
-  return lat >= 20 && lat <= 50 && lng >= 120 && lng <= 155;
 }
 
 function derivePlatePair(plate: string): string {
@@ -157,44 +163,13 @@ function buildModelNotes(facts: any) {
   return { assumptions, unknowns, what_will_update };
 }
 
-export async function generateAndStoreAnalysis(
+async function buildAnalysisSnapshot(
   env: Env,
   eventId: string,
-  triggerReason: string = 'initial',
-): Promise<{ status: 'cached' | 'generated' | 'skipped'; analysis: unknown }> {
+  options?: { allowAiHints?: boolean },
+): Promise<BuiltAnalysisSnapshot> {
   const db = createDb(env.DATABASE_URL);
-
-  // Cache check: skip if already generated (unless re-analysis trigger)
-  const cached = await getLatestAnalysis(db, eventId);
-  if (cached && (triggerReason === 'initial' || triggerReason === 'backfill')) {
-    return { status: 'cached', analysis: cached.analysis };
-  }
-
-  // Magnitude revision: verify actual change ≥0.3 before regenerating
-  if (triggerReason === 'mag_revision' && cached) {
-    const evRows = await db.select({ magnitude: earthquakes.magnitude })
-      .from(earthquakes).where(eq(earthquakes.id, eventId)).limit(1);
-    const currentMag = evRows[0]?.magnitude ?? 0;
-    const cachedMag = (cached.context as any)?.event?.mag
-      ?? (cached.analysis as any)?.facts?.event?.mag
-      ?? 0;
-    if (Math.abs(currentMag - cachedMag) < 0.3) {
-      return { status: 'skipped', analysis: cached.analysis };
-    }
-  }
-
-  // KV mutex: prevent duplicate concurrent LLM calls for same event
-  const lockKey = `anlk:${eventId}`;
-  if (env.RATE_LIMIT) {
-    const lock = await env.RATE_LIMIT.get(lockKey);
-    if (lock) {
-      console.log(`[analyze] ${eventId} already in progress, skipping`);
-      return { status: 'skipped', analysis: cached?.analysis ?? null };
-    }
-    await env.RATE_LIMIT.put(lockKey, '1', { expirationTtl: 60 });
-  }
-
-  try {
+  const allowAiHints = options?.allowAiHints ?? true;
 
   const events = await db.select()
     .from(earthquakes)
@@ -207,7 +182,7 @@ export async function generateAndStoreAnalysis(
 
   const event = events[0];
   const eventTime = event.time ?? new Date();
-  const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
+  const tier = classifyTier(event.magnitude, isJapanEvent(event.lat, event.lng));
   const thirtyYearsAgo = new Date(eventTime.getTime() - 30 * 365.25 * 24 * 3600 * 1000);
 
   // 200km radius ÷ 111 km/° ≈ 1.8°. Bbox pre-filter uses indexed lat/lng columns,
@@ -280,7 +255,7 @@ export async function generateAndStoreAnalysis(
       largest: { mag: 0, date: '', place: '', id: '' },
       avg_per_year: Math.round((s.total / 30) * 10) / 10,
     },
-    nearest_faults: faultRows.map(f => ({
+    nearest_faults: faultRows.map((f) => ({
       id: f.id,
       name_en: f.name_en ?? '',
       name_ja: f.name_ja ?? '',
@@ -296,7 +271,6 @@ export async function generateAndStoreAnalysis(
 
   const context = buildContext(builderInput);
 
-  // Build v4 facts block from context (code-computed, LLM never touches)
   const faultType = event.fault_type ?? inferFaultType(event.depth_km, event.lat, event.lng, event.place ?? undefined, event.place_ja ?? undefined);
   const loc = classifyLocation(event.lat, event.lng, event.place ?? undefined, event.place_ja ?? undefined);
   const isOffshore = loc.type !== 'inland';
@@ -311,7 +285,7 @@ export async function generateAndStoreAnalysis(
       nearest_trench: context.tectonic.nearest_trench,
       nearest_fault: context.tectonic.nearest_active_fault,
       depth_class: context.basic.depth_km < 30 ? 'shallow' : context.basic.depth_km < 70 ? 'mid' : context.basic.depth_km < 300 ? 'intermediate' : 'deep',
-      is_japan: isJapan(event.lat, event.lng),
+      is_japan: isJapanEvent(event.lat, event.lng),
     },
     mechanism: context.mechanism
       ? { status: 'available' as const, strike: context.mechanism.strike, dip: context.mechanism.dip, rake: context.mechanism.rake, source: 'gcmt' }
@@ -327,16 +301,19 @@ export async function generateAndStoreAnalysis(
 
   let grokHints: unknown = undefined;
   let usage = { input_tokens: 0, output_tokens: 0 };
-  let storedModel = 'grok-4.1-fast-reasoning';
+  let storedModel = 'deterministic-fallback';
 
-  try {
-    const result = await callGrok(env, facts as any, tier);
-    grokHints = result.analysis;
-    usage = result.usage;
-  } catch (err) {
-    storedModel = 'deterministic-fallback';
-    console.warn(`[analyze] ${event.id} AI hint generation failed, using deterministic fallback`);
-    console.warn(err);
+  if (allowAiHints && env.XAI_API_KEY) {
+    storedModel = 'grok-4.1-fast-reasoning';
+    try {
+      const result = await callGrok(env, facts as any, tier);
+      grokHints = result.analysis;
+      usage = result.usage;
+    } catch (err) {
+      storedModel = 'deterministic-fallback';
+      console.warn(`[analyze] ${event.id} AI hint generation failed, using deterministic fallback`);
+      console.warn(err);
+    }
   }
 
   const mergedAnalysis = buildCanonicalAnalysisFromFacts({
@@ -356,29 +333,87 @@ export async function generateAndStoreAnalysis(
     },
   });
 
+  return {
+    event,
+    tier,
+    facts: facts as Record<string, unknown>,
+    storedModel,
+    usage,
+    analysis: mergedAnalysis as unknown,
+  };
+}
+
+async function buildDeterministicAnalysis(
+  env: Env,
+  eventId: string,
+): Promise<unknown> {
+  const built = await buildAnalysisSnapshot(env, eventId, { allowAiHints: false });
+  return built.analysis;
+}
+
+export async function generateAndStoreAnalysis(
+  env: Env,
+  eventId: string,
+  triggerReason: string = 'initial',
+): Promise<{ status: 'cached' | 'generated' | 'skipped'; analysis: unknown | null }> {
+  const db = createDb(env.DATABASE_URL);
+
+  // Cache check: skip if already generated (unless re-analysis trigger)
+  const cached = await getLatestAnalysis(db, eventId);
+  if (cached && (triggerReason === 'initial' || triggerReason === 'backfill')) {
+    return { status: 'cached', analysis: cached.analysis };
+  }
+
+  // Magnitude revision: verify actual change ≥0.3 before regenerating
+  if (triggerReason === 'mag_revision' && cached) {
+    const evRows = await db.select({ magnitude: earthquakes.magnitude })
+      .from(earthquakes).where(eq(earthquakes.id, eventId)).limit(1);
+    const currentMag = evRows[0]?.magnitude ?? 0;
+    const cachedMag = (cached.context as any)?.event?.mag
+      ?? (cached.analysis as any)?.facts?.event?.mag
+      ?? 0;
+    if (Math.abs(currentMag - cachedMag) < 0.3) {
+      return { status: 'skipped', analysis: cached.analysis };
+    }
+  }
+
+  // KV mutex: prevent duplicate concurrent LLM calls for same event
+  const lockKey = `anlk:${eventId}`;
+  if (env.RATE_LIMIT) {
+    const lock = await env.RATE_LIMIT.get(lockKey);
+    if (lock) {
+      console.log(`[analyze] ${eventId} already in progress, skipping`);
+      return { status: 'skipped', analysis: cached?.analysis ?? null };
+    }
+    await env.RATE_LIMIT.put(lockKey, '1', { expirationTtl: 60 });
+  }
+
+  try {
+  const built = await buildAnalysisSnapshot(env, eventId, { allowAiHints: true });
+
   await db.update(analyses)
     .set({ is_latest: false })
     .where(and(
-      eq(analyses.event_id, event.id),
+      eq(analyses.event_id, built.event.id),
       eq(analyses.is_latest, true),
     ));
 
   await db.insert(analyses).values({
-    event_id: event.id,
+    event_id: built.event.id,
     version: 4,
-    tier,
-    model: storedModel,
+    tier: built.tier,
+    model: built.storedModel,
     prompt_version: ANALYSIS_PROMPT_VERSION,
-    context: facts as any,
-    analysis: mergedAnalysis as any,
-    search_tags: mergedAnalysis.search_index.tags,
-    search_region: mergedAnalysis.search_index.region,
+    context: built.facts as any,
+    analysis: built.analysis as any,
+    search_tags: (built.analysis as any).search_index.tags,
+    search_region: (built.analysis as any).search_index.region,
     is_latest: true,
     trigger_reason: triggerReason,
   });
 
-  console.log(`[analyze] generated event=${event.id} tier=${tier} reason=${triggerReason} tokens=${usage.input_tokens}+${usage.output_tokens}`);
-  return { status: 'generated', analysis: mergedAnalysis as unknown };
+  console.log(`[analyze] generated event=${built.event.id} tier=${built.tier} reason=${triggerReason} tokens=${built.usage.input_tokens}+${built.usage.output_tokens}`);
+  return { status: 'generated', analysis: built.analysis };
 
   } finally {
     // Release KV mutex
@@ -388,7 +423,7 @@ export async function generateAndStoreAnalysis(
   }
 }
 
-// Client route: DB-backed fetch or synchronous generation
+// Client route: DB-backed fetch or immediate canonical analysis
 analyzeRoute.post('/', async (c) => {
   // Rate limit before any work. analyze=10/hr guards against LLM cost abuse.
   const ip = c.req.header('cf-connecting-ip') ?? '0.0.0.0';
@@ -408,7 +443,7 @@ analyzeRoute.post('/', async (c) => {
     return c.json(cached.analysis);
   }
 
-  // No cached analysis — check if event qualifies for real-time generation (M4+ Japan)
+  // No cached analysis — return an immediate canonical analysis for every event.
   const events = await db.select({
     magnitude: earthquakes.magnitude,
     lat: earthquakes.lat,
@@ -419,17 +454,28 @@ analyzeRoute.post('/', async (c) => {
     .limit(1);
 
   const ev = events[0];
-  if (!ev || ev.magnitude < 4 || !isJapan(ev.lat, ev.lng)) {
-    return c.json({ status: 'pending', event_id, message: 'Analysis is being prepared on the server.' }, 202);
+  if (!ev) {
+    return c.json({ error: 'Event not found' }, 404);
   }
 
-  // Generate synchronously for M4+ Japan events
+  const missPlan = planAnalyzeCacheMiss(ev);
+  if (missPlan === 'generate-and-store') {
+    try {
+      const result = await generateAndStoreAnalysis(c.env, event_id);
+      if (result.analysis) {
+        return c.json(result.analysis);
+      }
+    } catch (err) {
+      console.error(`[analyze] realtime generation failed for ${event_id}:`, err);
+    }
+  }
+
   try {
-    const result = await generateAndStoreAnalysis(c.env, event_id);
-    return c.json(result.analysis);
+    const analysis = await buildDeterministicAnalysis(c.env, event_id);
+    return c.json(analysis);
   } catch (err) {
-    console.error(`[analyze] realtime generation failed for ${event_id}:`, err);
-    return c.json({ status: 'pending', event_id, message: 'Analysis generation in progress.' }, 202);
+    console.error(`[analyze] deterministic fallback failed for ${event_id}:`, err);
+    return c.json({ error: 'Could not prepare analysis' }, 500);
   }
 });
 
