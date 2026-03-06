@@ -38,7 +38,7 @@ function renderPriorities(priorities: OpsPriority[]): string {
   const items = priorities.map((p, i) => {
     const badge = severityBadgeClass(p.severity);
     return `
-      <div class="nz-check__item" data-asset-id="${p.assetId ?? ''}">
+      <div class="nz-check__item nz-check__item--${badge}" data-asset-id="${p.assetId ?? ''}">
         <div class="nz-check__item-header">
           <span class="nz-check__rank">${i + 1}</span>
           <span class="nz-check__severity nz-check__severity--${badge}">${p.severity.toUpperCase()}</span>
@@ -77,6 +77,17 @@ export function mountCheckTheseNow(container: HTMLElement): () => void {
     } else {
       container.innerHTML = renderPriorities(priorities);
     }
+
+    // Wire up panel→map highlight on hover
+    container.querySelectorAll<HTMLElement>('[data-asset-id]').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const id = el.dataset.assetId;
+        if (id) consoleStore.set('highlightedAssetId', id);
+      });
+      el.addEventListener('mouseleave', () => {
+        consoleStore.set('highlightedAssetId', null);
+      });
+    });
   }
 
   let renderScheduled = false;

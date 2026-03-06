@@ -40,6 +40,7 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
     intensityGrid: null,
     vessels: [],
     faults: [],
+    railStatuses: [],
     scenarioMode: false,
     layerVisibility: createDefaultLayerVisibility(),
     activeBundleId: 'maritime',
@@ -48,6 +49,9 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
     bundleDrawerOpen: true,
     panelsVisible: true,
     showCoordinates: true,
+    highlightedAssetId: null,
+    sequenceSWaveKm: null,
+    dataFreshness: { usgs: 0, ais: 0, odpt: 0 },
     ...overrides,
   };
 }

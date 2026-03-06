@@ -10,7 +10,7 @@
  * Color = state (green → blue → amber → red)
  */
 
-import { IconLayer, TextLayer } from '@deck.gl/layers';
+import { IconLayer, TextLayer, ScatterplotLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import { OPS_ASSETS } from '../ops/assetCatalog';
 import type { OpsAsset, OpsAssetExposure, OpsSeverity, ZoomTier } from '../ops/types';
@@ -38,6 +38,7 @@ interface AssetDatum extends OpsAsset {
 export function createAssetLayers(
   currentTier: ZoomTier,
   exposures: OpsAssetExposure[],
+  highlightedAssetId: string | null = null,
 ): Layer[] {
   const exposureMap = new Map(exposures.map((e) => [e.assetId, e]));
   const currentIdx = tierIndex(currentTier);
@@ -52,6 +53,29 @@ export function createAssetLayers(
   if (visible.length === 0) return [];
 
   const layers: Layer[] = [];
+
+  // Highlight glow ring for panel-hovered asset
+  if (highlightedAssetId) {
+    const highlighted = visible.find((d) => d.id === highlightedAssetId);
+    if (highlighted) {
+      layers.push(new ScatterplotLayer({
+        id: 'asset-highlight-glow',
+        data: [highlighted],
+        pickable: false,
+        radiusUnits: 'pixels',
+        getPosition: (d: AssetDatum) => [d.lng, d.lat],
+        getRadius: 28,
+        stroked: true,
+        filled: true,
+        getFillColor: [125, 211, 252, 40],
+        getLineColor: [125, 211, 252, 120],
+        getLineWidth: 2,
+        updateTriggers: {
+          getPosition: [highlightedAssetId],
+        },
+      }));
+    }
+  }
 
   // Infrastructure icon markers
   layers.push(new IconLayer<AssetDatum>({

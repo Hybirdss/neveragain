@@ -39,7 +39,7 @@ const BUNDLE_DEFINITIONS: Record<BundleId, BundleDefinition> = {
     id: 'seismic',
     label: 'Seismic',
     description: 'Event truth, shaking fields, and fault context.',
-    layerIds: ['earthquakes', 'intensity', 'faults'],
+    layerIds: ['earthquakes', 'intensity', 'heatmap', 'faults'],
   },
   maritime: {
     id: 'maritime',

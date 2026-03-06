@@ -136,26 +136,27 @@ function renderEventState(
   const metaMarkup = metaLines.map((line) => `<div class="nz-snap__metric">${line}</div>`).join('');
   const healthMarkup = renderHealthBlock(readModel);
 
+  const jstTime = new Date(event.time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
+
   return `
-    <div class="nz-panel" id="nz-event-snapshot">
+    <div class="nz-panel nz-panel--sev-${sev}" id="nz-event-snapshot">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Event Truth</span>
         <span class="nz-snap__status nz-snap__status--${sev}">${sevLabel}</span>
         <button class="nz-snap__dismiss" id="nz-snap-dismiss" title="Deselect (Esc)">×</button>
       </div>
+      <div class="nz-snap__mag-hero nz-snap__mag-hero--${sev}">M ${event.magnitude.toFixed(1)}</div>
+      <div class="nz-snap__mag-depth">${Math.round(event.depth_km)}km deep</div>
+      <div class="nz-snap__sev-bar nz-snap__sev-bar--${sev}"></div>
       <div class="nz-snap__headline">${event.place.text}</div>
       <div class="nz-snap__metrics">
         <div class="nz-snap__metric-group">
-          <span class="nz-snap__metric-value">M${event.magnitude.toFixed(1)}</span>
-          <span class="nz-snap__metric-label">Magnitude</span>
-        </div>
-        <div class="nz-snap__metric-group">
-          <span class="nz-snap__metric-value">${Math.round(event.depth_km)}km</span>
-          <span class="nz-snap__metric-label">Depth</span>
-        </div>
-        <div class="nz-snap__metric-group">
           <span class="nz-snap__metric-value">${formatTimeAgo(event.time)}</span>
           <span class="nz-snap__metric-label">Elapsed</span>
+        </div>
+        <div class="nz-snap__metric-group">
+          <span class="nz-snap__metric-value">${jstTime} <span class="nz-snap__tz">JST</span></span>
+          <span class="nz-snap__metric-label">Local Time</span>
         </div>
       </div>
       ${headline ? `<div class="nz-snap__metric">${headline}</div>` : ''}

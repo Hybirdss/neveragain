@@ -19,7 +19,8 @@
 import { IconLayer, PathLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import type { Vessel, VesselType } from '../data/aisManager';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent, FaultType } from '../types';
+import { computeGmpe } from '../engine/gmpe';
 import { isHighPriorityVessel } from '../ops/maritimeTelemetry';
 import type { ViewportState } from '../core/viewportManager';
 
@@ -58,8 +59,42 @@ const TRAIL_COLOR: RGBA = [100, 130, 160, 30];
 
 // ── Impact Zone Computation ───────────────────────────────────
 
-function impactRadiusKm(mag: number): number {
-  return 30 * Math.pow(2, mag - 4);
+/**
+ * Compute the impact zone radius using binary search over the
+ * Si & Midorikawa (1999) GMPE equation.
+ *
+ * Impact zone defined as the area where Si & Midorikawa (1999) predicts
+ * JMA instrumental intensity >= 3.5 (JMA seismic intensity scale 4),
+ * the threshold at which structural damage to buildings begins.
+ * Reference: JMA seismic intensity scale classification,
+ * Cabinet Office 被害想定.
+ */
+function impactRadiusKm(
+  mag: number,
+  depth_km: number = 20,
+  faultType: FaultType = 'crustal',
+): number {
+  const JMA_THRESHOLD = 3.5;
+  let lo = 1;
+  let hi = 800;
+
+  for (let i = 0; i < 25; i++) {
+    const mid = (lo + hi) / 2;
+    const hypoDist = Math.sqrt(mid * mid + depth_km * depth_km);
+    const result = computeGmpe({
+      Mw: mag,
+      depth_km,
+      distance_km: hypoDist,
+      faultType,
+    });
+    if (result.jmaIntensity >= JMA_THRESHOLD) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  return (lo + hi) / 2;
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -104,7 +139,7 @@ export function computeMaritimeExposure(
     return { totalInZone: 0, passengerCount: 0, tankerCount: 0, cargoCount: 0, fishingCount: 0, summary: '' };
   }
 
-  const radius = impactRadiusKm(selectedEvent.magnitude);
+  const radius = impactRadiusKm(selectedEvent.magnitude, selectedEvent.depth_km, selectedEvent.faultType);
   let passenger = 0;
   let tanker = 0;
   let cargo = 0;
@@ -147,7 +182,7 @@ export function formatVesselTooltip(v: Vessel, selectedEvent: EarthquakeEvent | 
 
   let zoneInfo = '';
   if (selectedEvent) {
-    const radius = impactRadiusKm(selectedEvent.magnitude);
+    const radius = impactRadiusKm(selectedEvent.magnitude, selectedEvent.depth_km, selectedEvent.faultType);
     const dist = haversineKm(v.lat, v.lng, selectedEvent.lat, selectedEvent.lng);
     if (dist <= radius) {
       zoneInfo = `<div style="color:#ef4444;font-weight:600;margin-top:4px">IN IMPACT ZONE — ${Math.round(dist)}km from epicenter</div>`;
@@ -210,7 +245,7 @@ export function createAisLayers(
   const renderVessels = viewport ? filterVisibleVessels(vessels, viewport) : vessels;
   if (renderVessels.length === 0) return [];
 
-  const radius = selectedEvent ? impactRadiusKm(selectedEvent.magnitude) : 0;
+  const radius = selectedEvent ? impactRadiusKm(selectedEvent.magnitude, selectedEvent.depth_km, selectedEvent.faultType) : 0;
 
   // Precompute impact zone membership for performance
   const inZone = new Set<string>();

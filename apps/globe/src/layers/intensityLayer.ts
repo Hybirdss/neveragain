@@ -53,8 +53,8 @@ function gridToPoints(grid: IntensityGrid): IntensityPoint[] {
   const latStep = (2 * grid.radiusDeg) / Math.max(1, grid.rows - 1);
   const lngStep = (2 * lngRadDeg) / Math.max(1, grid.cols - 1);
 
-  // Radius in meters: half the grid spacing (in degrees → meters)
-  const cellRadiusM = (latStep * 111_000) / 2;
+  // Radius in meters: 70% of grid spacing so cells overlap for smooth field
+  const cellRadiusM = (latStep * 111_000) * 0.7;
 
   for (let r = 0; r < grid.rows; r++) {
     const lat = latMin + r * latStep;
@@ -113,7 +113,7 @@ function ensureAnimPool(grid: IntensityGrid): void {
   }
 
   // Pre-fill positions (they don't change during animation)
-  const cellRadiusM = (latStep * 111_000) / 2;
+  const cellRadiusM = (latStep * 111_000) * 0.7;
   let idx = 0;
   for (let r = 0; r < grid.rows; r++) {
     const lat = latMin + r * latStep;
@@ -145,8 +145,7 @@ function gridToAnimatedPoints(
   const lngMin = grid.center.lng - lngRadDeg;
   const latStep = (2 * grid.radiusDeg) / Math.max(1, grid.rows - 1);
   const lngStep = (2 * lngRadDeg) / Math.max(1, grid.cols - 1);
-  const cellRadiusM = (latStep * 111_000) / 2;
-
+  const cellRadiusM = (latStep * 111_000) * 0.7;
   const outerEdge = revealRadiusKm + FADE_BAND_KM;
   const cosLat = Math.cos(epicenter.lat * Math.PI / 180);
 

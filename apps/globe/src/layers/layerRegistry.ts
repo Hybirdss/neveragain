@@ -8,6 +8,7 @@ export type BundleId =
 export type LayerId =
   | 'earthquakes'
   | 'intensity'
+  | 'heatmap'
   | 'faults'
   | 'ais'
   | 'rail'
@@ -63,6 +64,19 @@ const LAYER_DEFINITIONS: Record<LayerId, LayerDefinition> = {
       { color: 'rgb(239, 50, 0)', label: 'JMA 6-' },
       { color: 'rgb(200, 0, 0)', label: 'JMA 6+' },
       { color: 'rgb(150, 0, 80)', label: 'JMA 7' },
+    ],
+  },
+  heatmap: {
+    id: 'heatmap',
+    label: 'Seismic Heatmap',
+    bundle: 'seismic',
+    category: 'hazard',
+    availability: 'live',
+    defaultVisible: true,
+    legend: [
+      { color: 'rgb(30, 60, 120)', label: 'Low density' },
+      { color: 'rgb(120, 180, 240)', label: 'Moderate density' },
+      { color: 'rgb(255, 255, 255)', label: 'High density' },
     ],
   },
   faults: {

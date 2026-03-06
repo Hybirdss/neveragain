@@ -43,7 +43,7 @@ function renderExposures(exposures: OpsAssetExposure[]): string {
     const icon = getOpsAssetClassDefinition(asset.class).icon;
 
     return `
-      <div class="nz-expo__item">
+      <div class="nz-expo__item nz-expo__item--${exp.severity}" data-asset-id="${exp.assetId}">
         <span class="nz-expo__icon">${icon}</span>
         <div class="nz-expo__info">
           <div class="nz-expo__name">${asset.name} ${severityBadge(exp.severity)}</div>
@@ -82,6 +82,17 @@ export function mountAssetExposure(container: HTMLElement): () => void {
     }
 
     container.innerHTML = renderExposures(exposures);
+
+    // Wire up panel→map highlight on hover
+    container.querySelectorAll<HTMLElement>('[data-asset-id]').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const id = el.dataset.assetId;
+        if (id) consoleStore.set('highlightedAssetId', id);
+      });
+      el.addEventListener('mouseleave', () => {
+        consoleStore.set('highlightedAssetId', null);
+      });
+    });
   }
 
   let renderScheduled = false;

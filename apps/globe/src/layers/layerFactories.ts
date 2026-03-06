@@ -9,6 +9,7 @@
  *
  * Order values determine render stacking (low = bottom):
  *   100 intensity     — hazard field (always below everything)
+ *   150 heatmap       — seismic density (national/regional zoom only)
  *   200 faults        — tectonic context
  *   250-280 lifelines — rail, power, water, telecom
  *   300 ais           — maritime traffic
@@ -28,6 +29,7 @@ import { createAisLayers } from './aisLayer';
 import { createHospitalLayers } from './hospitalLayer';
 import { createRailLayers } from './railLayer';
 import { createPowerLayers } from './powerLayer';
+import { createSeismicHeatmapLayer } from './heatmapLayer';
 
 export interface LayerFactory {
   id: LayerId;
@@ -51,6 +53,16 @@ export const LAYER_FACTORIES: LayerFactory[] = [
     },
   }),
   f({
+    id: 'heatmap',
+    order: 150,
+    deps: ['events', 'viewport'],
+    viewportMode: 'zoom',
+    create(state: ConsoleState) {
+      const layer = createSeismicHeatmapLayer(state.events, state.viewport.zoom);
+      return layer ? [layer] : [];
+    },
+  }),
+  f({
     id: 'faults',
     order: 200,
     deps: ['faults', 'viewport', 'selectedEvent'],
@@ -63,17 +75,17 @@ export const LAYER_FACTORIES: LayerFactory[] = [
   f({
     id: 'rail',
     order: 250,
-    deps: ['selectedEvent', 'viewport'],
+    deps: ['selectedEvent', 'viewport', 'railStatuses', 'sequenceSWaveKm'],
     create(state: ConsoleState) {
-      return createRailLayers(state.selectedEvent, state.viewport.zoom);
+      return createRailLayers(state.selectedEvent, state.viewport.zoom, state.railStatuses, state.sequenceSWaveKm);
     },
   }),
   f({
     id: 'power',
     order: 260,
-    deps: ['selectedEvent', 'viewport'],
+    deps: ['selectedEvent', 'viewport', 'sequenceSWaveKm'],
     create(state: ConsoleState) {
-      return createPowerLayers(state.selectedEvent, state.viewport.zoom);
+      return createPowerLayers(state.selectedEvent, state.viewport.zoom, state.sequenceSWaveKm);
     },
   }),
   f({
@@ -88,9 +100,9 @@ export const LAYER_FACTORIES: LayerFactory[] = [
   f({
     id: 'hospitals',
     order: 350,
-    deps: ['selectedEvent', 'viewport'],
+    deps: ['selectedEvent', 'viewport', 'sequenceSWaveKm'],
     create(state: ConsoleState) {
-      return createHospitalLayers(state.selectedEvent, state.viewport.zoom);
+      return createHospitalLayers(state.selectedEvent, state.viewport.zoom, state.sequenceSWaveKm);
     },
   }),
   f({
