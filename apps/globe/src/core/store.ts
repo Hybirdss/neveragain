@@ -179,3 +179,59 @@ const initialState: ConsoleState = {
 };
 
 export const consoleStore = new ConsoleStore(initialState);
+
+// ── Scenario Mode Gate ─────────────────────────────────────
+//
+// Requires explicit user consent before activating scenario mode.
+// Once accepted per session, subsequent toggles skip the dialog.
+
+let scenarioDisclaimerAccepted = false;
+
+/**
+ * Toggle scenario mode with a disclaimer gate on first activation.
+ * Call this from ALL scenario mode entry points (button, keyboard, command palette).
+ */
+export function toggleScenarioMode(): void {
+  const current = consoleStore.get('scenarioMode');
+
+  // Turning off: always allowed, no dialog
+  if (current) {
+    consoleStore.set('scenarioMode', false);
+    return;
+  }
+
+  // Turning on: require disclaimer acceptance (once per session)
+  if (scenarioDisclaimerAccepted) {
+    consoleStore.set('scenarioMode', true);
+    return;
+  }
+
+  const accepted = confirm(
+    '⚠ シミュレーションモード (Scenario Mode)\n'
+    + '\n'
+    + 'これはシミュレーション機能です。\n'
+    + '表示されるデータは仮想的なものであり、実際の地震情報ではありません。\n'
+    + '\n'
+    + 'This is a simulation feature.\n'
+    + 'All displayed data is hypothetical and does NOT represent real earthquake events.\n'
+    + '\n'
+    + '━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+    + '\n'
+    + '免責事項 / Disclaimer:\n'
+    + '本シミュレーションの結果を実際の防災判断に使用しないでください。\n'
+    + 'スクリーンショットの無断転載・公開により生じた誤解について、\n'
+    + '当サービスは一切の責任を負いません。\n'
+    + '\n'
+    + 'Do not use simulation results for actual disaster response decisions.\n'
+    + 'We assume no liability for misunderstandings caused by\n'
+    + 'unauthorized sharing of screenshots from this mode.\n'
+    + '\n'
+    + '「OK」を押すと同意したものとみなします。\n'
+    + 'Press OK to acknowledge and proceed.',
+  );
+
+  if (accepted) {
+    scenarioDisclaimerAccepted = true;
+    consoleStore.set('scenarioMode', true);
+  }
+}

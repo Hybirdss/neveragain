@@ -8,7 +8,7 @@ import {
   type BundleDensity,
 } from '../layers/bundleRegistry';
 import { getLayerDefinition, type BundleId, type LayerId, type LegendEntry } from '../layers/layerRegistry';
-import { consoleStore, type ConsoleState } from '../core/store';
+import { consoleStore, toggleScenarioMode, type ConsoleState } from '../core/store';
 import type {
   OperatorBundleCounter,
   OperatorBundleDomain,
@@ -355,7 +355,7 @@ function bindDockInteractions(dock: HTMLElement, drawer: HTMLElement): void {
   drawer.querySelectorAll<HTMLButtonElement>('[data-bundle]').forEach(bindBundleSelection);
 
   dock.querySelector<HTMLButtonElement>('[data-action="scenario"]')?.addEventListener('click', () => {
-    consoleStore.set('scenarioMode', !consoleStore.get('scenarioMode'));
+    toggleScenarioMode();
   });
 
   dock.querySelector<HTMLButtonElement>('[data-action="drawer"]')?.addEventListener('click', () => {

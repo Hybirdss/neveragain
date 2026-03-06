@@ -12,7 +12,7 @@
  * Keyboard-only: arrows to navigate, Enter to execute, Escape to close.
  */
 
-import { consoleStore } from '../core/store';
+import { consoleStore, toggleScenarioMode } from '../core/store';
 import {
   getAllBundleDefinitions,
   getAllOperatorViewPresets,
@@ -190,7 +190,7 @@ function buildCommands(flyTo: (lat: number, lng: number, zoom: number) => void):
     category: 'Action',
     icon: '⚡',
     execute: () => {
-      consoleStore.set('scenarioMode', !consoleStore.get('scenarioMode'));
+      toggleScenarioMode();
     },
   });
 

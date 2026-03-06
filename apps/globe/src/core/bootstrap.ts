@@ -24,7 +24,7 @@ import {
   deriveConsoleOperationalState,
   refreshConsoleBundleTruth,
 } from './consoleOps';
-import { consoleStore } from './store';
+import { consoleStore, toggleScenarioMode } from './store';
 import { buildSystemBarState } from './systemBar';
 import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 import { OPS_ASSETS } from '../ops/assetCatalog';
@@ -390,7 +390,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
 
     if (e.key === 's' || e.key === 'S') {
       e.preventDefault();
-      consoleStore.set('scenarioMode', !consoleStore.get('scenarioMode'));
+      toggleScenarioMode();
       return;
     }
 
