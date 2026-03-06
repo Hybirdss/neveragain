@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildBundleSummary, buildLayerControlModel } from '../layerControl';
 import { createDefaultBundleSettings, createDefaultLayerVisibility } from '../../layers/bundleRegistry';
 import { createDefaultOperatorLatencyState } from '../../core/operatorLatency';
+import { createDefaultRuntimeGovernorState } from '../../core/runtimeGovernor';
 import type { ServiceReadModel } from '../../ops/readModelTypes';
 import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
 import type { ConsoleState } from '../../core/store';
@@ -50,12 +51,14 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
     panelsVisible: true,
     showCoordinates: true,
     operatorLatency: createDefaultOperatorLatencyState(),
+    runtimeGovernor: createDefaultRuntimeGovernorState(),
   };
 
   return {
     ...baseState,
     ...overrides,
     operatorLatency: overrides.operatorLatency ?? baseState.operatorLatency,
+    runtimeGovernor: overrides.runtimeGovernor ?? baseState.runtimeGovernor,
   };
 }
 

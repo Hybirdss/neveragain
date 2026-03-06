@@ -19,6 +19,7 @@ export interface BundleSetting {
 }
 
 export type BundleSettings = Record<BundleId, BundleSetting>;
+export type EffectiveBundleDensityMap = Record<BundleId, BundleDensity>;
 
 export interface BundleDefinition {
   id: BundleId;
@@ -67,6 +68,8 @@ const BUNDLE_DEFINITIONS: Record<BundleId, BundleDefinition> = {
   },
 };
 
+const BUNDLE_IDS = Object.keys(BUNDLE_DEFINITIONS) as BundleId[];
+
 const OPERATOR_VIEW_PRESETS: Record<OperatorViewId, OperatorViewPreset> = {
   'national-impact': {
     id: 'national-impact',
@@ -110,12 +113,25 @@ export function createDefaultBundleSettings(): BundleSettings {
   };
 }
 
+export function createEffectiveBundleDensity(
+  bundleSettings: BundleSettings,
+): EffectiveBundleDensityMap {
+  return BUNDLE_IDS.reduce<EffectiveBundleDensityMap>((acc, bundleId) => {
+    acc[bundleId] = bundleSettings[bundleId].density;
+    return acc;
+  }, {} as EffectiveBundleDensityMap);
+}
+
 export function getBundleDefinition(id: BundleId): BundleDefinition {
   return BUNDLE_DEFINITIONS[id];
 }
 
 export function getAllBundleDefinitions(): BundleDefinition[] {
   return Object.values(BUNDLE_DEFINITIONS);
+}
+
+export function getAllBundleIds(): BundleId[] {
+  return [...BUNDLE_IDS];
 }
 
 export function getOperatorViewPreset(id: OperatorViewId): OperatorViewPreset {
@@ -147,10 +163,11 @@ export function isLayerEffectivelyVisible(
   layerId: LayerId,
   layerVisible: boolean,
   bundleSettings: BundleSettings,
+  suppressedBundles: BundleId[] = [],
 ): boolean {
   if (!layerVisible) return false;
   const bundleId = getLayerDefinition(layerId).bundle;
-  return bundleSettings[bundleId].enabled;
+  return bundleSettings[bundleId].enabled && !suppressedBundles.includes(bundleId);
 }
 
 export function createDefaultLayerVisibility(): Record<LayerId, boolean> {
@@ -162,4 +179,12 @@ export function createDefaultLayerVisibility(): Record<LayerId, boolean> {
 
 export function getBundleLayerLabels(bundleId: BundleId): string[] {
   return getBundleDefinition(bundleId).layerIds.map((layerId) => getLayerDefinition(layerId).label);
+}
+
+export function getEffectiveBundleDensity(
+  bundleId: BundleId,
+  bundleSettings: BundleSettings,
+  effectiveDensity?: Partial<EffectiveBundleDensityMap>,
+): BundleDensity {
+  return effectiveDensity?.[bundleId] ?? bundleSettings[bundleId].density;
 }

@@ -22,6 +22,10 @@ import {
   createDefaultOperatorLatencyState,
   type OperatorLatencyState,
 } from './operatorLatency';
+import {
+  createDefaultRuntimeGovernorState,
+  type RuntimeGovernorState,
+} from './runtimeGovernor';
 
 // ── Console State ──────────────────────────────────────────────
 
@@ -48,6 +52,7 @@ export interface ConsoleState {
   panelsVisible: boolean;
   showCoordinates: boolean;
   operatorLatency: OperatorLatencyState;
+  runtimeGovernor: RuntimeGovernorState;
 }
 
 // ── Store Implementation ───────────────────────────────────────
@@ -166,6 +171,7 @@ const initialState: ConsoleState = {
   panelsVisible: true,
   showCoordinates: true,
   operatorLatency: createDefaultOperatorLatencyState(),
+  runtimeGovernor: createDefaultRuntimeGovernorState(),
 };
 
 export const consoleStore = new ConsoleStore(initialState);
