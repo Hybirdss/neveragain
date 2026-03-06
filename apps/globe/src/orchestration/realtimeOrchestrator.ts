@@ -5,6 +5,7 @@
 import { store } from '../store/appState';
 import type { EarthquakeEvent } from '../types';
 import { buildServiceReadModel } from '../ops/serviceReadModel';
+import { selectOperationalFocusEvent } from '../ops/eventSelection';
 import type { RealtimeStatus } from '../ops/readModelTypes';
 import {
   getLastSuccessSource,
@@ -107,7 +108,23 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[], meta: RealtimePollMet
   const now = Date.now();
   const cutoff = now - 7 * 86_400_000;
 
-  const selectedId = store.get('selectedEvent')?.id ?? null;
+  const currentSelectedId = store.get('selectedEvent')?.id ?? null;
+  const focusSelection = selectOperationalFocusEvent({
+    now,
+    currentSelectedEventId: currentSelectedId,
+    candidates: allEvents.map((event) => ({
+      event,
+      envelope: earthquakeStore.getEnvelope(event.id) ?? null,
+      revisionHistory: [...earthquakeStore.getRevisionHistory(event.id)],
+    })),
+  });
+  const selectedId = focusSelection.selectedEventId;
+  const nextSelectedEvent = selectedId
+    ? allEvents.find((event) => event.id === selectedId) ?? null
+    : null;
+  if ((store.get('selectedEvent')?.id ?? null) !== (nextSelectedEvent?.id ?? null)) {
+    store.set('selectedEvent', nextSelectedEvent);
+  }
   const selectedIndex = selectedId
     ? allEvents.findIndex((event) => event.id === selectedId)
     : -1;
