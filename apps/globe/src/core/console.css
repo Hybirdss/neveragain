@@ -2330,6 +2330,40 @@
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
+.nz-settings__tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 20px 0;
+  border-bottom: 1px solid var(--nz-panel-border);
+}
+
+.nz-settings__tab-btn {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--nz-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.nz-settings__tab-btn:hover {
+  color: var(--nz-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nz-settings__tab-btn--active {
+  color: var(--nz-text-primary);
+  border-color: var(--nz-panel-border);
+  border-bottom-color: transparent;
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .nz-settings__section {
   padding: 12px 0;
 }
@@ -2512,6 +2546,56 @@
   border-color: var(--nz-critical);
   color: var(--nz-critical);
   background: rgba(239, 68, 68, 0.06);
+}
+
+.nz-settings__methodology-copy {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--nz-text-secondary);
+}
+
+.nz-settings__audit {
+  margin-top: 10px;
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  opacity: 0.78;
+}
+
+.nz-settings__reference-header {
+  font-family: var(--nz-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--nz-text-primary);
+  margin-bottom: 12px;
+}
+
+.nz-settings__reference-group + .nz-settings__reference-group {
+  margin-top: 14px;
+}
+
+.nz-settings__reference-title {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nz-text-muted);
+  margin-bottom: 8px;
+}
+
+.nz-settings__reference-list {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.nz-settings__reference-item {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--nz-text-secondary);
 }
 
 /* ── Deck.gl Tooltip Override ────────────────────────────── */
@@ -3144,6 +3228,13 @@
   font-size: 9px;
   color: var(--nz-text-muted);
   opacity: 0.7;
+}
+
+.nz-intel__source {
+  margin-top: 6px;
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  opacity: 0.6;
 }
 
 /* ── Intensity Area Coverage ─────────────────────────────── */

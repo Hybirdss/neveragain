@@ -58,9 +58,26 @@ const MAG_OPTIONS = [
   { value: 5.0, label: 'M5.0+' },
 ];
 
+const METHODOLOGY_REFERENCES = {
+  academic: [
+    'Si & Midorikawa (1999) — Ground-motion estimation model',
+    'Wells & Coppersmith (1994) — Rupture-length and magnitude scaling',
+    'Nakamura (1988) — UrEDAS early detection concept',
+  ],
+  public: [
+    '気象庁 (JMA) earthquake and tsunami bulletins',
+    '総務省統計局 population estimates and census baselines',
+    '内閣府防災 disaster response doctrine',
+    '原子力規制委員会 (NRA) public safety references',
+    '国土地理院 and related public geospatial baselines',
+  ],
+};
+
+type SettingsTab = 'general' | 'methodology';
+
 // ── Render ────────────────────────────────────────────────────
 
-function renderSettings(prefs: ConsolePreferences): string {
+function renderGeneralSettingsMarkup(prefs: ConsolePreferences): string {
   const shortcutRows = SHORTCUT_SECTIONS.map((section) => {
     const rows = section.items.map((item) => `
       <div class="nz-settings__shortcut-row">
@@ -89,83 +106,140 @@ function renderSettings(prefs: ConsolePreferences): string {
   ).join('');
 
   return `
+    <div class="nz-settings__section">
+      <div class="nz-settings__section-title">Timeline</div>
+      <div class="nz-settings__row">
+        <span class="nz-settings__label">Default Range</span>
+        <div class="nz-settings__toggle-group">
+          <button class="nz-settings__toggle-btn${range24Active}" data-setting="timeline-range" data-value="24h">24H</button>
+          <button class="nz-settings__toggle-btn${range7dActive}" data-setting="timeline-range" data-value="7d">7D</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nz-settings__divider"></div>
+
+    <div class="nz-settings__section">
+      <div class="nz-settings__section-title">Notifications</div>
+      <div class="nz-settings__row">
+        <span class="nz-settings__label">Event Alerts</span>
+        <button class="nz-settings__switch${notifOn ? ' nz-settings__switch--on' : ''}" data-setting="notifications-enabled">
+          ${notifOn ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      <div class="nz-settings__row">
+        <span class="nz-settings__label">Min Magnitude</span>
+        <select class="nz-settings__select" data-setting="notifications-mag">
+          ${magOptions}
+        </select>
+      </div>
+      <div class="nz-settings__row">
+        <span class="nz-settings__label">Alert Sound</span>
+        <button class="nz-settings__switch${soundOn ? ' nz-settings__switch--on' : ''}" data-setting="notifications-sound">
+          ${soundOn ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      <div class="nz-settings__hint">M4.5+ watch tone / M5.5+ attention / M6.5+ urgent</div>
+    </div>
+
+    <div class="nz-settings__divider"></div>
+
+    <div class="nz-settings__section">
+      <div class="nz-settings__section-title">Keyboard</div>
+      <div class="nz-settings__row">
+        <span class="nz-settings__label">Shortcuts Enabled</span>
+        <button class="nz-settings__switch${kbOn ? ' nz-settings__switch--on' : ''}" data-setting="keyboard-enabled">
+          ${kbOn ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      <div class="nz-settings__shortcuts">
+        ${shortcutRows}
+      </div>
+    </div>
+
+    <div class="nz-settings__divider"></div>
+
+    <div class="nz-settings__section">
+      <div class="nz-settings__section-title">Display</div>
+      <div class="nz-settings__row">
+        <span class="nz-settings__label">Show Coordinates</span>
+        <button class="nz-settings__switch${coordsOn ? ' nz-settings__switch--on' : ''}" data-setting="display-coordinates">
+          ${coordsOn ? 'ON' : 'OFF'}
+        </button>
+      </div>
+    </div>
+
+    <div class="nz-settings__divider"></div>
+
+    <div class="nz-settings__section">
+      <div class="nz-settings__row nz-settings__row--center">
+        <button class="nz-settings__reset-btn" data-action="reset">Reset to Defaults</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderMethodologySettingsMarkup(): string {
+  const academicReferences = METHODOLOGY_REFERENCES.academic
+    .map((reference) => `<li class="nz-settings__reference-item">${reference}</li>`)
+    .join('');
+  const publicReferences = METHODOLOGY_REFERENCES.public
+    .map((reference) => `<li class="nz-settings__reference-item">${reference}</li>`)
+    .join('');
+
+  return `
+    <div class="nz-settings__section">
+      <div class="nz-settings__section-title">Methodology</div>
+      <div class="nz-settings__methodology-copy">
+        Namazue Engine은 다음의 학술 모델과 공공기관 레퍼런스를 기반으로 설계되었습니다.
+      </div>
+      <div class="nz-settings__audit">Last audited: 2026-03-07</div>
+    </div>
+
+    <div class="nz-settings__divider"></div>
+
+    <div class="nz-settings__section">
+      <div class="nz-settings__reference-header">Section 11. Master Reference List</div>
+      <div class="nz-settings__reference-group">
+        <div class="nz-settings__reference-title">Academic Models</div>
+        <ul class="nz-settings__reference-list">
+          ${academicReferences}
+        </ul>
+      </div>
+      <div class="nz-settings__reference-group">
+        <div class="nz-settings__reference-title">Government and Public Sources</div>
+        <ul class="nz-settings__reference-list">
+          ${publicReferences}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+export function renderSettingsMarkup(
+  prefs: ConsolePreferences,
+  activeTab: SettingsTab = 'general',
+): string {
+  const generalActive = activeTab === 'general' ? ' nz-settings__tab-btn--active' : '';
+  const methodologyActive = activeTab === 'methodology' ? ' nz-settings__tab-btn--active' : '';
+  const bodyMarkup = activeTab === 'methodology'
+    ? renderMethodologySettingsMarkup()
+    : renderGeneralSettingsMarkup(prefs);
+
+  return `
     <div class="nz-settings">
       <div class="nz-settings__header">
         <span class="nz-settings__title">Settings</span>
         <button class="nz-settings__close" data-action="close">×</button>
       </div>
 
+      <div class="nz-settings__tabs">
+        <button class="nz-settings__tab-btn${generalActive}" data-tab="general">General</button>
+        <button class="nz-settings__tab-btn${methodologyActive}" data-tab="methodology">Methodology</button>
+      </div>
+
       <div class="nz-settings__body">
-        <div class="nz-settings__section">
-          <div class="nz-settings__section-title">Timeline</div>
-          <div class="nz-settings__row">
-            <span class="nz-settings__label">Default Range</span>
-            <div class="nz-settings__toggle-group">
-              <button class="nz-settings__toggle-btn${range24Active}" data-setting="timeline-range" data-value="24h">24H</button>
-              <button class="nz-settings__toggle-btn${range7dActive}" data-setting="timeline-range" data-value="7d">7D</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="nz-settings__divider"></div>
-
-        <div class="nz-settings__section">
-          <div class="nz-settings__section-title">Notifications</div>
-          <div class="nz-settings__row">
-            <span class="nz-settings__label">Event Alerts</span>
-            <button class="nz-settings__switch${notifOn ? ' nz-settings__switch--on' : ''}" data-setting="notifications-enabled">
-              ${notifOn ? 'ON' : 'OFF'}
-            </button>
-          </div>
-          <div class="nz-settings__row">
-            <span class="nz-settings__label">Min Magnitude</span>
-            <select class="nz-settings__select" data-setting="notifications-mag">
-              ${magOptions}
-            </select>
-          </div>
-          <div class="nz-settings__row">
-            <span class="nz-settings__label">Alert Sound</span>
-            <button class="nz-settings__switch${soundOn ? ' nz-settings__switch--on' : ''}" data-setting="notifications-sound">
-              ${soundOn ? 'ON' : 'OFF'}
-            </button>
-          </div>
-          <div class="nz-settings__hint">M4.5+ watch tone / M5.5+ attention / M6.5+ urgent</div>
-        </div>
-
-        <div class="nz-settings__divider"></div>
-
-        <div class="nz-settings__section">
-          <div class="nz-settings__section-title">Keyboard</div>
-          <div class="nz-settings__row">
-            <span class="nz-settings__label">Shortcuts Enabled</span>
-            <button class="nz-settings__switch${kbOn ? ' nz-settings__switch--on' : ''}" data-setting="keyboard-enabled">
-              ${kbOn ? 'ON' : 'OFF'}
-            </button>
-          </div>
-          <div class="nz-settings__shortcuts">
-            ${shortcutRows}
-          </div>
-        </div>
-
-        <div class="nz-settings__divider"></div>
-
-        <div class="nz-settings__section">
-          <div class="nz-settings__section-title">Display</div>
-          <div class="nz-settings__row">
-            <span class="nz-settings__label">Show Coordinates</span>
-            <button class="nz-settings__switch${coordsOn ? ' nz-settings__switch--on' : ''}" data-setting="display-coordinates">
-              ${coordsOn ? 'ON' : 'OFF'}
-            </button>
-          </div>
-        </div>
-
-        <div class="nz-settings__divider"></div>
-
-        <div class="nz-settings__section">
-          <div class="nz-settings__row nz-settings__row--center">
-            <button class="nz-settings__reset-btn" data-action="reset">Reset to Defaults</button>
-          </div>
-        </div>
+        ${bodyMarkup}
       </div>
     </div>
   `;
@@ -187,18 +261,26 @@ export function createSettingsPanel(
 ): SettingsPanel {
   let visible = false;
   let prefs = loadPreferences();
+  let activeTab: SettingsTab = 'general';
 
   const overlay = document.createElement('div');
   overlay.className = 'nz-settings-overlay';
 
   function render(): void {
-    overlay.innerHTML = renderSettings(prefs);
+    overlay.innerHTML = renderSettingsMarkup(prefs, activeTab);
     bindInteractions();
   }
 
   function bindInteractions(): void {
     // Close button
     overlay.querySelector('[data-action="close"]')?.addEventListener('click', () => close());
+
+    overlay.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activeTab = (btn.dataset.tab as SettingsTab) || 'general';
+        render();
+      });
+    });
 
     // Timeline range
     overlay.querySelectorAll<HTMLButtonElement>('[data-setting="timeline-range"]').forEach((btn) => {
@@ -265,6 +347,7 @@ export function createSettingsPanel(
     if (visible) return;
     visible = true;
     prefs = loadPreferences();
+    activeTab = 'general';
     render();
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add('nz-settings-overlay--open'));

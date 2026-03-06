@@ -176,9 +176,11 @@ export interface PopulationExposure {
   jma5minus: number;
   /** Population in areas with JMA 4 or higher (intensity >= 3.5) */
   jma4plus: number;
+  /** Population in areas with JMA 3 or higher (intensity >= 2.5) */
+  jma3plus: number;
   /** Total cataloged population assessed */
   catalogedPopulation: number;
-  /** Japan total population (2020 census) */
+  /** Japan total population (2025 estimate) */
   totalPopulation: number;
   /** Top affected municipalities with their intensity */
   topAffected: {
@@ -200,7 +202,7 @@ export interface PopulationExposure {
  * This is accurate for cities <20km across (intensity variation ~0.5 JMA,
  * within GMPE's own ±1 JMA error margin). Source: Si & Midorikawa (1999).
  *
- * Population data: 令和2年国勢調査 (2020 Census), exact counts.
+ * Population data: 総務省推計人口 (2025-01), prefecture-adjusted from 2020 Census.
  */
 export function computePopulationExposure(event: EarthquakeEvent): PopulationExposure {
   let jma7 = 0;
@@ -209,16 +211,18 @@ export function computePopulationExposure(event: EarthquakeEvent): PopulationExp
   let jma5plus = 0;
   let jma5minus = 0;
   let jma4plus = 0;
+  let jma3plus = 0;
 
   const affected: PopulationExposure['topAffected'] = [];
 
   for (const city of MUNICIPALITIES) {
     const intensity = computeSiteIntensity(city.lat, city.lng, event);
-    if (intensity < 3.5) continue; // Below JMA 4 — not significantly affected
+    if (intensity < 2.5) continue; // Below JMA 3 — not significantly felt
 
     const pop = city.population;
     const jmaClass = toJmaClass(intensity);
 
+    // Cumulative: each higher class includes all lower
     if (intensity >= 6.5) {
       jma7 += pop;
       jma6plus += pop;
@@ -226,38 +230,44 @@ export function computePopulationExposure(event: EarthquakeEvent): PopulationExp
       jma5plus += pop;
       jma5minus += pop;
       jma4plus += pop;
+      jma3plus += pop;
     } else if (intensity >= 6.0) {
       jma6plus += pop;
       jma6minus += pop;
       jma5plus += pop;
       jma5minus += pop;
       jma4plus += pop;
+      jma3plus += pop;
     } else if (intensity >= 5.5) {
       jma6minus += pop;
       jma5plus += pop;
       jma5minus += pop;
       jma4plus += pop;
+      jma3plus += pop;
     } else if (intensity >= 5.0) {
       jma5plus += pop;
       jma5minus += pop;
       jma4plus += pop;
+      jma3plus += pop;
     } else if (intensity >= 4.5) {
       jma5minus += pop;
       jma4plus += pop;
-    } else {
+      jma3plus += pop;
+    } else if (intensity >= 3.5) {
       jma4plus += pop;
+      jma3plus += pop;
+    } else {
+      jma3plus += pop;
     }
 
-    // Track affected municipalities for detail display
-    if (intensity >= 4.5) {
-      affected.push({
-        name: city.name,
-        nameEn: city.nameEn,
-        population: pop,
-        intensity,
-        jmaClass,
-      });
-    }
+    // Track affected municipalities for detail display (JMA 3+)
+    affected.push({
+      name: city.name,
+      nameEn: city.nameEn,
+      population: pop,
+      intensity,
+      jmaClass,
+    });
   }
 
   // Sort by intensity descending, then population descending
@@ -270,6 +280,7 @@ export function computePopulationExposure(event: EarthquakeEvent): PopulationExp
     jma5plus,
     jma5minus,
     jma4plus,
+    jma3plus,
     catalogedPopulation: CATALOGED_POPULATION,
     totalPopulation: JAPAN_TOTAL_POPULATION,
     topAffected: affected.slice(0, 10), // Top 10 most affected

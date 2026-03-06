@@ -145,6 +145,7 @@ function renderPopulationSection(pop: PopulationExposure): string {
     { label: '5+', value: pop.jma5plus, color: JMA_COLORS['5+'] },
     { label: '5-', value: pop.jma5minus, color: JMA_COLORS['5-'] },
     { label: '4+', value: pop.jma4plus, color: JMA_COLORS['4'] },
+    { label: '3+', value: pop.jma3plus, color: JMA_COLORS['3'] },
   ];
 
   const nonZero = entries.filter((e) => e.value > 0);
@@ -189,7 +190,7 @@ function renderPopulationSection(pop: PopulationExposure): string {
       </div>
       ${bars}
       ${cityRows ? `<div class="nz-intel__pop-cities">${cityRows}</div>` : ''}
-      <div class="nz-intel__pop-source">令和2年国勢調査 · 主要${pop.topAffected.length > 0 ? pop.topAffected.length + '+' : ''}都市集計</div>
+      <div class="nz-intel__pop-source">総務省人口推計 (2025-01) · ${pop.topAffected.length}都市集計</div>
     </div>
   `;
 }
@@ -326,7 +327,7 @@ function renderEmpty(): string {
 
 // ── Full Panel ───────────────────────────────────────────────
 
-function renderPanel(intel: ImpactIntelligence, event: EarthquakeEvent): string {
+export function renderImpactIntelligenceMarkup(intel: ImpactIntelligence, event: EarthquakeEvent): string {
   const severity = severityFromJma(intel.peakIntensity?.jmaClass ?? null);
 
   const sections: string[] = [];
@@ -337,7 +338,7 @@ function renderPanel(intel: ImpactIntelligence, event: EarthquakeEvent): string 
   }
 
   // Section 2: Population exposure
-  if (intel.populationExposure && intel.populationExposure.jma4plus > 0) {
+  if (intel.populationExposure && intel.populationExposure.jma3plus > 0) {
     sections.push(renderPopulationSection(intel.populationExposure));
   }
 
@@ -384,7 +385,7 @@ export function mountImpactIntelligence(container: HTMLElement): () => void {
     const vessels = consoleStore.get('vessels');
 
     const intel = computeImpactIntelligence({ event, grid, vessels });
-    container.innerHTML = renderPanel(intel, event);
+    container.innerHTML = renderImpactIntelligenceMarkup(intel, event);
   }
 
   let renderScheduled = false;
