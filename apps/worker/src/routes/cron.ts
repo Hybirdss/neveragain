@@ -5,6 +5,7 @@ import { createDb } from '../lib/db.ts';
 import { generateAndStoreAnalysis } from './analyze.ts';
 import { fetchJmaQuakes } from '../lib/jma.ts';
 import { fetchUsgsQuakes } from '../lib/usgs.ts';
+import { buildGovernorPolicyEnvelopeFromEvents } from '../governor/runtimeGovernor.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
@@ -17,6 +18,7 @@ const DEDUP_MAG = 0.5;
 
 // Magnitude revision threshold for re-analysis trigger
 const MAG_REVISION_THRESHOLD = 0.3;
+const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 
 // ─── JMA Polling ────────────────────────────────────────
 // Runs every minute. Upserts all JMA events (handles revisions).
@@ -346,6 +348,28 @@ async function backfillAnalyses(env: Env): Promise<number> {
   return generated;
 }
 
+async function resolveCronGovernor(env: Env, when: Date) {
+  const db = createDb(env.DATABASE_URL);
+  const recentRows = await db.select({
+    magnitude: earthquakes.magnitude,
+    tsunami: earthquakes.tsunami,
+    lat: earthquakes.lat,
+    lng: earthquakes.lng,
+    time: earthquakes.time,
+  })
+    .from(earthquakes)
+    .where(gte(earthquakes.time, new Date(when.getTime() - GOVERNOR_LOOKBACK_MS)))
+    .orderBy(desc(earthquakes.time))
+    .limit(25);
+
+  return buildGovernorPolicyEnvelopeFromEvents(recentRows.map((row) => ({
+    ...row,
+    tsunami: Boolean(row.tsunami),
+  })), {
+    now: when.toISOString(),
+  });
+}
+
 /**
  * Cron handler — single trigger runs every minute.
  *
@@ -390,12 +414,15 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
     console.error('[cron] jma poll failed:', err);
   }
 
+  const governor = await resolveCronGovernor(env, when);
+  const governorState = governor.activation.state;
+
   // Every 5 minutes: USGS poll (supplements JMA with global source)
-  if (minute % 5 === 0) {
+  if (minute % 5 === 0 || governorState === 'watch' || governorState === 'incident') {
     try {
       const { ingested, analyzed, revised } = await pollUsgs(env);
       if (ingested > 0 || revised > 0) {
-        console.log(`[cron] usgs: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+        console.log(`[cron] usgs: state=${governorState} ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
       }
     } catch (err) {
       console.error('[cron] usgs poll failed:', err);
@@ -403,10 +430,10 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
   }
 
   // Every 10 minutes: backfill missed analyses
-  if (minute % 10 === 0) {
+  if (minute % 10 === 0 && governorState !== 'watch' && governorState !== 'incident') {
     const backfill = await backfillAnalyses(env);
     if (backfill > 0) {
-      console.log(`[cron] backfill=${backfill}`);
+      console.log(`[cron] backfill: state=${governorState} count=${backfill}`);
     }
   }
 }
