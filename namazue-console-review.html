@@ -1,0 +1,1833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>namazue.dev - Console Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #07111c;
+      --bg-2: #0b1624;
+      --panel: rgba(10, 22, 35, 0.82);
+      --panel-2: rgba(14, 29, 46, 0.92);
+      --panel-3: rgba(8, 18, 28, 0.88);
+      --border: rgba(157, 191, 216, 0.13);
+      --line: rgba(157, 191, 216, 0.08);
+      --text: #eef5fb;
+      --muted: #8fa3b5;
+      --soft: #5c7083;
+      --accent: #6ab6ff;
+      --accent-2: #89d0ff;
+      --warn: #ffb454;
+      --danger: #ff6b6b;
+      --safe: #6fd2a1;
+      --shadow: 0 32px 90px rgba(0, 0, 0, 0.35);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --space-1: 8px;
+      --space-2: 12px;
+      --space-3: 16px;
+      --space-4: 20px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 40px;
+      --space-8: 48px;
+      --space-9: 64px;
+      --mono: "IBM Plex Mono", monospace;
+      --body: "IBM Plex Sans", sans-serif;
+      --display: "Space Grotesk", sans-serif;
+      --transition: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--body);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(65, 129, 190, 0.24), transparent 34%),
+        radial-gradient(circle at 88% 14%, rgba(255, 180, 84, 0.09), transparent 26%),
+        linear-gradient(180deg, #050d15 0%, #07111c 34%, #09131e 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+      background-size: 84px 84px;
+      mask-image: radial-gradient(circle at center, black 30%, transparent 78%);
+      opacity: 0.28;
+    }
+
+    .shell {
+      width: min(1600px, calc(100vw - 48px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: var(--space-7);
+      padding: var(--space-8) 0 var(--space-9);
+      position: relative;
+      z-index: 1;
+    }
+
+    .review-rail {
+      position: sticky;
+      top: var(--space-5);
+      align-self: start;
+      padding: var(--space-5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, rgba(9, 20, 33, 0.96), rgba(7, 16, 26, 0.84));
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow);
+    }
+
+    .rail-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: var(--space-4);
+      color: var(--accent-2);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-family: var(--mono);
+    }
+
+    .rail-brand {
+      margin: 0 0 var(--space-2);
+      font-family: var(--display);
+      font-size: 32px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .rail-copy {
+      margin: 0 0 var(--space-5);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .rail-links {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rail-links a {
+      padding: 12px 14px;
+      border-radius: 999px;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid transparent;
+      transition: transform var(--transition), border-color var(--transition), color var(--transition), background var(--transition);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: var(--mono);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .rail-links a:hover {
+      transform: translateX(4px);
+      border-color: rgba(106, 182, 255, 0.24);
+      color: var(--text);
+      background: rgba(106, 182, 255, 0.08);
+    }
+
+    .rail-footnote {
+      margin-top: var(--space-5);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--line);
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .page {
+      display: grid;
+      gap: var(--space-8);
+    }
+
+    section {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    .section-kicker {
+      margin: 0 0 10px;
+      color: var(--accent-2);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .section-title {
+      margin: 0;
+      font-family: var(--display);
+      font-size: clamp(32px, 5vw, 66px);
+      line-height: 0.96;
+      letter-spacing: -0.055em;
+      max-width: 12ch;
+    }
+
+    .section-blurb {
+      margin: 0;
+      max-width: 44ch;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .manifest-board,
+    .console-board,
+    .spec-board,
+    .logic-board,
+    .visual-board,
+    .voice-board {
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(10, 22, 35, 0.9), rgba(7, 16, 26, 0.86));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .manifest-board {
+      padding: var(--space-7);
+      display: grid;
+      gap: var(--space-6);
+    }
+
+    .manifest-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+      gap: var(--space-6);
+    }
+
+    .manifest-copy h2 {
+      margin: 0 0 var(--space-3);
+      font-family: var(--display);
+      font-size: clamp(38px, 5vw, 76px);
+      line-height: 0.95;
+      letter-spacing: -0.06em;
+      max-width: 10ch;
+    }
+
+    .manifest-copy p {
+      margin: 0;
+      max-width: 50ch;
+      color: var(--muted);
+      line-height: 1.8;
+      font-size: 17px;
+    }
+
+    .principle-strip,
+    .sequence-strip {
+      display: grid;
+      gap: 12px;
+    }
+
+    .chip-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chip,
+    .metric-pill,
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(137, 208, 255, 0.16);
+      background: rgba(106, 182, 255, 0.08);
+      color: var(--text);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    .sequence-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sequence-step {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      min-height: 120px;
+      display: grid;
+      align-content: space-between;
+      gap: 12px;
+    }
+
+    .sequence-step strong,
+    .plate-title,
+    .component-name,
+    .logic-title,
+    .visual-title,
+    .voice-card strong {
+      font-family: var(--display);
+      letter-spacing: -0.03em;
+      font-size: 18px;
+    }
+
+    .console-board {
+      padding: var(--space-5);
+      display: grid;
+      gap: var(--space-5);
+    }
+
+    .console-controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .console-control-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .control-btn {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(137, 208, 255, 0.12);
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform var(--transition), border-color var(--transition), background var(--transition), color var(--transition);
+    }
+
+    .control-btn:hover,
+    .control-btn.is-active {
+      color: var(--text);
+      border-color: rgba(106, 182, 255, 0.28);
+      background: rgba(106, 182, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .console-shell {
+      border-radius: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(106, 182, 255, 0.18), transparent 22%),
+        radial-gradient(circle at 85% 20%, rgba(255, 180, 84, 0.1), transparent 18%),
+        linear-gradient(180deg, rgba(5, 13, 21, 0.96), rgba(9, 18, 29, 0.98));
+      padding: var(--space-5);
+      display: grid;
+      gap: var(--space-4);
+      min-height: 920px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .console-shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(transparent 0%, rgba(255, 255, 255, 0.02) 100%),
+        radial-gradient(circle at center, transparent 34%, rgba(255, 255, 255, 0.03) 100%);
+      pointer-events: none;
+    }
+
+    .system-bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 14px;
+      align-items: center;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-lock {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #8ed3ff, #4ea7ff);
+      box-shadow: 0 0 24px rgba(106, 182, 255, 0.5);
+    }
+
+    .brand-name {
+      font-family: var(--display);
+      font-size: 20px;
+      letter-spacing: -0.04em;
+    }
+
+    .brand-sub {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .metric-pill {
+      border-color: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .status-pill {
+      border-color: rgba(111, 210, 161, 0.24);
+      background: rgba(111, 210, 161, 0.12);
+      color: var(--safe);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .status-pill[data-tone="live"] {
+      border-color: rgba(255, 180, 84, 0.28);
+      background: rgba(255, 180, 84, 0.12);
+      color: var(--warn);
+    }
+
+    .status-pill[data-tone="focus"],
+    .status-pill[data-tone="scenario"] {
+      border-color: rgba(106, 182, 255, 0.28);
+      background: rgba(106, 182, 255, 0.12);
+      color: var(--accent-2);
+    }
+
+    .console-grid {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 320px;
+      gap: var(--space-4);
+      min-height: 0;
+      flex: 1;
+      position: relative;
+      z-index: 1;
+    }
+
+    .left-rail,
+    .right-rail {
+      display: grid;
+      gap: var(--space-4);
+      align-content: start;
+    }
+
+    .panel-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      padding: var(--space-4);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .panel-label {
+      margin: 0 0 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent-2);
+    }
+
+    .snapshot-headline,
+    .check-title {
+      margin: 0 0 8px;
+      font-family: var(--display);
+      font-size: 28px;
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+    }
+
+    .snapshot-body,
+    .panel-copy,
+    .logic-copy,
+    .voice-card p,
+    details p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .snapshot-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 16px 0 0;
+    }
+
+    .snapshot-meta .chip {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.08);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .asset-list,
+    .check-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .asset-item,
+    .check-item {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .asset-item-top,
+    .check-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .asset-name,
+    .check-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .severity-badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      border: 1px solid transparent;
+    }
+
+    .severity-high {
+      color: var(--danger);
+      background: rgba(255, 107, 107, 0.12);
+      border-color: rgba(255, 107, 107, 0.24);
+    }
+
+    .severity-medium {
+      color: var(--warn);
+      background: rgba(255, 180, 84, 0.12);
+      border-color: rgba(255, 180, 84, 0.24);
+    }
+
+    .severity-low {
+      color: var(--accent-2);
+      background: rgba(106, 182, 255, 0.12);
+      border-color: rgba(106, 182, 255, 0.24);
+    }
+
+    .map-stage {
+      border-radius: 26px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background:
+        radial-gradient(circle at 52% 48%, rgba(0, 0, 0, 0.04), transparent 42%),
+        linear-gradient(180deg, rgba(12, 26, 41, 0.82), rgba(8, 17, 28, 0.96));
+      padding: var(--space-4);
+      position: relative;
+      overflow: hidden;
+      min-height: 650px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .map-stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 55% 42%, rgba(106, 182, 255, 0.2), transparent 34%),
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: auto, 72px 72px, 72px 72px;
+      pointer-events: none;
+    }
+
+    .map-topline,
+    .map-bottomline {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .map-caption,
+    .map-metric {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .map-core {
+      position: relative;
+      min-height: 0;
+      flex: 1;
+    }
+
+    .coastline,
+    .corridor,
+    .impact-ring,
+    .asset-marker,
+    .scenario-ghost {
+      position: absolute;
+      transition: transform var(--transition), opacity var(--transition), box-shadow var(--transition), background var(--transition);
+    }
+
+    .coastline {
+      inset: 17% 18% 18% 22%;
+      border: 1px solid rgba(137, 208, 255, 0.16);
+      border-radius: 44% 56% 52% 48% / 40% 46% 54% 60%;
+      opacity: 0.48;
+    }
+
+    .corridor {
+      left: 22%;
+      right: 18%;
+      top: 47%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(137, 208, 255, 0.4), transparent);
+      box-shadow: 0 0 18px rgba(106, 182, 255, 0.24);
+    }
+
+    .impact-ring {
+      left: 48%;
+      top: 38%;
+      width: 220px;
+      height: 220px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid rgba(137, 208, 255, 0.14);
+      box-shadow: 0 0 0 24px rgba(106, 182, 255, 0.04), 0 0 60px rgba(106, 182, 255, 0.16);
+      opacity: 0.34;
+    }
+
+    .impact-ring::after {
+      content: "";
+      position: absolute;
+      inset: -36px;
+      border-radius: 50%;
+      border: 1px dashed rgba(255, 180, 84, 0.12);
+    }
+
+    .asset-marker {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.55);
+      box-shadow: 0 0 0 12px rgba(111, 210, 161, 0.06);
+    }
+
+    .asset-marker::after {
+      content: attr(data-label);
+      position: absolute;
+      left: 24px;
+      top: -6px;
+      white-space: nowrap;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      font-family: var(--mono);
+    }
+
+    .asset-marker.port { left: 64%; top: 56%; }
+    .asset-marker.rail { left: 44%; top: 42%; }
+    .asset-marker.hospital { left: 58%; top: 36%; }
+
+    .asset-marker.safe {
+      background: rgba(111, 210, 161, 0.96);
+      box-shadow: 0 0 0 12px rgba(111, 210, 161, 0.06), 0 0 26px rgba(111, 210, 161, 0.28);
+    }
+
+    .asset-marker.warn {
+      background: rgba(255, 180, 84, 0.96);
+      box-shadow: 0 0 0 12px rgba(255, 180, 84, 0.06), 0 0 26px rgba(255, 180, 84, 0.34);
+    }
+
+    .asset-marker.danger {
+      background: rgba(255, 107, 107, 0.96);
+      box-shadow: 0 0 0 12px rgba(255, 107, 107, 0.08), 0 0 28px rgba(255, 107, 107, 0.38);
+    }
+
+    .scenario-ghost {
+      left: 57%;
+      top: 29%;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px dashed rgba(137, 208, 255, 0.5);
+      box-shadow: 0 0 0 16px rgba(106, 182, 255, 0.05);
+      opacity: 0;
+    }
+
+    .analyst-card {
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(106, 182, 255, 0.18);
+      background: rgba(106, 182, 255, 0.08);
+      display: grid;
+      gap: 10px;
+    }
+
+    .rail-track {
+      position: relative;
+      z-index: 1;
+      padding: 18px 20px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      display: grid;
+      gap: 16px;
+    }
+
+    .rail-track-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .rail-title {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 22px;
+      letter-spacing: -0.04em;
+    }
+
+    .rail-events {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+
+    .rail-node {
+      display: grid;
+      gap: 10px;
+      min-height: 102px;
+    }
+
+    .rail-node-bar {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(137, 208, 255, 0.46));
+      position: relative;
+    }
+
+    .rail-node-bar::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      transform: translateY(-50%);
+      background: #9bd4ff;
+      box-shadow: 0 0 16px rgba(106, 182, 255, 0.42);
+    }
+
+    .rail-node strong {
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-4);
+    }
+
+    .state-plate,
+    .logic-card,
+    .visual-card,
+    .voice-card,
+    details {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      padding: var(--space-4);
+      box-shadow: var(--shadow);
+    }
+
+    .state-plate {
+      display: grid;
+      gap: 14px;
+      min-height: 310px;
+    }
+
+    .state-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .state-badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .state-mini {
+      min-height: 130px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background:
+        radial-gradient(circle at 70% 40%, rgba(106, 182, 255, 0.15), transparent 34%),
+        linear-gradient(180deg, rgba(7, 18, 30, 0.9), rgba(9, 20, 31, 0.95));
+      position: relative;
+      overflow: hidden;
+    }
+
+    .state-mini::before {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .state-mini::after {
+      content: attr(data-tag);
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+    }
+
+    .spec-grid,
+    .logic-grid,
+    .visual-grid,
+    .voice-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-4);
+    }
+
+    details {
+      display: grid;
+      gap: 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .component-header {
+      display: grid;
+      gap: 8px;
+    }
+
+    .component-kicker {
+      color: var(--accent-2);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .spec-meta {
+      display: grid;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .spec-row {
+      display: grid;
+      gap: 4px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .spec-row span {
+      color: var(--soft);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .logic-grid,
+    .visual-grid,
+    .voice-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .logic-card,
+    .visual-card,
+    .voice-card {
+      display: grid;
+      gap: 12px;
+      min-height: 210px;
+    }
+
+    .logic-list,
+    .voice-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .logic-list li,
+    .voice-list li {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .swatch {
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 96px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: grid;
+      align-content: space-between;
+      gap: 12px;
+    }
+
+    .swatch strong,
+    .swatch span {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .swatch.navy { background: #08121d; }
+    .swatch.steel { background: #122131; }
+    .swatch.blue { background: #173656; }
+    .swatch.warn { background: #6a4317; }
+    .swatch.danger { background: #5a1f26; }
+    .swatch.safe { background: #154033; }
+
+    .voice-card.good {
+      border-color: rgba(111, 210, 161, 0.18);
+      background: rgba(111, 210, 161, 0.08);
+    }
+
+    .voice-card.bad {
+      border-color: rgba(255, 107, 107, 0.2);
+      background: rgba(255, 107, 107, 0.07);
+    }
+
+    .footer-note {
+      padding: var(--space-4) var(--space-5);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(8, 18, 28, 0.96), rgba(7, 16, 26, 0.9));
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .console-shell[data-state="calm"] .impact-ring {
+      opacity: 0.14;
+      box-shadow: 0 0 0 18px rgba(111, 210, 161, 0.04), 0 0 32px rgba(111, 210, 161, 0.08);
+    }
+
+    .console-shell[data-state="live"] .impact-ring {
+      opacity: 0.42;
+      box-shadow: 0 0 0 24px rgba(255, 180, 84, 0.05), 0 0 52px rgba(255, 180, 84, 0.14);
+    }
+
+    .console-shell[data-state="focus"] .impact-ring {
+      transform: translate(-42%, -46%) scale(1.1);
+      opacity: 0.46;
+      box-shadow: 0 0 0 24px rgba(106, 182, 255, 0.07), 0 0 60px rgba(106, 182, 255, 0.2);
+    }
+
+    .console-shell[data-state="scenario"] .impact-ring {
+      transform: translate(-36%, -48%) scale(1.22);
+      opacity: 0.54;
+      box-shadow: 0 0 0 26px rgba(255, 107, 107, 0.08), 0 0 68px rgba(255, 107, 107, 0.22);
+    }
+
+    .console-shell[data-state="calm"] .scenario-ghost {
+      opacity: 0;
+    }
+
+    .console-shell[data-state="live"] .scenario-ghost {
+      opacity: 0.18;
+    }
+
+    .console-shell[data-state="focus"] .scenario-ghost {
+      opacity: 0.26;
+    }
+
+    .console-shell[data-state="scenario"] .scenario-ghost {
+      opacity: 0.72;
+    }
+
+    .console-shell[data-state="calm"] .asset-marker.port { background: rgba(111, 210, 161, 0.92); }
+    .console-shell[data-state="calm"] .asset-marker.rail { background: rgba(111, 210, 161, 0.92); }
+    .console-shell[data-state="calm"] .asset-marker.hospital { background: rgba(111, 210, 161, 0.92); }
+    .console-shell[data-state="live"] .asset-marker.port { background: rgba(255, 180, 84, 0.94); }
+    .console-shell[data-state="live"] .asset-marker.rail { background: rgba(255, 180, 84, 0.94); }
+    .console-shell[data-state="live"] .asset-marker.hospital { background: rgba(106, 182, 255, 0.96); }
+    .console-shell[data-state="focus"] .asset-marker.port { background: rgba(255, 107, 107, 0.96); }
+    .console-shell[data-state="focus"] .asset-marker.rail { background: rgba(255, 180, 84, 0.94); }
+    .console-shell[data-state="focus"] .asset-marker.hospital { background: rgba(106, 182, 255, 0.96); }
+    .console-shell[data-state="scenario"] .asset-marker.port { background: rgba(255, 107, 107, 0.96); }
+    .console-shell[data-state="scenario"] .asset-marker.rail { background: rgba(255, 107, 107, 0.96); }
+    .console-shell[data-state="scenario"] .asset-marker.hospital { background: rgba(255, 180, 84, 0.94); }
+
+    @media (max-width: 1180px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .review-rail {
+        position: static;
+      }
+
+      .console-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .state-grid,
+      .logic-grid,
+      .visual-grid,
+      .voice-grid,
+      .spec-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sequence-grid,
+      .rail-events {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 800px) {
+      .shell {
+        width: min(100vw - 24px, 100%);
+        padding: 24px 0 72px;
+        gap: 24px;
+      }
+
+      .manifest-grid,
+      .section-head {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: start;
+      }
+
+      .console-shell {
+        min-height: auto;
+      }
+
+      .sequence-grid,
+      .rail-events {
+        grid-template-columns: 1fr;
+      }
+
+      .console-controls {
+        flex-direction: column;
+        align-items: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="review-rail">
+      <div class="rail-kicker">living review</div>
+      <h1 class="rail-brand">namazue.dev</h1>
+      <p class="rail-copy">Tokyo-first earthquake operations console review surface. This page should feel like a product board, not a style guide.</p>
+      <nav class="rail-links">
+        <a href="#manifest">Manifest</a>
+        <a href="#canonical-console">Canonical Console</a>
+        <a href="#state-views">State Views</a>
+        <a href="#component-spec">Components</a>
+        <a href="#interaction-logic">Logic</a>
+        <a href="#visual-system">Visual</a>
+        <a href="#voice-system">Voice</a>
+      </nav>
+      <div class="rail-footnote">
+        Current authority: current product and review docs live under <code>docs/current/</code>. Legacy material now lives under <code>docs/legacy/</code>.
+      </div>
+    </aside>
+
+    <main class="page">
+      <section id="manifest">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">manifest</p>
+            <h2 class="section-title">This is not an earthquake app.</h2>
+          </div>
+          <p class="section-blurb">It is a calm, high-trust, operator-first spatial console that turns earthquakes into operational consequences, then lets the reader feel how those consequences change.</p>
+        </div>
+        <div class="manifest-board">
+          <div class="manifest-grid">
+            <div class="manifest-copy">
+              <h2>Tokyo-first earthquake operations console</h2>
+              <p>The page should function like a strategic product review surface: part museum board, part operator-console prototype, part implementation spec. The reader should understand the product, the state transitions, the component rules, and the voice system without opening another document.</p>
+            </div>
+            <div class="principle-strip">
+              <p class="section-kicker">north star</p>
+              <div class="chip-grid">
+                <div class="chip">operator-first</div>
+                <div class="chip">calm mode default</div>
+                <div class="chip">Tokyo-first</div>
+                <div class="chip">focus, not page</div>
+                <div class="chip">scenario shift as depth</div>
+              </div>
+            </div>
+          </div>
+          <div class="sequence-strip">
+            <p class="section-kicker">holy shit sequence</p>
+            <div class="sequence-grid">
+              <article class="sequence-step">
+                <strong>Calm</strong>
+                <p class="panel-copy">Tokyo is ready, not empty. The system feels on watch.</p>
+              </article>
+              <article class="sequence-step">
+                <strong>Event Lock</strong>
+                <p class="panel-copy">A live quake becomes operationally meaningful in one move.</p>
+              </article>
+              <article class="sequence-step">
+                <strong>Asset Illumination</strong>
+                <p class="panel-copy">Ports, rail hubs, and hospitals reveal which city functions are stressed.</p>
+              </article>
+              <article class="sequence-step">
+                <strong>Priority Formation</strong>
+                <p class="panel-copy">Check These Now surfaces an ordered action stack.</p>
+              </article>
+              <article class="sequence-step">
+                <strong>Replay</strong>
+                <p class="panel-copy">The user sees what was knowable at each moment.</p>
+              </article>
+              <article class="sequence-step">
+                <strong>Scenario Shift</strong>
+                <p class="panel-copy">Magnitude, depth, or epicenter change. Consequences recompute instantly.</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="canonical-console">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">canonical console</p>
+            <h2 class="section-title">One screen. Four blocks. Zero dashboard clutter.</h2>
+          </div>
+          <p class="section-blurb">The centerpiece of the page is a high-fidelity console mock that can switch between calm, live, focused, and scenario states without changing layout.</p>
+        </div>
+        <div class="console-board">
+          <div class="console-controls">
+            <div class="console-control-group">
+              <button class="control-btn is-active" type="button" data-console-state="calm">Calm</button>
+              <button class="control-btn" type="button" data-console-state="live">Live Event</button>
+              <button class="control-btn" type="button" data-console-state="focus">Focused Asset</button>
+              <button class="control-btn" type="button" data-console-state="scenario">Scenario Shift</button>
+            </div>
+            <div class="metric-pill" id="console-metric">Tokyo metro / no critical operational earthquake event</div>
+          </div>
+
+          <div class="console-shell" id="console-shell" data-state="calm">
+            <div class="system-bar">
+              <div class="brand-lock">
+                <div class="brand-mark"></div>
+                <div>
+                  <div class="brand-name">namazue.dev</div>
+                  <div class="brand-sub">Tokyo-first earthquake operations console</div>
+                </div>
+              </div>
+              <div class="metric-pill" id="console-metro">Tokyo metro</div>
+              <div class="status-pill" data-tone="calm" id="console-status">System calm</div>
+            </div>
+
+            <div class="console-grid">
+              <div class="left-rail">
+                <article class="panel-card">
+                  <p class="panel-label">Event Snapshot</p>
+                  <h3 class="snapshot-headline" id="snapshot-headline">No critical operational earthquake event</h3>
+                  <p class="snapshot-body" id="snapshot-body">Tokyo remains in calm monitoring mode. The console is ready for replay, scenario review, and asset inspection.</p>
+                  <div class="snapshot-meta">
+                    <span class="chip" id="snapshot-chip-1">calm mode</span>
+                    <span class="chip" id="snapshot-chip-2">Tokyo</span>
+                    <span class="chip" id="snapshot-chip-3">operator ready</span>
+                  </div>
+                </article>
+
+                <article class="panel-card">
+                  <p class="panel-label">Asset Exposure</p>
+                  <ul class="asset-list" id="asset-list">
+                    <li class="asset-item">
+                      <div class="asset-item-top">
+                        <div class="asset-name">Port of Tokyo</div>
+                        <span class="severity-badge severity-low">clear</span>
+                      </div>
+                      <p class="panel-copy">Harbor operations visible in calm watch posture.</p>
+                    </li>
+                    <li class="asset-item">
+                      <div class="asset-item-top">
+                        <div class="asset-name">Shinagawa Hub</div>
+                        <span class="severity-badge severity-low">clear</span>
+                      </div>
+                      <p class="panel-copy">Passenger corridor capacity remains stable.</p>
+                    </li>
+                    <li class="asset-item">
+                      <div class="asset-item-top">
+                        <div class="asset-name">St. Luke's Hospital</div>
+                        <span class="severity-badge severity-low">clear</span>
+                      </div>
+                      <p class="panel-copy">Emergency access posture available for inspection.</p>
+                    </li>
+                  </ul>
+                </article>
+              </div>
+
+              <article class="map-stage">
+                <div class="map-topline">
+                  <div class="map-caption" id="map-caption">Tokyo metro operating picture</div>
+                  <div class="map-metric" id="map-metric">No elevated quake event</div>
+                </div>
+                <div class="map-core">
+                  <div class="coastline"></div>
+                  <div class="corridor"></div>
+                  <div class="impact-ring"></div>
+                  <div class="scenario-ghost"></div>
+                  <div class="asset-marker port safe" data-label="port"></div>
+                  <div class="asset-marker rail safe" data-label="rail"></div>
+                  <div class="asset-marker hospital safe" data-label="hospital"></div>
+                </div>
+                <div class="map-bottomline">
+                  <div class="map-caption" id="map-bottom-left">Impact field / coast / assets / focus</div>
+                  <div class="map-metric" id="map-bottom-right">Metro-first, globe-second</div>
+                </div>
+              </article>
+
+              <div class="right-rail">
+                <article class="panel-card">
+                  <p class="panel-label">Check These Now</p>
+                  <h3 class="check-title" id="check-title">Readiness posture</h3>
+                  <ul class="check-list" id="check-list">
+                    <li class="check-item">
+                      <div class="check-item-top">
+                        <div class="check-name">Open historical replay</div>
+                        <span class="severity-badge severity-low">optional</span>
+                      </div>
+                      <p class="panel-copy">Use replay to inspect a representative coastal event.</p>
+                    </li>
+                    <li class="check-item">
+                      <div class="check-item-top">
+                        <div class="check-name">Run scenario shift</div>
+                        <span class="severity-badge severity-low">optional</span>
+                      </div>
+                      <p class="panel-copy">Stress-test a shallower or stronger quake without breaking calm mode.</p>
+                    </li>
+                    <li class="check-item">
+                      <div class="check-item-top">
+                        <div class="check-name">Inspect launch assets</div>
+                        <span class="severity-badge severity-low">optional</span>
+                      </div>
+                      <p class="panel-copy">Review Tokyo launch assets and baseline operating posture.</p>
+                    </li>
+                  </ul>
+                </article>
+
+                <article class="analyst-card">
+                  <p class="panel-label">Analyst Note</p>
+                  <strong id="analyst-title">The shell should feel calm before it feels dramatic.</strong>
+                  <p class="panel-copy" id="analyst-copy">This review page treats the console as a living system. Scenario depth exists, but it never competes with the default operator snapshot.</p>
+                </article>
+              </div>
+            </div>
+
+            <div class="rail-track">
+              <div class="rail-track-head">
+                <div>
+                  <p class="panel-label">Replay Rail</p>
+                  <h3 class="rail-title">How the event story unfolds over time</h3>
+                </div>
+                <div class="metric-pill" id="rail-mode">calm review</div>
+              </div>
+              <div class="rail-events">
+                <article class="rail-node">
+                  <div class="rail-node-bar"></div>
+                  <strong>Calm</strong>
+                  <p class="panel-copy">Console ready and readable at rest.</p>
+                </article>
+                <article class="rail-node">
+                  <div class="rail-node-bar"></div>
+                  <strong>Event lock</strong>
+                  <p class="panel-copy">A quake becomes a focused operating event.</p>
+                </article>
+                <article class="rail-node">
+                  <div class="rail-node-bar"></div>
+                  <strong>Assets</strong>
+                  <p class="panel-copy">City functions illuminate by severity.</p>
+                </article>
+                <article class="rail-node">
+                  <div class="rail-node-bar"></div>
+                  <strong>Priorities</strong>
+                  <p class="panel-copy">Checks form into an ordered action stack.</p>
+                </article>
+                <article class="rail-node">
+                  <div class="rail-node-bar"></div>
+                  <strong>Scenario</strong>
+                  <p class="panel-copy">What changes if the quake shifts?</p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="state-views">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">state views</p>
+            <h2 class="section-title">The product should change like a sequence, not like tabs.</h2>
+          </div>
+          <p class="section-blurb">Calm, event lock, focused asset, and scenario shift should read like one operating story with increasing depth.</p>
+        </div>
+        <div class="state-grid">
+          <article class="state-plate">
+            <div class="state-meta">
+              <strong class="plate-title">Calm Mode</strong>
+              <span class="state-badge">baseline</span>
+            </div>
+            <div class="state-mini" data-tag="Tokyo ready"></div>
+            <p class="panel-copy">The city remains visible, assets remain present, and the console reads as on watch instead of empty.</p>
+          </article>
+          <article class="state-plate">
+            <div class="state-meta">
+              <strong class="plate-title">Event Lock</strong>
+              <span class="state-badge">live event</span>
+            </div>
+            <div class="state-mini" data-tag="Impact forming"></div>
+            <p class="panel-copy">A live earthquake becomes operationally meaningful. Snapshot language and map posture change without changing layout.</p>
+          </article>
+          <article class="state-plate">
+            <div class="state-meta">
+              <strong class="plate-title">Focused Asset</strong>
+              <span class="state-badge">drilldown</span>
+            </div>
+            <div class="state-mini" data-tag="Port focus"></div>
+            <p class="panel-copy">The right rail becomes current focus context. The reader understands one asset deeply without leaving the main console.</p>
+          </article>
+          <article class="state-plate">
+            <div class="state-meta">
+              <strong class="plate-title">Scenario Shift</strong>
+              <span class="state-badge">counterfactual</span>
+            </div>
+            <div class="state-mini" data-tag="Delta view"></div>
+            <p class="panel-copy">A change in magnitude, depth, or epicenter recomputes consequences. This is the deepest layer, not the entry state.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="component-spec">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">component spec</p>
+            <h2 class="section-title">Each block needs a role, a priority, and an avoid list.</h2>
+          </div>
+          <p class="section-blurb">The page should feel implementation-facing. These are not pretty cards; they are product rules in component form.</p>
+        </div>
+        <div class="spec-grid">
+          <details open>
+            <summary>
+              <div class="component-header">
+                <div class="component-kicker">component</div>
+                <strong class="component-name">Event Snapshot</strong>
+              </div>
+              <span class="state-badge">always visible</span>
+            </summary>
+            <div class="spec-meta">
+              <div class="spec-row"><span>Role</span><div>Turn the current quake into one operator-grade interpretation.</div></div>
+              <div class="spec-row"><span>Contains</span><div>What happened, when, what changed in operating posture.</div></div>
+              <div class="spec-row"><span>Priority</span><div>Meaning before raw magnitude and depth.</div></div>
+              <div class="spec-row"><span>Avoid</span><div>Consumer reassurance copy, long paragraphs, generic card UI.</div></div>
+            </div>
+          </details>
+
+          <details open>
+            <summary>
+              <div class="component-header">
+                <div class="component-kicker">component</div>
+                <strong class="component-name">Asset Exposure</strong>
+              </div>
+              <span class="state-badge">ordered</span>
+            </summary>
+            <div class="spec-meta">
+              <div class="spec-row"><span>Role</span><div>Show which launch assets are most exposed right now.</div></div>
+              <div class="spec-row"><span>Contains</span><div>Ports, rail hubs, hospitals, severity, short rationale.</div></div>
+              <div class="spec-row"><span>Priority</span><div>Sort by consequence, not alphabetically.</div></div>
+              <div class="spec-row"><span>Avoid</span><div>Decorative pin legends without exposure meaning.</div></div>
+            </div>
+          </details>
+
+          <details open>
+            <summary>
+              <div class="component-header">
+                <div class="component-kicker">component</div>
+                <strong class="component-name">Check These Now</strong>
+              </div>
+              <span class="state-badge">core behavior</span>
+            </summary>
+            <div class="spec-meta">
+              <div class="spec-row"><span>Role</span><div>Produce the short ordered action stack that makes the product useful.</div></div>
+              <div class="spec-row"><span>Contains</span><div>Three to five checks with severity and terse rationale.</div></div>
+              <div class="spec-row"><span>Priority</span><div>Actionability beats breadth.</div></div>
+              <div class="spec-row"><span>Avoid</span><div>Essay-like explanations or generic analytics filler.</div></div>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <div class="component-header">
+                <div class="component-kicker">component</div>
+                <strong class="component-name">Replay Rail</strong>
+              </div>
+              <span class="state-badge">time spine</span>
+            </summary>
+            <div class="spec-meta">
+              <div class="spec-row"><span>Role</span><div>Show how the event story evolves and what was knowable at each moment.</div></div>
+              <div class="spec-row"><span>Contains</span><div>Calm, event lock, exposure, priority changes, scenario branch.</div></div>
+              <div class="spec-row"><span>Priority</span><div>Support reconstruction, not generic playback chrome.</div></div>
+              <div class="spec-row"><span>Avoid</span><div>Heavy media-player metaphors or dense controls.</div></div>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <div class="component-header">
+                <div class="component-kicker">component</div>
+                <strong class="component-name">Analyst Note</strong>
+              </div>
+              <span class="state-badge">embedded AI</span>
+            </summary>
+            <div class="spec-meta">
+              <div class="spec-row"><span>Role</span><div>Explain why the operating picture changed.</div></div>
+              <div class="spec-row"><span>Contains</span><div>Short reasoning, suggested checks, delta language.</div></div>
+              <div class="spec-row"><span>Priority</span><div>Quietly useful, never dominant.</div></div>
+              <div class="spec-row"><span>Avoid</span><div>Chat UI, assistant framing, or dramatic tone.</div></div>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <div class="component-header">
+                <div class="component-kicker">component</div>
+                <strong class="component-name">Scenario Shift</strong>
+              </div>
+              <span class="state-badge">second-stage</span>
+            </summary>
+            <div class="spec-meta">
+              <div class="spec-row"><span>Role</span><div>Let the user change the quake and immediately see changed consequences.</div></div>
+              <div class="spec-row"><span>Contains</span><div>Magnitude, depth, epicenter offsets, delta explanation.</div></div>
+              <div class="spec-row"><span>Priority</span><div>Visible only after event focus.</div></div>
+              <div class="spec-row"><span>Avoid</span><div>Showing simulation controls on the default calm screen.</div></div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section id="interaction-logic">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">interaction logic</p>
+            <h2 class="section-title">Navigation by focus, not by page.</h2>
+          </div>
+          <p class="section-blurb">The page itself should explain the console behavior: a single screen whose meaning changes as focus changes.</p>
+        </div>
+        <div class="logic-board">
+          <div class="logic-grid">
+            <article class="logic-card">
+              <strong class="logic-title">Event click</strong>
+              <p class="logic-copy">Event click should lock the quake, reframe the right rail, and clarify the impact field without changing pages.</p>
+              <ul class="logic-list">
+                <li>Map focus tightens.</li>
+                <li>Snapshot changes from calm to live.</li>
+                <li>Check stack reorders.</li>
+              </ul>
+            </article>
+            <article class="logic-card">
+              <strong class="logic-title">Asset click</strong>
+              <p class="logic-copy">Asset click should shift context from quake-wide to asset-specific reasoning while preserving the main shell.</p>
+              <ul class="logic-list">
+                <li>Right rail becomes current focus context.</li>
+                <li>Map highlights one asset.</li>
+                <li>Analyst note becomes more concrete.</li>
+              </ul>
+            </article>
+            <article class="logic-card">
+              <strong class="logic-title">Scenario shift</strong>
+              <p class="logic-copy">Scenario shift is the counterfactual layer. It should re-run consequences and explain the delta in one sentence.</p>
+              <ul class="logic-list">
+                <li>Impact field changes.</li>
+                <li>Exposure ranks change.</li>
+                <li>Check These Now changes with it.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="visual-system">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">visual system</p>
+            <h2 class="section-title">Deep navy, cold metal, controlled escalation.</h2>
+          </div>
+          <p class="section-blurb">This page should reuse only the operator-console-compatible pieces of the old design system. The rest should be rebuilt around severity, precision, and low-noise surfaces.</p>
+        </div>
+        <div class="visual-board">
+          <div class="visual-grid">
+            <article class="visual-card">
+              <strong class="visual-title">Palette</strong>
+              <div class="swatch-grid">
+                <div class="swatch navy"><strong>Deep Navy</strong><span>#07111C</span></div>
+                <div class="swatch steel"><strong>Cold Steel</strong><span>#122131</span></div>
+                <div class="swatch blue"><strong>Control Blue</strong><span>#173656</span></div>
+                <div class="swatch warn"><strong>Amber</strong><span>#6A4317</span></div>
+                <div class="swatch danger"><strong>Danger</strong><span>#5A1F26</span></div>
+                <div class="swatch safe"><strong>Safe</strong><span>#154033</span></div>
+              </div>
+            </article>
+            <article class="visual-card">
+              <strong class="visual-title">Surface rules</strong>
+              <ul class="logic-list">
+                <li>Low-gloss plates, never glass-card overload.</li>
+                <li>Thin borders and measured blur only where it helps hierarchy.</li>
+                <li>The canonical console is always the dominant visual object.</li>
+              </ul>
+            </article>
+            <article class="visual-card">
+              <strong class="visual-title">Type and motion</strong>
+              <ul class="logic-list">
+                <li>Display type should feel industrial, not editorial.</li>
+                <li>Mono belongs on state, timing, and severity labels.</li>
+                <li>Motion is sparse: section reveal, state glow shift, scenario delta cue.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="voice-system">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">voice system</p>
+            <h2 class="section-title">Trusted analyst, not news anchor, not chatbot.</h2>
+          </div>
+          <p class="section-blurb">The language of the page must prove that the product is calm, precise, and operationally serious.</p>
+        </div>
+        <div class="voice-board">
+          <div class="voice-grid">
+            <article class="voice-card good">
+              <strong>Approved operator language</strong>
+              <ul class="voice-list">
+                <li>Operational impact elevated across coastal Tokyo.</li>
+                <li>Three assets require immediate inspection.</li>
+                <li>Hospital access posture changed under scenario shift.</li>
+                <li>Why this changed: shaking moved east toward the bay corridor.</li>
+              </ul>
+            </article>
+            <article class="voice-card">
+              <strong>Embedded analyst framing</strong>
+              <p>AI should exist as Analyst Note, Reasoning, Why this changed, or Suggested checks. It should never behave like a chat-first assistant.</p>
+              <ul class="voice-list">
+                <li>Analyst Note</li>
+                <li>Reasoning</li>
+                <li>Suggested checks</li>
+              </ul>
+            </article>
+            <article class="voice-card bad">
+              <strong>Forbidden phrases</strong>
+              <ul class="voice-list">
+                <li>safe right now</li>
+                <li>do not worry</li>
+                <li>ask AI</li>
+                <li>assistant</li>
+                <li>chat</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer-note">
+        This page is the visual constitution of the product. It should sell the system, specify the system, and discipline the system at the same time.
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const consoleStates = {
+      calm: {
+        metric: "Tokyo metro / no critical operational earthquake event",
+        status: "System calm",
+        statusTone: "calm",
+        snapshotHeadline: "No critical operational earthquake event",
+        snapshotBody: "Tokyo remains in calm monitoring mode. The console is ready for replay, scenario review, and asset inspection.",
+        chips: ["calm mode", "Tokyo", "operator ready"],
+        assets: [
+          { name: "Port of Tokyo", tone: "severity-low", label: "clear", body: "Harbor operations visible in calm watch posture." },
+          { name: "Shinagawa Hub", tone: "severity-low", label: "clear", body: "Passenger corridor capacity remains stable." },
+          { name: "St. Luke's Hospital", tone: "severity-low", label: "clear", body: "Emergency access posture available for inspection." }
+        ],
+        checkTitle: "Readiness posture",
+        checks: [
+          { name: "Open historical replay", tone: "severity-low", label: "optional", body: "Use replay to inspect a representative coastal event." },
+          { name: "Run scenario shift", tone: "severity-low", label: "optional", body: "Stress-test a shallower or stronger quake without breaking calm mode." },
+          { name: "Inspect launch assets", tone: "severity-low", label: "optional", body: "Review Tokyo launch assets and baseline operating posture." }
+        ],
+        analystTitle: "The shell should feel calm before it feels dramatic.",
+        analystCopy: "This review page treats the console as a living system. Scenario depth exists, but it never competes with the default operator snapshot.",
+        mapCaption: "Tokyo metro operating picture",
+        mapMetric: "No elevated quake event",
+        bottomLeft: "Impact field / coast / assets / focus",
+        bottomRight: "Metro-first, globe-second",
+        railMode: "calm review"
+      },
+      live: {
+        metric: "Tokyo metro / live event active",
+        status: "Event active",
+        statusTone: "live",
+        snapshotHeadline: "Operational impact elevated across coastal Tokyo",
+        snapshotBody: "A live M7.1 coastal event is driving strong shaking near the bay corridor and changing operating posture across the city.",
+        chips: ["M7.1", "14:32 JST", "coastal posture up"],
+        assets: [
+          { name: "Port of Tokyo", tone: "severity-high", label: "high", body: "Coastal exposure and berth access require immediate verification." },
+          { name: "Shinagawa Hub", tone: "severity-medium", label: "watch", body: "Rail throughput may degrade under corridor stress." },
+          { name: "St. Luke's Hospital", tone: "severity-low", label: "monitor", body: "Hospital access posture should be monitored for route degradation." }
+        ],
+        checkTitle: "Check These Now",
+        checks: [
+          { name: "Verify Tokyo port access condition", tone: "severity-high", label: "priority 1", body: "Coastal operations overlap the strongest exposed corridor." },
+          { name: "Inspect Shinagawa rail hub status", tone: "severity-medium", label: "priority 2", body: "Passenger access and service continuity may degrade." },
+          { name: "Confirm hospital access posture", tone: "severity-low", label: "priority 3", body: "Emergency routing should remain visible before conditions worsen." }
+        ],
+        analystTitle: "The quake becomes meaningful when it changes city function.",
+        analystCopy: "This state proves the product is not a map or news feed. It turns a live event into a short ordered stack of consequences.",
+        mapCaption: "Live event lock over Tokyo Bay",
+        mapMetric: "Shaking and coastal posture elevated",
+        bottomLeft: "Event lock / exposed corridor / launch assets",
+        bottomRight: "Live consequence view",
+        railMode: "live event"
+      },
+      focus: {
+        metric: "Tokyo metro / port focus active",
+        status: "Focused asset",
+        statusTone: "focus",
+        snapshotHeadline: "Port of Tokyo has become the current focus context",
+        snapshotBody: "The shell tightens around one asset without leaving the main screen. Impact, reasoning, and checks become port-specific.",
+        chips: ["Port of Tokyo", "focus lock", "coastal asset"],
+        assets: [
+          { name: "Port of Tokyo", tone: "severity-high", label: "focus", body: "Now dominant in both map emphasis and right-rail reasoning." },
+          { name: "Shinagawa Hub", tone: "severity-medium", label: "watch", body: "Still relevant but subordinate to current focus." },
+          { name: "St. Luke's Hospital", tone: "severity-low", label: "monitor", body: "Visible as supporting context." }
+        ],
+        checkTitle: "Port-focused checks",
+        checks: [
+          { name: "Confirm berth and harbor access", tone: "severity-high", label: "port", body: "First priority under current focus." },
+          { name: "Verify nearby logistics corridor status", tone: "severity-medium", label: "corridor", body: "Check whether land access is degrading with shaking." },
+          { name: "Review uplifted coastal posture", tone: "severity-low", label: "context", body: "Keep the wider coastal condition visible around the focused asset." }
+        ],
+        analystTitle: "Focus should deepen context, not create a new page.",
+        analystCopy: "This is the strongest proof of the navigation model. The reader never leaves the console, but the shell clearly shifts from city-wide to asset-specific reasoning.",
+        mapCaption: "Focused asset / Port of Tokyo",
+        mapMetric: "Single-asset context active",
+        bottomLeft: "Map focus + right rail delta",
+        bottomRight: "focus, not page",
+        railMode: "focused asset"
+      },
+      scenario: {
+        metric: "Tokyo metro / scenario shift applied",
+        status: "Scenario shift",
+        statusTone: "scenario",
+        snapshotHeadline: "Scenario Shift increased exposure across the bay corridor",
+        snapshotBody: "A shallower and slightly stronger quake pushes both port and rail exposure higher. The shell shows the delta, not just the new state.",
+        chips: ["M +0.4", "depth 12km", "delta view"],
+        assets: [
+          { name: "Port of Tokyo", tone: "severity-high", label: "critical", body: "Port risk rises first as coastal and intensity effects compound." },
+          { name: "Shinagawa Hub", tone: "severity-high", label: "elevated", body: "Rail corridor moves up because the impact field spreads east." },
+          { name: "St. Luke's Hospital", tone: "severity-medium", label: "elevated", body: "Access risk increases under the shifted corridor." }
+        ],
+        checkTitle: "Delta-driven checks",
+        checks: [
+          { name: "Reassess bay logistics posture", tone: "severity-high", label: "delta 1", body: "Port risk escalated under the shallower event." },
+          { name: "Update rail access contingency", tone: "severity-high", label: "delta 2", body: "Rail hub moved higher in the check stack." },
+          { name: "Explain why hospital exposure changed", tone: "severity-medium", label: "delta 3", body: "Scenario delta should always be legible in plain operator language." }
+        ],
+        analystTitle: "Scenario Shift is the flagship interaction because it proves the console is a machine, not a poster.",
+        analystCopy: "The page should make the reader feel how the system recomputes consequence. This is the deepest layer and the main wow moment.",
+        mapCaption: "Counterfactual impact field / shallower and stronger",
+        mapMetric: "Delta path active",
+        bottomLeft: "Impact, exposure, priorities all recomputed",
+        bottomRight: "Scenario Shift",
+        railMode: "counterfactual"
+      }
+    };
+
+    const shell = document.getElementById("console-shell");
+    const buttons = Array.from(document.querySelectorAll("[data-console-state]"));
+    const metric = document.getElementById("console-metric");
+    const status = document.getElementById("console-status");
+    const snapshotHeadline = document.getElementById("snapshot-headline");
+    const snapshotBody = document.getElementById("snapshot-body");
+    const chip1 = document.getElementById("snapshot-chip-1");
+    const chip2 = document.getElementById("snapshot-chip-2");
+    const chip3 = document.getElementById("snapshot-chip-3");
+    const assetList = document.getElementById("asset-list");
+    const checkTitle = document.getElementById("check-title");
+    const checkList = document.getElementById("check-list");
+    const analystTitle = document.getElementById("analyst-title");
+    const analystCopy = document.getElementById("analyst-copy");
+    const mapCaption = document.getElementById("map-caption");
+    const mapMetric = document.getElementById("map-metric");
+    const bottomLeft = document.getElementById("map-bottom-left");
+    const bottomRight = document.getElementById("map-bottom-right");
+    const railMode = document.getElementById("rail-mode");
+
+    function renderList(items, toneType) {
+      return items.map((item) => {
+        const nameClass = toneType === "asset" ? "asset-name" : "check-name";
+        const itemClass = toneType === "asset" ? "asset-item" : "check-item";
+        const topClass = toneType === "asset" ? "asset-item-top" : "check-item-top";
+        return `
+          <li class="${itemClass}">
+            <div class="${topClass}">
+              <div class="${nameClass}">${item.name}</div>
+              <span class="severity-badge ${item.tone}">${item.label}</span>
+            </div>
+            <p class="panel-copy">${item.body}</p>
+          </li>
+        `;
+      }).join("");
+    }
+
+    function setState(stateKey) {
+      const state = consoleStates[stateKey];
+      shell.dataset.state = stateKey;
+      metric.textContent = state.metric;
+      status.textContent = state.status;
+      status.dataset.tone = state.statusTone;
+      snapshotHeadline.textContent = state.snapshotHeadline;
+      snapshotBody.textContent = state.snapshotBody;
+      chip1.textContent = state.chips[0];
+      chip2.textContent = state.chips[1];
+      chip3.textContent = state.chips[2];
+      assetList.innerHTML = renderList(state.assets, "asset");
+      checkTitle.textContent = state.checkTitle;
+      checkList.innerHTML = renderList(state.checks, "check");
+      analystTitle.textContent = state.analystTitle;
+      analystCopy.textContent = state.analystCopy;
+      mapCaption.textContent = state.mapCaption;
+      mapMetric.textContent = state.mapMetric;
+      bottomLeft.textContent = state.bottomLeft;
+      bottomRight.textContent = state.bottomRight;
+      railMode.textContent = state.railMode;
+
+      buttons.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.consoleState === stateKey);
+      });
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => setState(button.dataset.consoleState));
+    });
+
+    setState("calm");
+  </script>
+</body>
+</html>

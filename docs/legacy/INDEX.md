@@ -1,5 +1,7 @@
 # NeverAgain Documentation Index
 
+> Archived index. This describes the earlier `NeverAgain` direction and is kept only for historical reference.
+
 ## 프로젝트 개요
 
 NeverAgain은 일본 지진을 실시간으로 시뮬레이션하고 시각화하는 웹 대시보드다. Si & Midorikawa (1999) GMPE와 JMA EEW 파이프라인을 재현하는 지진공학 엔진 위에, Google Earth급 3D 글로브 시각화를 얹는다. Vite + vanilla TypeScript, globe.gl, Three.js, d3-contour, Web Workers 사용.

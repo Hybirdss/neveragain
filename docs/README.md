@@ -1,8 +1,10 @@
 # Documentation Map
 
-This repository now separates active product/design docs from archived directions.
+This repository now uses three documentation buckets.
 
-## Authoritative Current Docs
+## `docs/current/`
+
+Authoritative source-of-truth documents for the current `namazue.dev` direction.
 
 Use these first:
 
@@ -11,44 +13,40 @@ Use these first:
 - `docs/current/review/console-review-design.md`
 - `docs/current/review/console-review-implementation-plan.md`
 
-These documents describe the current `namazue.dev` direction:
+These define the approved product direction:
 
 - Tokyo-first earthquake operations console
 - calm-mode default
 - focus-based navigation
 - second-stage `Scenario Shift`
-- living HTML review page target
+- living review HTML as the design surface
 
-## Legacy Docs
+## `docs/legacy/`
 
-Archived and superseded material lives under:
+Archived and superseded material from the earlier `NeverAgain` and consumer-first phases.
 
-- `docs/legacy/`
+This now includes:
 
-This includes:
-
-- older PRDs and architecture notes
-- consumer-first design directions
-- older design-system review HTML
+- old PRDs and architecture notes
+- older AI generation and prompt docs
+- consumer-first strategy and TODOs
+- prior execution and optimization plans
+- old design-system review HTML
 
 Use these only for historical reference.
 
-## Active Supporting Docs
+## Shared Support Docs
 
-These remain current supporting references and are not legacy:
+These are not product source-of-truth documents, but still remain useful as technical or operational reference:
 
 - `docs/technical/`
 - `docs/reference/`
 - `docs/ops/`
 
-## Working Plans
+They describe engine behavior, formulas, presets, and operational reports that may still support the rebuild.
 
-`docs/plans/` is now reserved for active engineering or operational planning that is not the authoritative product direction.
+## Rule Of Thumb
 
-Examples:
+If a document defines what `namazue.dev` should become now, it belongs in `docs/current/`.
 
-- engineering uplift
-- transfer optimization
-- temporary implementation notes
-
-If a plan becomes the current product/design source of truth, move it into `docs/current/`.
+If it describes a superseded product direction, UX model, roadmap, or implementation plan, it belongs in `docs/legacy/`.
