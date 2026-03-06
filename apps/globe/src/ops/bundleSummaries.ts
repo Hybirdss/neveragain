@@ -2,6 +2,7 @@ import type { EarthquakeEvent } from '../types';
 import type {
   OperationalOverview,
   OperatorBundleCounter,
+  OperatorBundleSignal,
   OperatorBundleSummaries,
   OperatorBundleTrust,
 } from './readModelTypes';
@@ -100,12 +101,46 @@ function buildCounter(
   return { id, label, value, tone };
 }
 
+function buildSignal(
+  id: string,
+  label: string,
+  value: string,
+  tone: OpsSeverity,
+): OperatorBundleSignal {
+  return { id, label, value, tone };
+}
+
+function summarizeTopAssets(
+  exposures: OpsAssetExposure[],
+  assets: OpsAsset[],
+  limit: number,
+): OpsAsset[] {
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+
+  return exposures
+    .filter((entry) => entry.severity !== 'clear')
+    .sort((left, right) =>
+      severityRank(right.severity) - severityRank(left.severity) ||
+      right.score - left.score,
+    )
+    .flatMap((entry) => {
+      const asset = assetById.get(entry.assetId);
+      return asset ? [asset] : [];
+    })
+    .slice(0, limit);
+}
+
+function joinAssetNames(assets: OpsAsset[]): string {
+  return assets.map((asset) => asset.name).join(', ');
+}
+
 export function buildOperatorBundleSummaries(
   input: BuildOperatorBundleSummariesInput,
 ): OperatorBundleSummaries {
   const ports = summarizeClassExposure('port', input.assets, input.exposures);
   const rail = summarizeClassExposure('rail_hub', input.assets, input.exposures);
   const medical = summarizeClassExposure('hospital', input.assets, input.exposures);
+  const topAssets = summarizeTopAssets(input.exposures, input.assets, 2);
   const topRegion = formatRegion(input.operationalOverview.topRegion);
   const hasEvent = input.selectedEvent !== null;
   const liveTrust = resolveBundleTrust('live', input.trustLevel);
@@ -138,6 +173,14 @@ export function buildOperatorBundleSummaries(
           input.operationalOverview.topSeverity,
         ),
       ],
+      signals: hasEvent && input.operationalOverview.topRegion
+        ? [
+            buildSignal('focus-region', 'Focus Region', topRegion, input.operationalOverview.topSeverity),
+            ...(topAssets.length > 0
+              ? [buildSignal('top-assets', 'Top Assets', joinAssetNames(topAssets), input.operationalOverview.topSeverity)]
+              : []),
+          ]
+        : [],
     },
     maritime: {
       bundleId: 'maritime',
@@ -164,6 +207,19 @@ export function buildOperatorBundleSummaries(
             buildCounter('underway', 'Underway', input.maritimeOverview.underwayCount, 'watch'),
           ]
         : [],
+      signals: [
+        ...(ports.count > 0
+          ? [buildSignal('exposed-ports', 'Exposed Ports', joinAssetNames(ports.topAssets), ports.topSeverity)]
+          : []),
+        ...(input.maritimeOverview
+          ? [buildSignal(
+              'traffic-posture',
+              'Traffic Posture',
+              `${input.maritimeOverview.highPriorityTracked} priority / ${input.maritimeOverview.underwayCount} underway`,
+              input.maritimeOverview.highPriorityTracked > 0 ? 'watch' : 'clear',
+            )]
+          : []),
+      ],
     },
     lifelines: {
       bundleId: 'lifelines',
@@ -179,6 +235,9 @@ export function buildOperatorBundleSummaries(
       trust: rail.count > 0 ? liveTrust : plannedTrust,
       counters: rail.count > 0
         ? [buildCounter('rail-hubs', 'Rail Hubs', rail.count, rail.topSeverity)]
+        : [],
+      signals: rail.count > 0
+        ? [buildSignal('corridor-focus', 'Corridor Focus', joinAssetNames(rail.topAssets), rail.topSeverity)]
         : [],
     },
     medical: {
@@ -196,6 +255,9 @@ export function buildOperatorBundleSummaries(
       counters: medical.count > 0
         ? [buildCounter('medical-sites', 'Sites', medical.count, medical.topSeverity)]
         : [],
+      signals: medical.count > 0
+        ? [buildSignal('medical-focus', 'Medical Focus', joinAssetNames(medical.topAssets), medical.topSeverity)]
+        : [],
     },
     'built-environment': {
       bundleId: 'built-environment',
@@ -210,6 +272,9 @@ export function buildOperatorBundleSummaries(
       availability: 'planned',
       trust: plannedTrust,
       counters: [],
+      signals: hasEvent
+        ? [buildSignal('activation-tier', 'Activation Tier', 'City-tier on operator focus', 'watch')]
+        : [],
     },
   };
 }

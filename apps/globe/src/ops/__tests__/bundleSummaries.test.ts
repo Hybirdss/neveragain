@@ -103,16 +103,33 @@ describe('buildOperatorBundleSummaries', () => {
       { id: 'affected-assets', label: 'Affected', value: 3, tone: 'priority' },
       { id: 'visible-assets', label: 'Visible', value: 3, tone: 'priority' },
     ]);
+    expect(summaries.seismic!.signals).toEqual([
+      { id: 'focus-region', label: 'Focus Region', value: 'Kanto', tone: 'priority' },
+      { id: 'top-assets', label: 'Top Assets', value: 'Port of Tokyo, University of Tokyo Hospital', tone: 'priority' },
+    ]);
     expect(summaries.maritime!.metric).toContain('122 tracked');
     expect(summaries.maritime!.counters).toEqual([
       { id: 'tracked', label: 'Tracked', value: 122, tone: 'clear' },
       { id: 'high-priority', label: 'High Priority', value: 34, tone: 'priority' },
       { id: 'underway', label: 'Underway', value: 98, tone: 'watch' },
     ]);
+    expect(summaries.maritime!.signals).toEqual([
+      { id: 'exposed-ports', label: 'Exposed Ports', value: 'Port of Tokyo', tone: 'priority' },
+      { id: 'traffic-posture', label: 'Traffic Posture', value: '34 priority / 98 underway', tone: 'watch' },
+    ]);
     expect(summaries.lifelines!.metric).toContain('1 rail hub');
+    expect(summaries.lifelines!.signals).toEqual([
+      { id: 'corridor-focus', label: 'Corridor Focus', value: 'Tokyo Station', tone: 'watch' },
+    ]);
     expect(summaries.medical!.metric).toContain('1 medical site');
+    expect(summaries.medical!.signals).toEqual([
+      { id: 'medical-focus', label: 'Medical Focus', value: 'University of Tokyo Hospital', tone: 'priority' },
+    ]);
     expect(summaries['built-environment']!.detail).toContain('city-tier');
     expect(summaries['built-environment']!.trust).toBe('pending');
+    expect(summaries['built-environment']!.signals).toEqual([
+      { id: 'activation-tier', label: 'Activation Tier', value: 'City-tier on operator focus', tone: 'watch' },
+    ]);
   });
 
   it('keeps calm standby wording when there is no active event or affected assets', () => {
@@ -137,7 +154,10 @@ describe('buildOperatorBundleSummaries', () => {
     expect(summaries.maritime!.metric).toContain('No tracked traffic');
     expect(summaries.maritime!.detail).toContain('standing by');
     expect(summaries.maritime!.counters).toEqual([]);
+    expect(summaries.maritime!.signals).toEqual([]);
     expect(summaries.lifelines!.detail).toContain('standing by');
+    expect(summaries.lifelines!.signals).toEqual([]);
     expect(summaries.medical!.detail).toContain('standing by');
+    expect(summaries.medical!.signals).toEqual([]);
   });
 });

@@ -8,12 +8,12 @@ import {
 } from '../layers/bundleRegistry';
 import { getLayerDefinition, type BundleId, type LayerId } from '../layers/layerRegistry';
 import { consoleStore, type ConsoleState } from '../core/store';
-import type { OperatorBundleCounter, OperatorBundleSummary } from '../ops/readModelTypes';
+import type { OperatorBundleCounter, OperatorBundleSignal, OperatorBundleSummary } from '../ops/readModelTypes';
 import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 
 export type BundleSummary = Pick<
   OperatorBundleSummary,
-  'title' | 'metric' | 'detail' | 'trust' | 'counters'
+  'title' | 'metric' | 'detail' | 'trust' | 'counters' | 'signals'
 >;
 
 export interface LayerControlRow {
@@ -55,6 +55,7 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
       detail: backendSummary.detail,
       trust: backendSummary.trust,
       counters: backendSummary.counters,
+      signals: backendSummary.signals,
     };
   }
 
@@ -65,6 +66,7 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
     detail: `${definition.description} Awaiting initial backend summary.`,
     trust: 'pending',
     counters: [],
+    signals: [],
   };
 }
 
@@ -82,6 +84,27 @@ function renderSummaryMeta(summary: BundleSummary): string {
     <div class="nz-bundle-summary-meta">
       <span class="nz-bundle-trust nz-bundle-trust--${summary.trust}">${summary.trust}</span>
       ${summary.counters.map(renderCounter).join('')}
+    </div>
+  `;
+}
+
+function renderSignal(signal: OperatorBundleSignal): string {
+  return `
+    <div class="nz-bundle-signal nz-bundle-signal--${signal.tone}">
+      <span class="nz-bundle-signal__label">${signal.label}</span>
+      <span class="nz-bundle-signal__value">${signal.value}</span>
+    </div>
+  `;
+}
+
+function renderSignals(summary: BundleSummary): string {
+  if (summary.signals.length === 0) {
+    return '';
+  }
+
+  return `
+    <div class="nz-bundle-signals">
+      ${summary.signals.map(renderSignal).join('')}
     </div>
   `;
 }
@@ -186,6 +209,7 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
             <div class="nz-bundle-card__label">Active Summary</div>
             <div class="nz-bundle-card__metric">${activeSummary.metric}</div>
             <div class="nz-bundle-card__detail">${activeSummary.detail}</div>
+            ${renderSignals(activeSummary)}
             ${renderSummaryMeta(activeSummary)}
           </div>
           <div class="nz-bundle-card">
@@ -212,6 +236,7 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
               <span class="nz-bundle-summary-card__title">${entry.summary.title}</span>
               <span class="nz-bundle-summary-card__metric">${entry.summary.metric}</span>
               <span class="nz-bundle-summary-card__detail">${entry.summary.detail}</span>
+              ${renderSignals(entry.summary)}
               ${renderSummaryMeta(entry.summary)}
             </button>
           `).join('')}

@@ -78,6 +78,13 @@ export interface OperatorBundleCounter {
   tone: OpsSeverity;
 }
 
+export interface OperatorBundleSignal {
+  id: string;
+  label: string;
+  value: string;
+  tone: OpsSeverity;
+}
+
 export interface OperatorBundleSummary {
   bundleId: OperatorBundleId;
   title: string;
@@ -87,6 +94,7 @@ export interface OperatorBundleSummary {
   availability: 'live' | 'planned';
   trust: OperatorBundleTrust;
   counters: OperatorBundleCounter[];
+  signals: OperatorBundleSignal[];
 }
 
 export type OperatorBundleSummaries = Partial<Record<OperatorBundleId, OperatorBundleSummary>>;

@@ -79,6 +79,9 @@ describe('layerControl bundle summaries', () => {
             counters: [
               { id: 'affected-assets', label: 'Affected', value: 3, tone: 'priority' },
             ],
+            signals: [
+              { id: 'focus-region', label: 'Focus Region', value: 'Kanto', tone: 'priority' },
+            ],
           },
         },
       },
@@ -89,6 +92,9 @@ describe('layerControl bundle summaries', () => {
     expect(summary.trust).toBe('review');
     expect(summary.counters).toEqual([
       { id: 'affected-assets', label: 'Affected', value: 3, tone: 'priority' },
+    ]);
+    expect(summary.signals).toEqual([
+      { id: 'focus-region', label: 'Focus Region', value: 'Kanto', tone: 'priority' },
     ]);
   });
 
@@ -106,6 +112,9 @@ describe('layerControl bundle summaries', () => {
             availability: 'live',
             trust: 'confirmed',
             counters: [],
+            signals: [
+              { id: 'medical-focus', label: 'Medical Focus', value: 'University of Tokyo Hospital, St. Luke Hospital', tone: 'priority' },
+            ],
           },
         },
       },
@@ -114,6 +123,9 @@ describe('layerControl bundle summaries', () => {
     expect(summary.metric).toContain('2 medical sites');
     expect(summary.detail).toContain('Hospital access verification');
     expect(summary.trust).toBe('confirmed');
+    expect(summary.signals).toEqual([
+      { id: 'medical-focus', label: 'Medical Focus', value: 'University of Tokyo Hospital, St. Luke Hospital', tone: 'priority' },
+    ]);
   });
 
   it('falls back to empty backend truth instead of pending copy when a bundle summary is missing', () => {
