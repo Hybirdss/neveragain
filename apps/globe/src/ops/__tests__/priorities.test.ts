@@ -7,20 +7,24 @@ const assets: OpsAsset[] = [
   {
     id: 'tokyo-port',
     metro: 'tokyo',
+    region: 'kanto',
     class: 'port',
     name: 'Port of Tokyo',
     lat: 35.617,
     lng: 139.794,
     tags: ['coastal'],
+    minZoomTier: 'national',
   },
   {
     id: 'tokyo-shinagawa',
     metro: 'tokyo',
+    region: 'kanto',
     class: 'rail_hub',
     name: 'Shinagawa Station',
     lat: 35.6284,
     lng: 139.7387,
     tags: ['rail'],
+    minZoomTier: 'regional',
   },
 ];
 

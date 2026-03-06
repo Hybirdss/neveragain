@@ -42,11 +42,13 @@ describe('buildAssetExposures', () => {
       {
         id: 'tokyo-port',
         metro: 'tokyo',
+        region: 'kanto',
         class: 'port',
         name: 'Port of Tokyo',
         lat: 35.617,
         lng: 139.794,
         tags: ['coastal'],
+        minZoomTier: 'national',
       },
     ];
 
@@ -68,11 +70,13 @@ describe('buildAssetExposures', () => {
       {
         id: 'tokyo-hospital',
         metro: 'tokyo',
+        region: 'kanto',
         class: 'hospital',
         name: 'Tokyo Hospital',
         lat: 35.617,
         lng: 139.794,
         tags: ['medical'],
+        minZoomTier: 'city',
       },
     ];
 
@@ -93,20 +97,24 @@ describe('buildAssetExposures', () => {
       {
         id: 'tokyo-port',
         metro: 'tokyo',
+        region: 'kanto',
         class: 'port',
         name: 'Port of Tokyo',
         lat: 35.617,
         lng: 139.794,
         tags: ['coastal'],
+        minZoomTier: 'national',
       },
       {
         id: 'tokyo-hospital',
         metro: 'tokyo',
+        region: 'kanto',
         class: 'hospital',
         name: 'Tokyo Hospital',
         lat: 35.617,
         lng: 139.794,
         tags: ['medical'],
+        minZoomTier: 'city',
       },
     ];
 

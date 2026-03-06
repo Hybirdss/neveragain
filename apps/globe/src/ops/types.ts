@@ -1,15 +1,35 @@
 export type LaunchMetro = 'tokyo' | 'osaka';
+export type OpsRegion =
+  | 'hokkaido'
+  | 'tohoku'
+  | 'kanto'
+  | 'chubu'
+  | 'kansai'
+  | 'chugoku'
+  | 'shikoku'
+  | 'kyushu';
 export type OpsAssetClass = 'port' | 'rail_hub' | 'hospital';
 export type OpsSeverity = 'clear' | 'watch' | 'priority' | 'critical';
+export type ZoomTier = 'national' | 'regional' | 'city' | 'district';
+
+export interface ViewportState {
+  center: { lat: number; lng: number };
+  zoom: number;
+  bounds: [west: number, south: number, east: number, north: number];
+  tier: ZoomTier;
+  activeRegion: OpsRegion | null;
+}
 
 export interface OpsAsset {
   id: string;
   metro: LaunchMetro;
+  region: OpsRegion;
   class: OpsAssetClass;
   name: string;
   lat: number;
   lng: number;
   tags: string[];
+  minZoomTier: ZoomTier;
 }
 
 export type OpsFocus =

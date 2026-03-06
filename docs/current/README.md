@@ -8,6 +8,7 @@ Companion current documents:
 
 - **`BACKEND.md`** — backend ownership, contracts, and migration guidance
 - **`BACKLOG.md`** — execution order for backend work aligned to the new design
+- **`IMPLEMENTATION_PLAN.md`** — full-stack build order from contracts to layers to shell
 
 ## Key Decisions
 
