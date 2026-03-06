@@ -99,22 +99,24 @@ export function buildOperatorBundleSummaries(
       severity: input.operationalOverview.topSeverity,
       availability: 'live',
     },
-    ...(input.maritimeOverview || ports.count > 0
-      ? {
-          maritime: {
-            bundleId: 'maritime' as const,
-            title: 'Maritime',
-            metric: input.maritimeOverview
-              ? input.maritimeOverview.summary
-              : `${ports.count} port asset${ports.count === 1 ? '' : 's'} in elevated posture`,
-            detail: ports.count > 0
-              ? `${ports.topAssets.map((asset) => asset.name).join(' and ')} require coastal verification.`
-              : 'Coastal shipping and port posture are standing by.',
-            severity: ports.topSeverity,
-            availability: 'live' as const,
-          },
-        }
-      : {}),
+    maritime: {
+      bundleId: 'maritime',
+      title: 'Maritime',
+      metric: input.maritimeOverview
+        ? input.maritimeOverview.summary
+        : ports.count > 0
+          ? `${ports.count} port asset${ports.count === 1 ? '' : 's'} in elevated posture`
+          : 'No tracked traffic',
+      detail: ports.count > 0
+        ? `${ports.topAssets.map((asset) => asset.name).join(' and ')} require coastal verification.`
+        : input.maritimeOverview && input.maritimeOverview.totalTracked > 0
+          ? input.maritimeOverview.highPriorityTracked > 0
+            ? `${input.maritimeOverview.highPriorityTracked} high-priority vessels and ${input.maritimeOverview.underwayCount} underway in current feed.`
+            : `${input.maritimeOverview.underwayCount} underway across current coastal traffic.`
+          : 'AIS telemetry and coastal shipping posture are standing by.',
+      severity: ports.topSeverity,
+      availability: 'live',
+    },
     lifelines: {
       bundleId: 'lifelines',
       title: 'Lifelines',

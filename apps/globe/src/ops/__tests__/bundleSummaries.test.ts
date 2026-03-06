@@ -122,7 +122,8 @@ describe('buildOperatorBundleSummaries', () => {
     });
 
     expect(summaries.seismic!.metric).toContain('No elevated');
-    expect(summaries.maritime).toBeUndefined();
+    expect(summaries.maritime!.metric).toContain('No tracked traffic');
+    expect(summaries.maritime!.detail).toContain('standing by');
     expect(summaries.lifelines!.detail).toContain('standing by');
     expect(summaries.medical!.detail).toContain('standing by');
   });

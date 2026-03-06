@@ -3,42 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { buildBundleSummary, buildLayerControlModel } from '../layerControl';
 import { createDefaultBundleSettings, createDefaultLayerVisibility } from '../../layers/bundleRegistry';
 import type { ServiceReadModel } from '../../ops/readModelTypes';
-import type { Vessel } from '../../data/aisManager';
+import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
 import type { ConsoleState } from '../../core/store';
 
 function createReadModel(): ServiceReadModel {
-  return {
-    currentEvent: null,
-    eventTruth: null,
-    viewport: null,
-    nationalSnapshot: null,
-    systemHealth: {
-      level: 'nominal',
-      headline: 'Primary realtime feed healthy',
-      detail: 'No source conflicts or realtime degradation detected.',
-      flags: [],
-    },
-    operationalOverview: {
-      selectionReason: null,
-      selectionSummary: 'No operationally significant event selected',
-      impactSummary: 'No assets in elevated posture',
-      visibleAffectedAssetCount: 0,
-      nationalAffectedAssetCount: 0,
-      topRegion: null,
-      topSeverity: 'clear',
-    },
-    bundleSummaries: {},
-    nationalExposureSummary: [],
-    visibleExposureSummary: [],
-    nationalPriorityQueue: [],
-    visiblePriorityQueue: [],
-    freshnessStatus: {
-      source: 'server',
-      state: 'fresh',
-      updatedAt: Date.parse('2026-03-06T10:00:00.000Z'),
-      staleAfterMs: 60_000,
-    },
-  };
+  return createEmptyServiceReadModel({
+    source: 'server',
+    state: 'fresh',
+    updatedAt: Date.parse('2026-03-06T10:00:00.000Z'),
+    staleAfterMs: 60_000,
+  });
 }
 
 function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
@@ -78,51 +52,28 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
 }
 
 describe('layerControl bundle summaries', () => {
-  it('builds an operator-grade maritime summary in calm mode', () => {
-    const vessels: Vessel[] = [
-      {
-        mmsi: '1',
-        name: 'FERRY SAKURA',
-        lat: 35,
-        lng: 140,
-        cog: 90,
-        sog: 14,
-        type: 'passenger',
-        lastUpdate: Date.now(),
-        trail: [[140, 35]],
-      },
-      {
-        mmsi: '2',
-        name: 'PACIFIC STAR',
-        lat: 36,
-        lng: 141,
-        cog: 45,
-        sog: 0,
-        type: 'cargo',
-        lastUpdate: Date.now(),
-        trail: [[141, 36]],
-      },
-    ];
-
-    const summary = buildBundleSummary('maritime', createState({ vessels }));
+  it('uses backend-owned maritime summary in calm mode', () => {
+    const summary = buildBundleSummary('maritime', createState());
 
     expect(summary.title).toBe('Maritime');
-    expect(summary.metric).toContain('2 tracked');
-    expect(summary.detail).toContain('1 high-priority');
+    expect(summary.metric).toContain('No tracked traffic');
+    expect(summary.detail).toContain('standing by');
   });
 
   it('surfaces seismic truth when the seismic bundle is active', () => {
     const summary = buildBundleSummary('seismic', createState({
       readModel: {
         ...createReadModel(),
-        operationalOverview: {
-          selectionReason: 'auto-select',
-          selectionSummary: 'Operational focus auto-selected from current incident stream',
-          impactSummary: '3 assets in elevated posture nationwide',
-          visibleAffectedAssetCount: 1,
-          nationalAffectedAssetCount: 3,
-          topRegion: 'kanto',
-          topSeverity: 'priority',
+        bundleSummaries: {
+          ...createReadModel().bundleSummaries,
+          seismic: {
+            bundleId: 'seismic',
+            title: 'Seismic',
+            metric: '3 assets in elevated posture',
+            detail: 'Primary operational pressure centered on Kanto.',
+            severity: 'priority',
+            availability: 'live',
+          },
         },
       },
     }));

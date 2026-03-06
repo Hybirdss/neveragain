@@ -9,6 +9,7 @@ import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
 import type { ViewportState } from './viewportManager';
 import type { OpsAssetExposure, OpsPriority } from '../ops/types';
 import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
+import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 import type { Vessel } from '../data/aisManager';
 import {
   createDefaultBundleSettings,
@@ -96,6 +97,13 @@ const defaultViewport: ViewportState = {
   bearing: 0,
 };
 
+const defaultRealtimeStatus: RealtimeStatus = {
+  source: 'server',
+  state: 'stale',
+  updatedAt: 0,
+  staleAfterMs: 60_000,
+};
+
 const initialState: ConsoleState = {
   mode: 'calm',
   viewport: defaultViewport,
@@ -103,13 +111,8 @@ const initialState: ConsoleState = {
   events: [],
   exposures: [],
   priorities: [],
-  readModel: null,
-  realtimeStatus: {
-    source: 'server',
-    state: 'stale',
-    updatedAt: 0,
-    staleAfterMs: 60_000,
-  },
+  readModel: createEmptyServiceReadModel(defaultRealtimeStatus),
+  realtimeStatus: defaultRealtimeStatus,
   intensityGrid: null,
   vessels: [],
   faults: [],

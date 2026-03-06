@@ -1,4 +1,3 @@
-import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
 import {
   applyOperatorViewPreset,
   getAllBundleDefinitions,
@@ -56,47 +55,11 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
     };
   }
 
-  switch (bundleId) {
-    case 'maritime': {
-      const overview = buildMaritimeOverview(state.vessels);
-      return {
-        title: definition.label,
-        metric: overview.totalTracked > 0 ? overview.summary : 'No active vessel tracking',
-        detail: overview.highPriorityTracked > 0
-          ? `${overview.highPriorityTracked} high-priority vessels and ${overview.underwayCount} underway`
-          : `${overview.underwayCount} underway across visible coastal traffic`,
-      };
-    }
-    case 'seismic': {
-      const affected = readModel?.operationalOverview.nationalAffectedAssetCount ?? 0;
-      const region = readModel?.operationalOverview.topRegion;
-      return {
-        title: definition.label,
-        metric: affected > 0 ? `${affected} assets in elevated posture` : 'No elevated nationwide posture',
-        detail: region
-          ? `Primary operational pressure centered on ${region}`
-          : 'National seismic bundle is standing by for the next significant event.',
-      };
-    }
-    case 'lifelines':
-      return {
-        title: definition.label,
-        metric: 'Rail, power, water, telecom',
-        detail: 'Corridor pressure and service disruption views will surface here.',
-      };
-    case 'medical':
-      return {
-        title: definition.label,
-        metric: 'Hospital access posture',
-        detail: 'Medical response priorities and access risk will appear here.',
-      };
-    case 'built-environment':
-      return {
-        title: definition.label,
-        metric: 'Urban structural context',
-        detail: '3D buildings and city-scale structural overlays are staged here.',
-      };
-  }
+  return {
+    title: definition.label,
+    metric: 'Bundle truth syncing',
+    detail: `${definition.description} Awaiting initial backend summary.`,
+  };
 }
 
 export function buildLayerControlModel(state: ConsoleState): LayerControlModel {
