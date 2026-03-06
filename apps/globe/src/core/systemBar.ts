@@ -32,7 +32,9 @@ export function buildSystemBarState(input: {
 
   parts.push(`${input.realtimeStatus.source} ${input.realtimeStatus.state}`);
 
-  if (input.readModel?.eventTruth?.hasConflictingRevision) {
+  if (input.readModel?.eventTruth?.divergenceSeverity === 'material') {
+    parts.push('divergence');
+  } else if (input.readModel?.eventTruth?.hasConflictingRevision) {
     parts.push('conflict');
   }
 

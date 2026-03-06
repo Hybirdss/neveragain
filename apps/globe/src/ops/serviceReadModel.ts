@@ -3,7 +3,11 @@ import type {
   PrefectureImpact,
   TsunamiAssessment,
 } from '../types';
-import type { CanonicalEventEnvelope, CanonicalEventSource } from '../data/eventEnvelope';
+import {
+  analyzeEventRevisionHistory,
+  type CanonicalEventEnvelope,
+  type CanonicalEventSource,
+} from '../data/eventEnvelope';
 import type {
   EventTruth,
   OperationalOverview,
@@ -45,6 +49,16 @@ function buildSystemHealth(
   if (eventTruth?.hasConflictingRevision) {
     flags.push('revision-conflict');
   }
+  if (eventTruth?.divergenceSeverity === 'material') {
+    flags.push('material-divergence');
+  }
+  if (eventTruth?.confidence === 'low') {
+    flags.push('low-confidence-truth');
+  }
+
+  const divergenceSummary = eventTruth
+    ? buildDivergenceSummary(eventTruth)
+    : null;
 
   if (freshnessStatus.state === 'degraded') {
     return {
@@ -55,14 +69,27 @@ function buildSystemHealth(
     };
   }
 
-  if (flags.includes('revision-conflict') || freshnessStatus.state === 'stale') {
+  if (flags.includes('material-divergence')) {
+    return {
+      level: 'watch',
+      headline: 'Material revision divergence detected',
+      detail: divergenceSummary ?? 'Source revisions diverge materially and require operator review.',
+      flags,
+    };
+  }
+
+  if (flags.includes('revision-conflict') || freshnessStatus.state === 'stale' || flags.includes('low-confidence-truth')) {
     return {
       level: 'watch',
       headline: flags.includes('revision-conflict')
         ? 'Conflicting source revisions detected'
+        : flags.includes('low-confidence-truth')
+          ? 'Selected event truth is low confidence'
         : 'Realtime updates are delayed',
       detail: flags.includes('revision-conflict')
-        ? `${eventTruth?.revisionCount ?? 0} revisions from ${(eventTruth?.sources ?? []).join('/')} require operator review.`
+        ? divergenceSummary ?? `${eventTruth?.revisionCount ?? 0} revisions from ${(eventTruth?.sources ?? []).join('/')} require operator review.`
+        : flags.includes('low-confidence-truth')
+          ? `Selected truth originates from a low-confidence ${eventTruth?.source ?? 'feed'} revision. Verify before acting.`
         : freshnessStatus.message ?? 'Primary feed is stale; decisions may lag current field conditions.',
       flags,
     };
@@ -74,6 +101,35 @@ function buildSystemHealth(
     detail: 'No source conflicts or realtime degradation detected.',
     flags,
   };
+}
+
+function buildDivergenceSummary(eventTruth: EventTruth): string | null {
+  if (eventTruth.divergenceSeverity === 'none' && !eventTruth.hasConflictingRevision) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  if (eventTruth.magnitudeSpread > 0) {
+    parts.push(`magnitude spread ${eventTruth.magnitudeSpread.toFixed(1)}`);
+  }
+  if (eventTruth.depthSpreadKm > 0) {
+    parts.push(`depth spread ${Math.round(eventTruth.depthSpreadKm)} km`);
+  }
+  if (eventTruth.locationSpreadKm > 0) {
+    parts.push(`location spread ${Math.round(eventTruth.locationSpreadKm)} km`);
+  }
+  if (eventTruth.tsunamiMismatch) {
+    parts.push('tsunami posture mismatch');
+  }
+  if (eventTruth.faultTypeMismatch) {
+    parts.push('fault type mismatch');
+  }
+
+  if (parts.length === 0) {
+    return `${eventTruth.revisionCount} revisions from ${eventTruth.sources.join('/')} require operator review.`;
+  }
+
+  return `${eventTruth.revisionCount} revisions from ${eventTruth.sources.join('/')} show ${parts.join(', ')}.`;
 }
 
 function severityRank(severity: OpsSeverity): number {
@@ -240,6 +296,7 @@ function buildEventTruth(
   const sources = Array.from(
     new Set(revisionHistory.map((entry) => entry.source)),
   ) as CanonicalEventSource[];
+  const divergence = analyzeEventRevisionHistory(revisionHistory);
 
   return {
     source: envelope.source,
@@ -252,6 +309,12 @@ function buildEventTruth(
     revisionCount: revisionHistory.length,
     sources,
     hasConflictingRevision: sources.length > 1,
+    divergenceSeverity: divergence.divergenceSeverity,
+    magnitudeSpread: divergence.magnitudeSpread,
+    depthSpreadKm: divergence.depthSpreadKm,
+    locationSpreadKm: divergence.locationSpreadKm,
+    tsunamiMismatch: divergence.tsunamiMismatch,
+    faultTypeMismatch: divergence.faultTypeMismatch,
   };
 }
 

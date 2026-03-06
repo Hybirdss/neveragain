@@ -33,6 +33,12 @@ const readModel: ServiceReadModel = {
     revisionCount: 2,
     sources: ['server', 'usgs'],
     hasConflictingRevision: true,
+    divergenceSeverity: 'minor',
+    magnitudeSpread: 0.1,
+    depthSpreadKm: 0,
+    locationSpreadKm: 0,
+    tsunamiMismatch: false,
+    faultTypeMismatch: false,
   },
   viewport: {
     center: { lat: 35.6, lng: 139.7 },
@@ -79,6 +85,28 @@ describe('buildSystemBarState', () => {
     expect(state.statusText).toContain('server fresh');
     expect(state.statusText).toContain('conflict');
     expect(state.statusMode).toBe('event');
+  });
+
+  it('surfaces material divergence when revision disagreement is material', () => {
+    const state = buildSystemBarState({
+      mode: 'event',
+      eventCount: 2,
+      readModel: {
+        ...readModel,
+        eventTruth: {
+          ...readModel.eventTruth!,
+          divergenceSeverity: 'material',
+          locationSpreadKm: 28,
+        },
+        systemHealth: {
+          ...readModel.systemHealth,
+          flags: ['revision-conflict', 'material-divergence'],
+        },
+      },
+      realtimeStatus,
+    });
+
+    expect(state.statusText).toContain('divergence');
   });
 
   it('falls back to Japan-wide calm wording when no viewport or truth is available', () => {

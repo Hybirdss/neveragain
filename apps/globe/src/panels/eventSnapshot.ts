@@ -44,9 +44,11 @@ function formatRevisionLabel(readModel: ServiceReadModel | null): string | null 
     return null;
   }
 
-  const conflictLabel = readModel.eventTruth.hasConflictingRevision
-    ? ' · Conflict detected'
-    : '';
+  const conflictLabel = readModel.eventTruth.divergenceSeverity === 'material'
+    ? ' · Material divergence'
+    : readModel.eventTruth.hasConflictingRevision
+      ? ' · Conflict detected'
+      : '';
   return `${readModel.eventTruth.revisionCount} revisions${conflictLabel}`;
 }
 

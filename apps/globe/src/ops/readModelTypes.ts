@@ -1,6 +1,10 @@
 import type { EarthquakeEvent, PrefectureImpact, TsunamiAssessment } from '../types';
 import type { OpsAssetExposure, OpsPriority, OpsRegion, OpsSeverity, ViewportState } from './types';
-import type { CanonicalEventConfidence, CanonicalEventSource } from '../data/eventEnvelope';
+import type {
+  CanonicalEventConfidence,
+  CanonicalEventSource,
+  RevisionDivergenceSeverity,
+} from '../data/eventEnvelope';
 import type { SelectedOperationalFocusReason } from './eventSelection';
 
 export type RealtimeSource = 'server' | 'usgs' | 'fallback';
@@ -33,6 +37,12 @@ export interface EventTruth {
   revisionCount: number;
   sources: CanonicalEventSource[];
   hasConflictingRevision: boolean;
+  divergenceSeverity: RevisionDivergenceSeverity;
+  magnitudeSpread: number;
+  depthSpreadKm: number;
+  locationSpreadKm: number;
+  tsunamiMismatch: boolean;
+  faultTypeMismatch: boolean;
 }
 
 export interface SystemHealthSummary {

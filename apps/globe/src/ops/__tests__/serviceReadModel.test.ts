@@ -256,4 +256,65 @@ describe('buildServiceReadModel', () => {
     expect(model.operationalOverview.selectionSummary).toMatch(/auto-selected/i);
     expect(model.operationalOverview.impactSummary).toBe('No assets in elevated posture');
   });
+
+  it('surfaces material revision divergence for operator review when source revisions disagree', () => {
+    const usgsEvent = {
+      id: 'eq-3',
+      lat: 38.1,
+      lng: 142.2,
+      depth_km: 22,
+      magnitude: 6.6,
+      time: 1_700_000_000_000,
+      faultType: 'interface' as const,
+      tsunami: true,
+      place: { text: 'Off the coast of Tohoku' },
+    };
+    const serverEvent = {
+      ...usgsEvent,
+      lat: 37.8,
+      lng: 141.9,
+      depth_km: 38,
+      magnitude: 7.2,
+      tsunami: false,
+    };
+
+    const model = buildServiceReadModel({
+      selectedEvent: serverEvent,
+      selectedEventEnvelope: buildCanonicalEventEnvelope({
+        event: serverEvent,
+        source: 'server',
+        issuedAt: 1_700_000_002_000,
+        receivedAt: 1_700_000_003_000,
+      }),
+      selectedEventRevisionHistory: [
+        buildCanonicalEventEnvelope({
+          event: usgsEvent,
+          source: 'usgs',
+          issuedAt: 1_700_000_001_000,
+          receivedAt: 1_700_000_001_500,
+        }),
+      ],
+      selectionReason: 'escalate',
+      tsunamiAssessment: null,
+      impactResults: null,
+      assets: [],
+      viewport: null,
+      exposures: [],
+      priorities: [],
+      freshnessStatus: {
+        source: 'server',
+        state: 'fresh',
+        updatedAt: 1_700_000_005_000,
+        staleAfterMs: 60_000,
+      },
+    });
+
+    expect(model.eventTruth?.divergenceSeverity).toBe('material');
+    expect(model.eventTruth?.magnitudeSpread).toBeCloseTo(0.6, 3);
+    expect(model.eventTruth?.depthSpreadKm).toBeCloseTo(16, 3);
+    expect(model.eventTruth?.locationSpreadKm).toBeGreaterThan(20);
+    expect(model.eventTruth?.tsunamiMismatch).toBe(true);
+    expect(model.systemHealth.flags).toContain('material-divergence');
+    expect(model.systemHealth.detail).toMatch(/magnitude spread/i);
+  });
 });

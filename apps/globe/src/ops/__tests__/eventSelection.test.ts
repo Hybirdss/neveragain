@@ -185,4 +185,39 @@ describe('selectOperationalFocusEvent', () => {
     expect(result.selectedEventId).toBe('major-tsunami');
     expect(result.reason).toBe('auto-select');
   });
+
+  it('penalizes materially divergent revisions so stable operator truth wins auto-selection', () => {
+    const stable = createEvent('stable', 6.1, now - 30 * 60_000);
+    const divergent = createEvent('divergent', 6.7, now - 10 * 60_000);
+
+    const result = selectOperationalFocusEvent({
+      now,
+      currentSelectedEventId: null,
+      candidates: [
+        {
+          event: stable,
+          envelope: createEnvelope(stable, 'server', stable.time + 5_000),
+          revisionHistory: [],
+        },
+        {
+          event: divergent,
+          envelope: createEnvelope(divergent, 'server', divergent.time + 5_000),
+          revisionHistory: [
+            createEnvelope(
+              createEvent('divergent', 6.0, divergent.time, {
+                lat: 34.4,
+                lng: 138.2,
+                tsunami: true,
+              }),
+              'usgs',
+              divergent.time + 2_000,
+            ),
+          ],
+        },
+      ],
+    });
+
+    expect(result.selectedEventId).toBe('stable');
+    expect(result.reason).toBe('auto-select');
+  });
 });

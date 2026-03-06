@@ -1,4 +1,4 @@
-import type { CanonicalEventEnvelope } from '../data/eventEnvelope';
+import { analyzeEventRevisionHistory, type CanonicalEventEnvelope } from '../data/eventEnvelope';
 import type { EarthquakeEvent } from '../types';
 
 export interface EventSelectionCandidate {
@@ -53,7 +53,18 @@ function scoreCandidate(now: number, candidate: EventSelectionCandidate): number
     : candidate.envelope?.confidence === 'medium'
       ? 4
       : 1;
-  const conflictPenalty = new Set(candidate.revisionHistory.map((entry) => entry.source)).size > 1 ? 6 : 0;
+  const revisionAnalysis = analyzeEventRevisionHistory(
+    candidate.envelope
+      ? candidate.revisionHistory.some((entry) => entry.revision === candidate.envelope?.revision)
+        ? candidate.revisionHistory
+        : [...candidate.revisionHistory, candidate.envelope]
+      : candidate.revisionHistory,
+  );
+  const conflictPenalty = revisionAnalysis.divergenceSeverity === 'material'
+    ? 12
+    : new Set(candidate.revisionHistory.map((entry) => entry.source)).size > 1
+      ? 6
+      : 0;
 
   return magnitudeScore + tsunamiScore + recencyScore + sourceScore + confidenceScore - conflictPenalty;
 }

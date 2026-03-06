@@ -29,6 +29,12 @@ function createReadModel(overrides: Partial<ServiceReadModel> = {}): ServiceRead
       revisionCount: 2,
       sources: ['server', 'usgs'],
       hasConflictingRevision: true,
+      divergenceSeverity: 'minor',
+      magnitudeSpread: 0.1,
+      depthSpreadKm: 0,
+      locationSpreadKm: 0,
+      tsunamiMismatch: false,
+      faultTypeMismatch: false,
     },
     viewport: {
       center: { lat: 35.6, lng: 139.7 },
@@ -127,6 +133,25 @@ describe('operator panel selectors', () => {
     expect(markup).toContain('2 revisions');
     expect(markup).toContain('Conflict detected');
     expect(markup).toContain('Data fresh');
+  });
+
+  it('renders material divergence when the selected event truth is materially inconsistent', () => {
+    const markup = renderEventSnapshotMarkup({
+      mode: 'event',
+      selectedEvent: createReadModel().currentEvent,
+      readModel: createReadModel({
+        eventTruth: {
+          ...createReadModel().eventTruth!,
+          divergenceSeverity: 'material',
+          magnitudeSpread: 0.6,
+          locationSpreadKm: 24,
+          tsunamiMismatch: true,
+        },
+      }),
+      now: Date.parse('2026-03-06T10:00:00.000Z'),
+    });
+
+    expect(markup).toContain('Material divergence');
   });
 
   it('renders operational selection messaging in calm mode when no event is selected', () => {

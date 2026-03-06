@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { EarthquakeEvent } from '../../types';
 import {
+  analyzeEventRevisionHistory,
   buildCanonicalEventEnvelope,
   pickPreferredEventEnvelope,
 } from '../eventEnvelope';
@@ -62,5 +63,33 @@ describe('eventEnvelope', () => {
 
     expect(pickPreferredEventEnvelope(older, newer)).toBe(newer);
     expect(pickPreferredEventEnvelope(tiedUsgs, tiedServer)).toBe(tiedServer);
+  });
+
+  it('classifies material divergence when revisions disagree on magnitude, location, or tsunami posture', () => {
+    const usgs = buildCanonicalEventEnvelope({
+      event: baseEvent,
+      source: 'usgs',
+      issuedAt: 1_700_000_001_000,
+      receivedAt: 1_700_000_001_500,
+    });
+    const server = buildCanonicalEventEnvelope({
+      event: {
+        ...baseEvent,
+        lat: 35.2,
+        lng: 139.2,
+        magnitude: 7.4,
+        tsunami: false,
+      },
+      source: 'server',
+      issuedAt: 1_700_000_002_000,
+      receivedAt: 1_700_000_002_500,
+    });
+
+    const analysis = analyzeEventRevisionHistory([usgs, server]);
+
+    expect(analysis.divergenceSeverity).toBe('material');
+    expect(analysis.magnitudeSpread).toBeCloseTo(0.6, 3);
+    expect(analysis.locationSpreadKm).toBeGreaterThan(20);
+    expect(analysis.tsunamiMismatch).toBe(true);
   });
 });
