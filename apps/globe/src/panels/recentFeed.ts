@@ -1,15 +1,24 @@
 /**
  * Recent Feed Panel — Left rail, below event snapshot.
  *
- * Scrollable list of recent earthquakes (up to 30).
+ * Scrollable list of recent earthquakes (default: last 7 days).
  * Click to select -> map flies to event + wave animation triggers.
- * Selected item auto-scrolls into view.
+ * Period picker allows searching historical earthquakes by date range.
  */
 
 import { consoleStore } from '../core/store';
+import { fetchEventsByRange } from '../namazue/serviceEngine';
 import type { EarthquakeEvent } from '../types';
 
-const MAX_FEED_ITEMS = 30;
+const MAX_FEED_ITEMS = 50;
+
+const PERIOD_OPTIONS = [
+  { days: 1, label: '24h' },
+  { days: 7, label: '7d' },
+  { days: 30, label: '30d' },
+  { days: 90, label: '90d' },
+  { days: 365, label: '1y' },
+];
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -32,8 +41,19 @@ function depthLabel(km: number): string {
   return 'deep';
 }
 
-function renderFeed(events: EarthquakeEvent[], selectedId: string | null): string {
-  const visible = events.slice(0, MAX_FEED_ITEMS);
+function renderPeriodPicker(currentDays: number, loading: boolean): string {
+  const buttons = PERIOD_OPTIONS.map((p) => {
+    const active = p.days === currentDays ? ' nz-feed__period--active' : '';
+    return `<button class="nz-feed__period${active}" data-days="${p.days}"${loading ? ' disabled' : ''}>${p.label}</button>`;
+  }).join('');
+
+  return `<div class="nz-feed__periods">${buttons}${loading ? '<span class="nz-feed__loading">...</span>' : ''}</div>`;
+}
+
+function renderFeed(events: EarthquakeEvent[], selectedId: string | null, feedDays: number, loading: boolean): string {
+  const cutoff = Date.now() - feedDays * 86_400_000;
+  const filtered = events.filter((e) => e.time >= cutoff);
+  const visible = filtered.slice(0, MAX_FEED_ITEMS);
   const items = visible.map((e) => {
     const active = e.id === selectedId ? ' nz-feed__item--active' : '';
     const sev = severityDot(e.magnitude);
@@ -49,16 +69,17 @@ function renderFeed(events: EarthquakeEvent[], selectedId: string | null): strin
     `;
   }).join('');
 
-  const moreLabel = events.length > MAX_FEED_ITEMS
-    ? `<div class="nz-feed__more">${events.length - MAX_FEED_ITEMS} more not shown</div>`
+  const moreLabel = filtered.length > MAX_FEED_ITEMS
+    ? `<div class="nz-feed__more">${filtered.length - MAX_FEED_ITEMS} more not shown</div>`
     : '';
 
   return `
     <div class="nz-panel" id="nz-recent-feed">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Recent Activity</span>
-        <span class="nz-feed__count">${events.length}</span>
+        <span class="nz-feed__count">${filtered.length}</span>
       </div>
+      ${renderPeriodPicker(feedDays, loading)}
       <div class="nz-feed__list">
         ${items || '<div class="nz-feed__empty">No events in range</div>'}
         ${moreLabel}
@@ -71,10 +92,13 @@ export function mountRecentFeed(
   container: HTMLElement,
   onSelect: (event: EarthquakeEvent) => void,
 ): () => void {
+  let loading = false;
+
   function render(): void {
     const events = consoleStore.get('events');
     const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
-    container.innerHTML = renderFeed(events, selectedId);
+    const feedDays = consoleStore.get('feedDays');
+    container.innerHTML = renderFeed(events, selectedId, feedDays, loading);
 
     // Bind click handlers
     container.querySelectorAll<HTMLElement>('[data-event-id]').forEach((el) => {
@@ -82,6 +106,37 @@ export function mountRecentFeed(
         const id = el.dataset.eventId;
         const event = consoleStore.get('events').find((e) => e.id === id);
         if (event) onSelect(event);
+      });
+    });
+
+    // Bind period picker
+    container.querySelectorAll<HTMLButtonElement>('[data-days]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const days = parseInt(btn.dataset.days ?? '7', 10);
+        if (days === consoleStore.get('feedDays')) return;
+        consoleStore.set('feedDays', days);
+
+        // If requesting more than current data covers, fetch from API
+        const oldestEvent = events.length > 0
+          ? Math.min(...events.map((e) => e.time))
+          : Date.now();
+        const needsSince = Date.now() - days * 86_400_000;
+        if (needsSince < oldestEvent) {
+          loading = true;
+          render();
+          fetchEventsByRange(needsSince).then((result) => {
+            // Merge with existing events (deduplicate by id)
+            const existing = new Map(consoleStore.get('events').map((e) => [e.id, e]));
+            for (const e of result.events) existing.set(e.id, e);
+            const merged = [...existing.values()].sort((a, b) => b.time - a.time);
+            consoleStore.set('events', merged);
+            loading = false;
+            render();
+          }).catch(() => {
+            loading = false;
+            render();
+          });
+        }
       });
     });
 
@@ -106,11 +161,13 @@ export function mountRecentFeed(
 
   const unsub1 = consoleStore.subscribe('events', scheduleRender);
   const unsub2 = consoleStore.subscribe('selectedEvent', scheduleRender);
+  const unsub3 = consoleStore.subscribe('feedDays', scheduleRender);
   const timer = setInterval(render, 30_000);
 
   return () => {
     unsub1();
     unsub2();
+    unsub3();
     clearInterval(timer);
   };
 }

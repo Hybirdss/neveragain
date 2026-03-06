@@ -495,6 +495,58 @@
   padding: 8px 0;
 }
 
+/* ── Period Picker ─────────────────────────────────────────── */
+
+.nz-feed__periods {
+  display: flex;
+  gap: 2px;
+  padding: 0 0 6px;
+  align-items: center;
+}
+
+.nz-feed__period {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--nz-panel-border);
+  background: transparent;
+  color: var(--nz-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nz-feed__period:hover {
+  border-color: var(--nz-info);
+  color: var(--nz-info);
+}
+
+.nz-feed__period--active {
+  border-color: var(--nz-info);
+  color: #0a0e14;
+  background: var(--nz-info);
+}
+
+.nz-feed__period:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.nz-feed__loading {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  margin-left: 4px;
+  animation: nz-feed-pulse 1s ease-in-out infinite;
+}
+
+@keyframes nz-feed-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 /* ── Bottom Bar Content ─────────────────────────────────────── */
 
 .nz-bottom-bar__info {

@@ -440,21 +440,21 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   }
   document.addEventListener('keydown', handleKeydown);
 
-  // 8. Clear scenario event when exiting scenario mode + toggle scenario UI
+  // 8. Scenario UI class — single source of truth
+  //    Only apply nz-console--scenario when scenarioMode is explicitly ON.
+  //    The scenarioMode store value is the sole authority; selectedEvent does NOT control it.
+  function syncScenarioClass(): void {
+    shell.root.classList.toggle('nz-console--scenario', consoleStore.get('scenarioMode'));
+  }
+
   consoleStore.subscribe('scenarioMode', (on) => {
-    shell.root.classList.toggle('nz-console--scenario', on);
+    syncScenarioClass();
     if (!on) {
       const selected = consoleStore.get('selectedEvent');
       if (selected?.id.startsWith('scenario-')) {
         deselectEvent();
       }
     }
-  });
-
-  // Also toggle scenario UI when a scenario event is selected directly
-  consoleStore.subscribe('selectedEvent', (event) => {
-    const isScenario = event?.id.startsWith('scenario-') ?? false;
-    shell.root.classList.toggle('nz-console--scenario', isScenario || consoleStore.get('scenarioMode'));
   });
 
   // 9. System bar — coalesced updates (mode, events, readModel, realtimeStatus all affect it)

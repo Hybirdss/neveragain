@@ -42,6 +42,7 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
     faults: [],
     railStatuses: [],
     scenarioMode: false,
+    feedDays: 7,
     layerVisibility: createDefaultLayerVisibility(),
     activeBundleId: 'maritime',
     activeViewId: 'national-impact',

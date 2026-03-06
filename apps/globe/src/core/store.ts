@@ -45,6 +45,7 @@ export interface ConsoleState {
   faults: ActiveFault[];
   railStatuses: RailLineStatus[];
   scenarioMode: boolean;
+  feedDays: number;
   layerVisibility: Record<LayerId, boolean>;
   activeBundleId: BundleId;
   activeViewId: OperatorViewId;
@@ -166,6 +167,7 @@ const initialState: ConsoleState = {
   faults: [],
   railStatuses: [],
   scenarioMode: false,
+  feedDays: 7,
   layerVisibility: createDefaultLayerVisibility(),
   activeBundleId: 'seismic',
   activeViewId: 'national-impact',

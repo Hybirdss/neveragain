@@ -149,7 +149,8 @@ function usgsFeatureToEq(f: USGSFeature): EarthquakeEvent {
 }
 
 async function fetchFromApi(): Promise<EarthquakeEvent[]> {
-  const url = `${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=50`;
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const url = `${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=500&since=${since}`;
   const data = await fetchWithTimeout<ServerEventsResponse>(url);
   if (!Array.isArray(data.events)) return [];
   return data.events
@@ -196,6 +197,40 @@ export async function fetchEventsWithMeta(): Promise<FetchEventsResult> {
 
 export async function fetchEvents(): Promise<EarthquakeEvent[]> {
   return (await fetchEventsWithMeta()).events;
+}
+
+/**
+ * Fetch events for a specific date range (historical search).
+ * Falls back to USGS weekly feed if no API configured.
+ */
+export async function fetchEventsByRange(sinceMs: number, untilMs?: number): Promise<FetchEventsResult> {
+  const updatedAt = Date.now();
+  if (!API_BASE) {
+    // USGS only has last week, filter client-side
+    const events = await fetchFromUsgs();
+    const filtered = events.filter((e) => e.time >= sinceMs && (!untilMs || e.time <= untilMs));
+    return { events: filtered, source: 'usgs', updatedAt };
+  }
+  try {
+    const since = new Date(sinceMs).toISOString();
+    let url = `${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=500&since=${since}`;
+    if (untilMs) {
+      // Client-side filter for until — API doesn't have until param yet
+    }
+    const data = await fetchWithTimeout<ServerEventsResponse>(url);
+    if (!Array.isArray(data.events)) return { events: [], source: 'server', updatedAt };
+    let events = data.events
+      .map(serverEventToEq)
+      .filter((e): e is EarthquakeEvent => e !== null);
+    if (untilMs) {
+      events = events.filter((e) => e.time <= untilMs);
+    }
+    return { events, source: 'server', updatedAt };
+  } catch {
+    const events = await fetchFromUsgs();
+    const filtered = events.filter((e) => e.time >= sinceMs && (!untilMs || e.time <= untilMs));
+    return { events: filtered, source: 'usgs', updatedAt };
+  }
 }
 
 // ── Compute Layer ───────────────────────────────────────────────

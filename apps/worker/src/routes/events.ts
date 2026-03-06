@@ -166,6 +166,17 @@ eventsRoute.get('/', async (c) => {
     return c.json({ error: lngMinErr ?? lngMaxErr ?? lngPairErr }, 400);
   }
 
+  // ── Time filter (since=ISO8601 or epoch ms) ──────────────────────────
+  const sinceRaw = c.req.query('since');
+  let sinceDate: Date | null = null;
+  if (sinceRaw) {
+    const ts = parseTimestamp(sinceRaw);
+    if (ts === null) {
+      return c.json({ error: 'since must be an ISO-8601 date string or epoch milliseconds' }, 400);
+    }
+    sinceDate = ts;
+  }
+
   // ── DB query ──────────────────────────────────────────────────────────
   const conditions = [];
   if (mag_min !== null && mag_min > 0) conditions.push(gte(earthquakes.magnitude, mag_min));
@@ -173,6 +184,7 @@ eventsRoute.get('/', async (c) => {
   if (lat_max !== null) conditions.push(lte(earthquakes.lat, lat_max));
   if (lng_min !== null) conditions.push(gte(earthquakes.lng, lng_min));
   if (lng_max !== null) conditions.push(lte(earthquakes.lng, lng_max));
+  if (sinceDate !== null) conditions.push(gte(earthquakes.time, sinceDate));
 
   const db = createDb(c.env.DATABASE_URL);
   const rows = await db.select({
