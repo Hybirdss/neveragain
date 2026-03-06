@@ -9,6 +9,8 @@ test('maritime provider falls back to synthetic snapshots when no AIS key is con
 
   assert.equal(snapshot.source, 'synthetic');
   assert.equal(snapshot.fallbackReason, 'not-configured');
+  assert.equal(snapshot.diagnostics.attemptedLive, false);
+  assert.equal(snapshot.diagnostics.upstreamPhase, 'not-configured');
   assert.equal(snapshot.profile.id, 'japan-wide');
   assert.ok(snapshot.totalTracked > 122);
 });
@@ -58,6 +60,9 @@ test('maritime provider can build a live snapshot from AISstream websocket messa
   const snapshot = await snapshotPromise;
   assert.equal(snapshot.source, 'live');
   assert.equal(snapshot.fallbackReason, undefined);
+  assert.equal(snapshot.diagnostics.attemptedLive, true);
+  assert.equal(snapshot.diagnostics.upstreamPhase, 'completed');
+  assert.equal(snapshot.diagnostics.messagesReceived, 1);
   assert.equal(snapshot.totalTracked, 1);
   assert.equal(snapshot.vessels[0]?.name, 'TOKYO TEST');
   assert.equal(snapshot.vessels[0]?.lat, 35.2);
@@ -79,6 +84,9 @@ test('maritime provider falls back to synthetic snapshots when AISstream fails',
   const snapshot = await provider.loadProfileSnapshot('japan-wide', 7_000);
   assert.equal(snapshot.source, 'synthetic');
   assert.equal(snapshot.fallbackReason, 'upstream-error');
+  assert.equal(snapshot.diagnostics.attemptedLive, true);
+  assert.equal(snapshot.diagnostics.upstreamPhase, 'upstream-error');
+  assert.match(snapshot.diagnostics.lastError ?? '', /socket unavailable/);
   assert.ok(snapshot.totalTracked > 122);
 });
 
@@ -97,6 +105,9 @@ test('maritime provider falls back when AISstream never opens', async () => {
   const snapshot = await provider.loadProfileSnapshot('japan-wide', 9_000);
   assert.equal(snapshot.source, 'synthetic');
   assert.equal(snapshot.fallbackReason, 'connect-timeout');
+  assert.equal(snapshot.diagnostics.attemptedLive, true);
+  assert.equal(snapshot.diagnostics.upstreamPhase, 'connect-timeout');
+  assert.equal(snapshot.diagnostics.messagesReceived, 0);
   assert.ok(snapshot.totalTracked > 122);
 });
 

@@ -3,6 +3,7 @@ import { filterVesselsByBounds, type AisCoverageProfile, type AisCoverageProfile
 export interface MaritimeSnapshotRecord {
   source: 'synthetic' | 'live';
   fallbackReason?: MaritimeFallbackReason;
+  diagnostics: MaritimeProviderDiagnostics;
   profile: AisCoverageProfile;
   generatedAt: number;
   refreshedAt: number;
@@ -16,11 +17,26 @@ export type MaritimeFallbackReason =
   | 'connect-timeout'
   | 'no-live-data';
 
+export type MaritimeUpstreamPhase =
+  | 'not-configured'
+  | 'completed'
+  | 'upstream-error'
+  | 'connect-timeout'
+  | 'no-live-data';
+
+export interface MaritimeProviderDiagnostics {
+  attemptedLive: boolean;
+  upstreamPhase: MaritimeUpstreamPhase;
+  messagesReceived: number;
+  lastError?: string;
+}
+
 export interface MaritimeSnapshotProvider {
   provider: 'synthetic' | 'live';
   loadProfileSnapshot(profileId: AisCoverageProfileId, now: number): Promise<{
     source: MaritimeSnapshotRecord['source'];
     fallbackReason?: MaritimeFallbackReason;
+    diagnostics: MaritimeProviderDiagnostics;
     profile: AisCoverageProfile;
     generatedAt: number;
     totalTracked: number;
@@ -57,6 +73,7 @@ export interface MaritimeSnapshotResponse {
     provider: MaritimeSnapshotProvider['provider'];
     fallbackReason?: MaritimeFallbackReason;
     refreshInFlight: boolean;
+    diagnostics: MaritimeProviderDiagnostics;
   };
 }
 
@@ -117,6 +134,7 @@ export class MaritimeSnapshotService {
         provider: record.source,
         fallbackReason: record.fallbackReason,
         refreshInFlight,
+        diagnostics: record.diagnostics,
       },
     };
   }
@@ -132,6 +150,7 @@ export class MaritimeSnapshotService {
       const record: MaritimeSnapshotRecord = {
         source: fresh.source,
         fallbackReason: fresh.fallbackReason,
+        diagnostics: fresh.diagnostics,
         profile: fresh.profile,
         generatedAt: fresh.generatedAt,
         refreshedAt: now,

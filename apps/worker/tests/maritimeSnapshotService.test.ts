@@ -25,6 +25,11 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
       return {
         source: 'synthetic',
         fallbackReason: 'not-configured',
+        diagnostics: {
+          attemptedLive: false,
+          upstreamPhase: 'not-configured',
+          messagesReceived: 0,
+        },
         profile: {
           id: profileId,
           label: 'Japan Wide',
@@ -84,6 +89,9 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
   assert.equal(first.totalTracked, 2);
   assert.equal(first.provenance.cacheStatus, 'miss');
   assert.equal(first.provenance.fallbackReason, 'not-configured');
+  assert.equal(first.provenance.diagnostics.attemptedLive, false);
+  assert.equal(first.provenance.diagnostics.upstreamPhase, 'not-configured');
+  assert.equal(first.provenance.diagnostics.messagesReceived, 0);
   assert.equal(second.visibleCount, 1);
   assert.equal(second.provenance.cacheStatus, 'hit');
   assert.equal(second.provenance.fallbackReason, 'not-configured');
@@ -98,6 +106,12 @@ test('maritime snapshot service refreshes stale records', async () => {
       return {
         source: 'synthetic',
         fallbackReason: calls === 1 ? 'upstream-error' : 'connect-timeout',
+        diagnostics: {
+          attemptedLive: true,
+          upstreamPhase: calls === 1 ? 'upstream-error' : 'connect-timeout',
+          messagesReceived: 0,
+          lastError: calls === 1 ? 'upstream error' : 'connect timeout',
+        },
         profile: {
           id: profileId,
           label: 'Japan Wide',
@@ -153,6 +167,12 @@ test('maritime snapshot service returns stale data immediately while refreshing 
         return Promise.resolve({
           source: 'synthetic',
           fallbackReason: 'upstream-error',
+          diagnostics: {
+            attemptedLive: true,
+            upstreamPhase: 'upstream-error',
+            messagesReceived: 0,
+            lastError: 'upstream error',
+          },
           profile: {
             id: profileId,
             label: 'Japan Wide',
@@ -200,6 +220,11 @@ test('maritime snapshot service returns stale data immediately while refreshing 
   resolveRefresh?.({
     source: 'synthetic',
     fallbackReason: 'not-configured',
+    diagnostics: {
+      attemptedLive: false,
+      upstreamPhase: 'not-configured',
+      messagesReceived: 0,
+    },
     profile: {
       id: 'japan-wide',
       label: 'Japan Wide',
@@ -261,6 +286,11 @@ test('maritime snapshot service deduplicates concurrent cache misses', async () 
   resolveFirst?.({
     source: 'synthetic',
     fallbackReason: 'not-configured',
+    diagnostics: {
+      attemptedLive: false,
+      upstreamPhase: 'not-configured',
+      messagesReceived: 0,
+    },
     profile: {
       id: 'japan-wide',
       label: 'Japan Wide',

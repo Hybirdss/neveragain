@@ -1,6 +1,6 @@
 import { buildSyntheticMaritimeSnapshot, getAisCoverageProfile, type AisCoverageProfileId, type Vessel, type VesselType } from '@namazue/db';
 import type { Env } from '../index.ts';
-import type { MaritimeFallbackReason, MaritimeSnapshotProvider } from './service.ts';
+import type { MaritimeFallbackReason, MaritimeProviderDiagnostics, MaritimeSnapshotProvider } from './service.ts';
 
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const DEFAULT_COLLECTION_WINDOW_MS = 1_500;
@@ -65,7 +65,15 @@ export function createMaritimeSnapshotProvider(
         const fallbackReason = error instanceof Error && error.message === 'AISstream websocket connect timeout'
           ? 'connect-timeout'
           : 'upstream-error';
-        return buildSyntheticFallback(profileId, now, fallbackReason);
+        return buildSyntheticFallback(
+          profileId,
+          now,
+          fallbackReason,
+          buildFallbackDiagnostics(
+            fallbackReason,
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
       }
     },
   };
@@ -89,6 +97,7 @@ async function collectAisstreamSnapshot(input: {
   connectTimeoutMs: number;
 }): Promise<{
   source: 'live';
+  diagnostics: MaritimeProviderDiagnostics;
   profile: ReturnType<typeof getAisCoverageProfile>;
   generatedAt: number;
   totalTracked: number;
@@ -96,6 +105,7 @@ async function collectAisstreamSnapshot(input: {
 }> {
   const profile = getAisCoverageProfile(input.profileId);
   const vessels = new Map<string, Vessel>();
+  let messagesReceived = 0;
 
   await new Promise<void>((resolve, reject) => {
     const socket = input.webSocketFactory(AISSTREAM_URL);
@@ -144,6 +154,7 @@ async function collectAisstreamSnapshot(input: {
     socket.addEventListener('message', (event) => {
       const vessel = parseAisstreamMessage(event, input.now, vessels.get.bind(vessels));
       if (!vessel) return;
+      messagesReceived += 1;
       vessels.set(vessel.mmsi, vessel);
     });
 
@@ -158,6 +169,11 @@ async function collectAisstreamSnapshot(input: {
 
   return {
     source: 'live',
+    diagnostics: {
+      attemptedLive: true,
+      upstreamPhase: 'completed',
+      messagesReceived,
+    },
     profile,
     generatedAt: input.now,
     totalTracked: vessels.size,
@@ -169,10 +185,32 @@ function buildSyntheticFallback(
   profileId: AisCoverageProfileId,
   now: number,
   fallbackReason: MaritimeFallbackReason,
+  diagnostics?: MaritimeProviderDiagnostics,
 ) {
   return {
     ...buildSyntheticMaritimeSnapshot({ profileId, now }),
     fallbackReason,
+    diagnostics: diagnostics ?? buildFallbackDiagnostics(fallbackReason),
+  };
+}
+
+function buildFallbackDiagnostics(
+  fallbackReason: MaritimeFallbackReason,
+  lastError?: string,
+): MaritimeProviderDiagnostics {
+  if (fallbackReason === 'not-configured') {
+    return {
+      attemptedLive: false,
+      upstreamPhase: 'not-configured',
+      messagesReceived: 0,
+    };
+  }
+
+  return {
+    attemptedLive: true,
+    upstreamPhase: fallbackReason,
+    messagesReceived: 0,
+    lastError,
   };
 }
 

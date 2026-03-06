@@ -40,6 +40,12 @@ export class MaritimeHub {
         provider: snapshot.provenance.provider,
         fallback_reason: snapshot.provenance.fallbackReason ?? null,
         refresh_in_flight: snapshot.provenance.refreshInFlight,
+        diagnostics: {
+          attempted_live: snapshot.provenance.diagnostics.attemptedLive,
+          upstream_phase: snapshot.provenance.diagnostics.upstreamPhase,
+          messages_received: snapshot.provenance.diagnostics.messagesReceived,
+          last_error: snapshot.provenance.diagnostics.lastError ?? null,
+        },
       },
     });
   }

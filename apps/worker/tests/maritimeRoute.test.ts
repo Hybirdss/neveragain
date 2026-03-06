@@ -29,6 +29,12 @@ test('maritime route forwards maritime queries to the durable object hub', async
                   provider: 'synthetic',
                   fallback_reason: 'connect-timeout',
                   refresh_in_flight: false,
+                  diagnostics: {
+                    attempted_live: true,
+                    upstream_phase: 'connect-timeout',
+                    messages_received: 0,
+                    last_error: 'AISstream websocket connect timeout',
+                  },
                 },
               });
           },
@@ -44,7 +50,17 @@ test('maritime route forwards maritime queries to the durable object hub', async
     profile: { id: string };
     total_tracked: number;
     visible_count: number;
-    provenance: { cache_status: string; fallback_reason: string; refresh_in_flight: boolean };
+    provenance: {
+      cache_status: string;
+      fallback_reason: string;
+      refresh_in_flight: boolean;
+      diagnostics: {
+        attempted_live: boolean;
+        upstream_phase: string;
+        messages_received: number;
+        last_error: string | null;
+      };
+    };
   };
 
   assert.equal(payload.source, 'synthetic');
@@ -54,6 +70,10 @@ test('maritime route forwards maritime queries to the durable object hub', async
   assert.equal(payload.provenance.cache_status, 'miss');
   assert.equal(payload.provenance.fallback_reason, 'connect-timeout');
   assert.equal(payload.provenance.refresh_in_flight, false);
+  assert.equal(payload.provenance.diagnostics.attempted_live, true);
+  assert.equal(payload.provenance.diagnostics.upstream_phase, 'connect-timeout');
+  assert.equal(payload.provenance.diagnostics.messages_received, 0);
+  assert.match(payload.provenance.diagnostics.last_error ?? '', /connect timeout/i);
   assert.match(
     forwardedUrl,
     /https:\/\/maritime-hub\/snapshot\?profile=japan-wide&west=138.5&south=33.5&east=141.5&north=36.5&limit=25/,
