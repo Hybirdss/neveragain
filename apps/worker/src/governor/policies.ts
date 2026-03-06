@@ -1,90 +1,86 @@
 import type { GovernorState, SourceClass } from './types.ts';
 
-export const GOVERNOR_SOURCES = ['events', 'maritime', 'rail', 'power', 'water', 'hospitals'] as const;
+export const GOVERNED_SOURCES = ['events', 'maritime', 'rail', 'power', 'water', 'hospitals'] as const;
 
-export type GovernorSource = (typeof GOVERNOR_SOURCES)[number];
+export type GovernedSource = (typeof GOVERNED_SOURCES)[number];
 
-export interface GovernorCadence {
-  strategy: 'poll' | 'event-driven';
-  refreshMs: number | null;
+interface BaseGovernorSourcePolicy {
+  source: GovernedSource;
+  sourceClass: SourceClass;
 }
 
-export interface GovernorSourcePolicy {
-  source: GovernorSource;
-  state: GovernorState;
-  sourceClass: SourceClass;
-  cadence: GovernorCadence;
+export interface PollingGovernorSourcePolicy extends BaseGovernorSourcePolicy {
+  cadenceMode: 'poll';
+  refreshMs: number;
 }
 
-type GovernorSourcePolicyTable = Record<GovernorSource, {
-  sourceClass: SourceClass;
-  cadenceByState: Record<GovernorState, GovernorCadence>;
-}>;
+export interface EventDrivenGovernorSourcePolicy extends BaseGovernorSourcePolicy {
+  cadenceMode: 'event-driven';
+  refreshMs: null;
+  trigger: 'incident-change';
+}
 
-const GOVERNOR_SOURCE_POLICIES: GovernorSourcePolicyTable = {
+export type GovernorSourcePolicy = PollingGovernorSourcePolicy | EventDrivenGovernorSourcePolicy;
+
+const POLLING_SOURCE_CLASS_BY_SOURCE: Record<Exclude<GovernedSource, 'hospitals'>, SourceClass> = {
+  events: 'event-truth',
+  maritime: 'fast-situational',
+  rail: 'slow-infrastructure',
+  power: 'slow-infrastructure',
+  water: 'slow-infrastructure',
+};
+
+const POLLING_REFRESH_MS_BY_SOURCE: Record<
+  Exclude<GovernedSource, 'hospitals'>,
+  Record<GovernorState, number>
+> = {
   events: {
-    sourceClass: 'event-truth',
-    cadenceByState: {
-      calm: { strategy: 'poll', refreshMs: 60_000 },
-      watch: { strategy: 'poll', refreshMs: 30_000 },
-      incident: { strategy: 'poll', refreshMs: 15_000 },
-      recovery: { strategy: 'poll', refreshMs: 60_000 },
-    },
+    calm: 60_000,
+    watch: 30_000,
+    incident: 15_000,
+    recovery: 60_000,
   },
   maritime: {
-    sourceClass: 'fast-situational',
-    cadenceByState: {
-      calm: { strategy: 'poll', refreshMs: 60_000 },
-      watch: { strategy: 'poll', refreshMs: 20_000 },
-      incident: { strategy: 'poll', refreshMs: 10_000 },
-      recovery: { strategy: 'poll', refreshMs: 30_000 },
-    },
+    calm: 60_000,
+    watch: 20_000,
+    incident: 10_000,
+    recovery: 30_000,
   },
   rail: {
-    sourceClass: 'fast-situational',
-    cadenceByState: {
-      calm: { strategy: 'poll', refreshMs: 180_000 },
-      watch: { strategy: 'poll', refreshMs: 60_000 },
-      incident: { strategy: 'poll', refreshMs: 30_000 },
-      recovery: { strategy: 'poll', refreshMs: 120_000 },
-    },
+    calm: 180_000,
+    watch: 60_000,
+    incident: 30_000,
+    recovery: 120_000,
   },
   power: {
-    sourceClass: 'slow-infrastructure',
-    cadenceByState: {
-      calm: { strategy: 'poll', refreshMs: 600_000 },
-      watch: { strategy: 'poll', refreshMs: 300_000 },
-      incident: { strategy: 'poll', refreshMs: 120_000 },
-      recovery: { strategy: 'poll', refreshMs: 600_000 },
-    },
+    calm: 600_000,
+    watch: 300_000,
+    incident: 120_000,
+    recovery: 600_000,
   },
   water: {
-    sourceClass: 'slow-infrastructure',
-    cadenceByState: {
-      calm: { strategy: 'poll', refreshMs: 900_000 },
-      watch: { strategy: 'poll', refreshMs: 600_000 },
-      incident: { strategy: 'poll', refreshMs: 300_000 },
-      recovery: { strategy: 'poll', refreshMs: 900_000 },
-    },
-  },
-  hospitals: {
-    sourceClass: 'slow-infrastructure',
-    cadenceByState: {
-      calm: { strategy: 'event-driven', refreshMs: null },
-      watch: { strategy: 'event-driven', refreshMs: null },
-      incident: { strategy: 'event-driven', refreshMs: null },
-      recovery: { strategy: 'event-driven', refreshMs: null },
-    },
+    calm: 900_000,
+    watch: 600_000,
+    incident: 300_000,
+    recovery: 900_000,
   },
 };
 
-export function getSourcePolicy(source: GovernorSource, state: GovernorState): GovernorSourcePolicy {
-  const definition = GOVERNOR_SOURCE_POLICIES[source];
+export function getSourcePolicy(source: GovernedSource, state: GovernorState): GovernorSourcePolicy {
+  if (source === 'hospitals') {
+    return {
+      source,
+      sourceClass: 'slow-infrastructure',
+      cadenceMode: 'event-driven',
+      refreshMs: null,
+      trigger: 'incident-change',
+    };
+  }
 
   return {
     source,
-    state,
-    sourceClass: definition.sourceClass,
-    cadence: definition.cadenceByState[state],
+    sourceClass: POLLING_SOURCE_CLASS_BY_SOURCE[source],
+    cadenceMode: 'poll',
+    refreshMs: POLLING_REFRESH_MS_BY_SOURCE[source][state],
   };
 }

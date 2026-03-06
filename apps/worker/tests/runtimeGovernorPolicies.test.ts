@@ -1,32 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getSourcePolicy, GOVERNOR_SOURCES, type GovernorSource } from '../src/governor/policies.ts';
+import { GOVERNED_SOURCES, getSourcePolicy } from '../src/governor/policies.ts';
 
-test('runtime governor exposes canonical source keys', () => {
-  assert.deepEqual(GOVERNOR_SOURCES, ['events', 'maritime', 'rail', 'power', 'water', 'hospitals']);
+test('runtime governor exposes the canonical governed source set', () => {
+  assert.deepEqual(GOVERNED_SOURCES, ['events', 'maritime', 'rail', 'power', 'water', 'hospitals']);
 });
 
 test('maritime cadence slows in calm and accelerates in incident', () => {
-  assert.equal(getSourcePolicy('maritime', 'calm').cadence.refreshMs, 60_000);
-  assert.equal(getSourcePolicy('maritime', 'incident').cadence.refreshMs, 10_000);
+  const calm = getSourcePolicy('maritime', 'calm');
+  const incident = getSourcePolicy('maritime', 'incident');
+
+  assert.equal(calm.cadenceMode, 'poll');
+  assert.equal(calm.refreshMs, 60_000);
+  assert.equal(incident.cadenceMode, 'poll');
+  assert.equal(incident.refreshMs, 10_000);
+  assert.equal(calm.sourceClass, 'fast-situational');
 });
 
-test('hospitals remain event-driven across all governor states', () => {
-  const policy = getSourcePolicy('hospitals', 'watch');
+test('events and rail use their expected governor cadences', () => {
+  assert.equal(getSourcePolicy('events', 'watch').refreshMs, 30_000);
+  assert.equal(getSourcePolicy('rail', 'recovery').refreshMs, 120_000);
+  assert.equal(getSourcePolicy('power', 'incident').refreshMs, 120_000);
+  assert.equal(getSourcePolicy('water', 'calm').refreshMs, 900_000);
+});
 
-  assert.equal(policy.cadence.strategy, 'event-driven');
-  assert.equal(policy.cadence.refreshMs, null);
+test('hospitals are modeled as event-driven instead of fixed polling', () => {
+  const policy = getSourcePolicy('hospitals', 'incident');
+
+  assert.equal(policy.cadenceMode, 'event-driven');
+  assert.equal(policy.refreshMs, null);
   assert.equal(policy.sourceClass, 'slow-infrastructure');
-});
-
-test('each source resolves to a complete stateful policy envelope', () => {
-  const sources: GovernorSource[] = [...GOVERNOR_SOURCES];
-  const incidentPolicies = sources.map(source => getSourcePolicy(source, 'incident'));
-
-  assert.deepEqual(
-    incidentPolicies.map(policy => policy.source),
-    ['events', 'maritime', 'rail', 'power', 'water', 'hospitals'],
-  );
-  assert.ok(incidentPolicies.every(policy => policy.state === 'incident'));
+  assert.equal(policy.trigger, 'incident-change');
 });
