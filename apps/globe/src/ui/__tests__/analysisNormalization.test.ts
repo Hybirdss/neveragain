@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { canonicalizeAnalysisForStorage, normalizeAnalysisNarrative } from '@namazue/db';
+import {
+  buildCanonicalAnalysisFromFacts,
+  canonicalizeAnalysisForStorage,
+  normalizeAnalysisNarrative,
+} from '@namazue/db';
 
 const HIRARA_ANALYSIS = {
   dashboard: {
@@ -142,5 +146,55 @@ describe('normalizeAnalysisNarrative', () => {
     expect(safe.search_index.tags).not.toContain('m5.2');
     expect(safe.expert.historical_comparison).toBeNull();
     expect(safe.expert.notable_features).toEqual([]);
+  });
+
+  it('builds canonical stored analysis from low-risk hints only', () => {
+    const safe = buildCanonicalAnalysisFromFacts({
+      event_id: 'us7000s0n7',
+      tier: 'A',
+      model: 'deterministic-fallback',
+      facts: HIRARA_ANALYSIS.facts,
+      hints: {
+        headline: {
+          ko: 'M5.2 일본 히라라 북북서 55km, 깊이 10km',
+          ja: 'M5.2 平良の北北西55km 深さ10km',
+          en: 'M5.2 55 km NNW of Hirara, Japan, depth 10 km',
+        },
+        search_index: {
+          tags: ['Ryukyu', 'M5.2', 'plate boundary'],
+          region: 'invalid-region',
+          damage_level: 'catastrophic',
+          has_foreshocks: 'yes',
+          is_in_seismic_gap: 'yes',
+          region_keywords: {
+            ko: ['미야코지마', '깊이 10km'],
+            ja: ['宮古島', '深さ10km'],
+            en: ['Miyakojima', 'depth 10 km'],
+          },
+        },
+      },
+      model_notes: {
+        assumptions: [],
+        unknowns: [],
+        what_will_update: [],
+      },
+      event: {
+        magnitude: 5.2,
+        depth_km: 10,
+        lat: 25.2336,
+        lng: 125.0287,
+        place: '55 km NNW of Hirara, Japan',
+        place_ja: null,
+      },
+    });
+
+    expect(safe.model).toBe('deterministic-fallback');
+    expect(safe.dashboard.headline.ko).toBe('Hirara 인근');
+    expect(safe.search_index.region).toBe('okinawa');
+    expect(safe.search_index.categories.damage_level).toBe('moderate');
+    expect(safe.search_index.categories.has_foreshocks).toBe(false);
+    expect(safe.search_index.tags).toContain('intraplate_shallow');
+    expect(safe.search_index.tags).not.toContain('m5.2');
+    expect(safe.expert.model_notes.assumptions).toEqual([]);
   });
 });

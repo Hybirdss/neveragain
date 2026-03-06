@@ -19,7 +19,7 @@ import {
   inferFaultType,
   assessTsunamiRisk,
   computeMaxIntensity,
-  normalizeAnalysisNarrative,
+  canonicalizeAnalysisForStorage,
 } from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -205,7 +205,7 @@ async function main() {
           patchedAnalysis.search_index.categories.depth_class = newDepthClass;
         }
 
-        const normalizedAnalysis = normalizeAnalysisNarrative(patchedAnalysis, {
+        const normalizedAnalysis = canonicalizeAnalysisForStorage(patchedAnalysis, {
           magnitude: r.magnitude,
           depth_km: r.depth_km,
           lat: r.lat,

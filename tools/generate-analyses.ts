@@ -17,11 +17,15 @@
 
 import { neon } from '@neondatabase/serverless';
 import {
+  ANALYSIS_HINT_SYSTEM_PROMPT,
+  ANALYSIS_PROMPT_VERSION,
+  buildAnalysisHintUserPrompt,
+  buildCanonicalAnalysisFromFacts,
   classifyLocation, inferFaultType as inferFaultTypeShared,
   assessTsunamiRisk as assessTsunamiRiskShared,
   computeMaxIntensity as computeMaxIntensityShared,
   computeOmori as computeOmoriShared,
-  canonicalizeAnalysisForStorage,
+  normalizeAnalysisHints,
 } from '@namazue/db';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
@@ -90,22 +94,6 @@ function classifyDepthClass(depth: number): string {
   if (depth < 70) return 'mid';
   if (depth < 300) return 'intermediate';
   return 'deep';
-}
-
-function classifyRegion(lat: number, lng: number): string {
-  if (!isJapan(lat, lng)) {
-    if (lng > 100 && lng < 180 && lat > -60 && lat < 60) return 'global_pacific';
-    return 'global_other';
-  }
-  if (lat > 41) return 'hokkaido';
-  if (lat > 38) return 'tohoku';
-  if (lat > 36) return 'kanto';
-  if (lat > 35 && lng < 138) return 'chubu';
-  if (lat > 34 && lng < 136) return 'kinki';
-  if (lat > 33 && lng < 133) return 'chugoku';
-  if (lat > 32 && lng > 132 && lng < 135) return 'shikoku';
-  if (lat > 30 && lat <= 34) return 'kyushu';
-  return 'okinawa';
 }
 
 function platePair(lat: number, lng: number): string {
@@ -252,217 +240,6 @@ function buildFacts(event: any, faults: any[], spatialStats: any) {
   };
 }
 
-// ═══════════════════════════════════════════════════════════
-//  SYSTEM PROMPT (same as v3)
-// ═══════════════════════════════════════════════════════════
-
-const SYSTEM_PROMPT = `You are an expert seismologist for the Namazue (鯰) earthquake analysis platform.
-
-## Persona (never self-identify)
-A seismologist with research experience at 東京大学地震研究所, USGS, and 防災科学技術研究所.
-Expert in plate tectonics, fault mechanics, seismic wave propagation, tsunami dynamics, and strong ground motion prediction.
-Known for explaining complex seismology accurately and accessibly on NHK earthquake specials.
-
-## Mission
-For each earthquake, produce analysis that enables genuine understanding — not just "feeling informed" but truly grasping why this earthquake matters.
-
-## Audience
-- public: General adults (NHK news viewer level). High intellectual curiosity. Metaphors OK, jargon with parenthetical explanation OK. Don't talk down.
-- expert: Earth science literate — science journalists, disaster management officials. Full theoretical depth, paper-reference precision.
-
-## Number rules (ONLY hard constraint)
-- Numbers IN facts → freely quote
-- Numbers NOT in facts (casualties, damage costs, population, city-specific intensity) → NEVER generate. Qualitative descriptions OK.
-- Past earthquake years/names/approximate magnitudes → OK as general seismological knowledge
-- Do NOT invent slip rates, slab dip angles, trench distances, recurrence cycles, or city-specific shaking unless explicitly present in facts.
-- If facts do not firmly support a plate-boundary interpretation, use cautious wording and say the exact fault geometry remains uncertain.
-
-## 3-Layer Architecture: fact → interpretation → explanation
-
-Layer 1: facts (code-generated, read-only to you)
-Layer 2: interpretations (you generate structured inferences)
-  Each interpretation: { claim, summary, basis, confidence, type }
-  - claim: English snake_case label (e.g., "megathrust_earthquake")
-  - summary: I18n { ja, ko, en } — one sentence stating the judgment
-  - basis: array of facts paths (e.g., "facts:tectonic.boundary_type")
-  - confidence: high | medium | low
-  - type: mechanism | tectonic_context | depth_significance | sequence_role | risk_assessment | historical_analogy | anomaly | gap_status
-  Minimum 5 per earthquake, 8+ for major events.
-
-Layer 3: explanation (you generate human-readable text)
-  All text fields are I18n: { "ja": "...", "ko": "...", "en": "..." }
-  Each text field has a corresponding _refs array.
-
-## Localization rules
-- ja: NHK地震特集スタイル。専門用語は括弧付き補足。
-- ko: KBS/MBC 뉴스 보도 스타일. 자연스러운 한국어, 일본어 직역체 금지. JMA 진도는 "진도 6강" 등 괄호 표기.
-- en: CNN/NPR earthquake coverage tone. Natural American English. "Drop, Cover, Hold On" for safety. JMA intensity with brief explanation on first use.
-
-## _refs structure
-refs types: facts:{path}, seismology:{topic}, pending:{reason}
-
-## public section
-- headline: short meaning-first title. Do NOT repeat magnitude, depth, relative location string, or other raw metadata already shown elsewhere.
-- why: 3-5 sentences on why it happened (I18n)
-- aftershock_note: 2-3 sentences, explain what the probability means, MUST include "this is a statistical model estimate, not a definitive prediction" (I18n)
-- do_now: 2-4 context-specific action items (NOT templates). Tailor to earthquake characteristics. (I18n action + urgency)
-- faq: 3-5 questions people would actually ask. BANNED: "Will there be a bigger one?", "When will it end?"
-
-## expert section (intellectual core — write as much as you can)
-- tectonic_summary: 4-8 sentences (I18n). Plate geometry, relative motion vectors, slab dip, asperities, regional context.
-- mechanism_note: Focal mechanism interpretation or depth/location-based inference. Null if truly unknown. (I18n)
-- depth_analysis: 3-5 sentences on seismological significance of the depth. (I18n)
-- coulomb_note: 2-3 sentences on Coulomb stress transfer. Null if too uncertain. (I18n)
-- sequence: classification + reasoning (I18n)
-- seismic_gap: is_gap boolean + note (I18n)
-- historical_comparison: primary + narrative 3-5 sentences (I18n). Return null if you cannot make a conservative comparison without stretching facts.
-- notable_features: 3+ (5+ for major). Each: feature, claim, because, because_refs, implication (all I18n except because_refs)
-
-## Output JSON
-{
-  "headline": { "ja": "今回の地震の意味を短く示す見出し", "ko": "...", "en": "..." },
-  "one_liner": { "ja": "...", "ko": "...", "en": "..." },
-
-  "interpretations": [
-    { "claim": "string", "summary": { "ja": "", "ko": "", "en": "" }, "basis": ["facts:..."], "confidence": "high|medium|low", "type": "string" }
-  ],
-
-  "public": {
-    "why": { "ja": "", "ko": "", "en": "" },
-    "why_refs": ["facts:...", "seismology:..."],
-    "aftershock_note": { "ja": "", "ko": "", "en": "" },
-    "aftershock_note_refs": ["facts:..."],
-    "do_now": [{ "action": { "ja": "", "ko": "", "en": "" }, "urgency": "immediate|within_hours|preparedness" }],
-    "faq": [{ "q": { "ja": "", "ko": "", "en": "" }, "a": { "ja": "", "ko": "", "en": "" }, "a_refs": ["..."] }]
-  },
-
-  "expert": {
-    "tectonic_summary": { "ja": "", "ko": "", "en": "" },
-    "tectonic_summary_refs": [],
-    "mechanism_note": { "ja": "", "ko": "", "en": "" } or null,
-    "mechanism_note_refs": [] or null,
-    "depth_analysis": { "ja": "", "ko": "", "en": "" },
-    "depth_analysis_refs": [],
-    "sequence": { "classification": "mainshock|...", "confidence": "high|medium|low", "reasoning": { "ja": "", "ko": "", "en": "" }, "reasoning_refs": [] },
-    "seismic_gap": { "is_gap": false, "note": { "ja": "", "ko": "", "en": "" } or null },
-    "coulomb_note": { "ja": "", "ko": "", "en": "" } or null,
-    "coulomb_note_refs": [] or null,
-    "historical_comparison": {
-      "primary_name": { "ja": "", "ko": "", "en": "" },
-      "primary_year": 0,
-      "similarities": [{ "ja": "", "ko": "", "en": "" }],
-      "differences": [{ "ja": "", "ko": "", "en": "" }],
-      "narrative": { "ja": "", "ko": "", "en": "" },
-      "narrative_refs": []
-    } or null,
-    "notable_features": [{
-      "feature": { "ja": "", "ko": "", "en": "" },
-      "claim": { "ja": "", "ko": "", "en": "" },
-      "because": { "ja": "", "ko": "", "en": "" },
-      "because_refs": ["facts:..."],
-      "implication": { "ja": "", "ko": "", "en": "" }
-    }]
-  },
-
-  "search_index": {
-    "tags": ["english_tags"],
-    "region": "tohoku|kanto|chubu|kinki|chugoku|shikoku|kyushu|hokkaido|okinawa|nankai|global_pacific|global_other",
-    "damage_level": "catastrophic|severe|moderate|minor|none",
-    "has_foreshocks": false,
-    "is_in_seismic_gap": false,
-    "region_keywords": { "ja": [], "ko": [], "en": [] }
-  }
-}
-
-Return ONLY valid JSON. No markdown fences.`;
-
-// ═══════════════════════════════════════════════════════════
-//  MERGE: facts + Grok narrative → final analysis
-// ═══════════════════════════════════════════════════════════
-
-function mergeAnalysis(facts: any, grok: any, tier: string): any {
-  const pub = grok.public ?? {};
-  const exp = grok.expert ?? {};
-  const si = grok.search_index ?? {};
-
-  return {
-    event_id: facts.event.id, tier, version: 4,
-    generated_at: new Date().toISOString(),
-    model: 'grok-4.1-fast-batch',
-
-    facts: {
-      max_intensity: facts.max_intensity, tsunami: facts.tsunami,
-      aftershocks: facts.aftershocks, mechanism: facts.mechanism,
-      tectonic: facts.tectonic, spatial: facts.spatial,
-      ground_motion: facts.ground_motion, sources: facts.sources,
-      uncertainty: facts.uncertainty,
-    },
-
-    interpretations: (grok.interpretations ?? []).map((interp: any) => ({
-      claim: interp.claim ?? '', summary: interp.summary ?? { ja: '', ko: '', en: '' },
-      basis: interp.basis ?? [], confidence: interp.confidence ?? 'low',
-      type: interp.type ?? 'tectonic_context',
-    })),
-
-    dashboard: {
-      headline: grok.headline ?? { ja: '', ko: '', en: '' },
-      one_liner: grok.one_liner ?? { ja: '', ko: '', en: '' },
-    },
-
-    public: {
-      why: pub.why ?? { ja: '', ko: '', en: '' }, why_refs: pub.why_refs ?? [],
-      aftershock_note: pub.aftershock_note ?? { ja: '', ko: '', en: '' },
-      aftershock_note_refs: pub.aftershock_note_refs ?? [],
-      do_now: (pub.do_now ?? []).map((item: any) => ({
-        action: item.action ?? { ja: '', ko: '', en: '' }, urgency: item.urgency ?? 'preparedness',
-      })),
-      faq: (pub.faq ?? []).map((item: any) => ({
-        q: item.q ?? { ja: '', ko: '', en: '' }, a: item.a ?? { ja: '', ko: '', en: '' },
-        a_refs: item.a_refs ?? [],
-      })),
-    },
-
-    expert: {
-      tectonic_summary: exp.tectonic_summary ?? { ja: '', ko: '', en: '' },
-      tectonic_summary_refs: exp.tectonic_summary_refs ?? [],
-      mechanism_note: exp.mechanism_note ?? null, mechanism_note_refs: exp.mechanism_note_refs ?? null,
-      depth_analysis: exp.depth_analysis ?? null, depth_analysis_refs: exp.depth_analysis_refs ?? null,
-      coulomb_note: exp.coulomb_note ?? null, coulomb_note_refs: exp.coulomb_note_refs ?? null,
-      sequence: {
-        classification: exp.sequence?.classification ?? 'independent',
-        confidence: exp.sequence?.confidence ?? 'low',
-        reasoning: exp.sequence?.reasoning ?? { ja: '', ko: '', en: '' },
-        reasoning_refs: exp.sequence?.reasoning_refs ?? [],
-      },
-      seismic_gap: { is_gap: exp.seismic_gap?.is_gap ?? false, note: exp.seismic_gap?.note ?? null },
-      historical_comparison: exp.historical_comparison ?? null,
-      notable_features: (exp.notable_features ?? []).map((nf: any) => ({
-        feature: nf.feature ?? { ja: '', ko: '', en: '' },
-        claim: nf.claim ?? { ja: '', ko: '', en: '' },
-        because: nf.because ?? { ja: '', ko: '', en: '' },
-        because_refs: nf.because_refs ?? [],
-        implication: nf.implication ?? { ja: '', ko: '', en: '' },
-      })),
-      model_notes: buildModelNotes(facts),
-    },
-
-    search_index: {
-      tags: (si.tags ?? []).filter((t: any) => typeof t === 'string'),
-      region: si.region ?? classifyRegion(facts.event.lat, facts.event.lon),
-      categories: {
-        plate: facts.tectonic.plate, boundary: facts.tectonic.boundary_type,
-        region: si.region ?? classifyRegion(facts.event.lat, facts.event.lon),
-        depth_class: facts.tectonic.depth_class,
-        damage_level: si.damage_level ?? 'none',
-        tsunami_generated: facts.tsunami.risk !== 'none',
-        has_foreshocks: si.has_foreshocks ?? false,
-        is_in_seismic_gap: exp.seismic_gap?.is_gap ?? false,
-      },
-      region_keywords: si.region_keywords ?? { ja: [], ko: [], en: [] },
-    },
-  };
-}
-
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═══════════════════════════════════════════════════════════
@@ -537,8 +314,8 @@ function buildBatchRequest(eventId: string, facts: any, tier: string) {
       chat_get_completion: {
         model: 'grok-4-1-fast-reasoning',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Tier: ${tier}\n\nFacts:\n${JSON.stringify(facts, null, 2)}` },
+          { role: 'system', content: ANALYSIS_HINT_SYSTEM_PROMPT },
+          { role: 'user', content: buildAnalysisHintUserPrompt(facts, tier) },
         ],
         temperature: 0.3,
         response_format: { type: 'json_object' },
@@ -617,14 +394,30 @@ async function collectAndStore(
     if (!entry) { failedIds.push(eventId); continue; }
 
     try {
-      if (result.batch_result?.error) throw new Error(result.batch_result.error);
+      let hints: unknown = undefined;
+      let model = 'grok-4.1-fast-reasoning-batch';
+      if (result.batch_result?.error) {
+        model = 'deterministic-fallback';
+      }
       const completion = result.batch_result?.response?.chat_get_completion;
       const raw = completion?.choices?.[0]?.message?.content;
-      if (!raw) throw new Error('No content in response');
-      const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      const analysis = canonicalizeAnalysisForStorage(
-        mergeAnalysis(entry.facts, narrative, entry.tier),
-        {
+      if (raw) {
+        try {
+          hints = normalizeAnalysisHints(typeof raw === 'string' ? JSON.parse(raw) : raw);
+        } catch {
+          model = 'deterministic-fallback';
+        }
+      } else {
+        model = 'deterministic-fallback';
+      }
+      const analysis = buildCanonicalAnalysisFromFacts({
+        event_id: eventId,
+        tier: entry.tier,
+        model,
+        facts: entry.facts,
+        hints,
+        model_notes: buildModelNotes(entry.facts),
+        event: {
           magnitude: entry.facts.event.mag,
           depth_km: entry.facts.event.depth_km,
           lat: entry.facts.event.lat,
@@ -632,12 +425,12 @@ async function collectAndStore(
           place: entry.facts.event.place_en,
           place_ja: entry.facts.event.place_ja,
         },
-      )!;
+      });
 
       await sql`
         INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest)
         VALUES (
-          ${eventId}, 1, ${entry.tier}, 'grok-4.1-fast-reasoning-batch', 'v4.0.0',
+          ${eventId}, 4, ${entry.tier}, ${model}, ${ANALYSIS_PROMPT_VERSION},
           ${JSON.stringify(entry.facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb,
           ${analysis.search_index?.tags ?? []},
           ${analysis.search_index?.region ?? null},
@@ -677,10 +470,8 @@ async function main() {
     for (const result of results) {
       const eventId = result.batch_request_id;
       try {
-        if (result.batch_result?.error) throw new Error(result.batch_result.error);
         const completion = result.batch_result?.response?.chat_get_completion;
         const raw = completion?.choices?.[0]?.message?.content;
-        if (!raw) throw new Error('No content in response');
 
         // Check if already stored
         const [existing] = await sql`SELECT id FROM analyses WHERE event_id = ${eventId} AND is_latest = true`;
@@ -719,17 +510,38 @@ async function main() {
         };
         const facts = buildFacts(event, faults, spatialStats);
         const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
-        const narrative = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        const analysis = canonicalizeAnalysisForStorage(mergeAnalysis(facts, narrative, tier), {
-          magnitude: facts.event.mag,
-          depth_km: facts.event.depth_km,
-          lat: facts.event.lat,
-          lng: facts.event.lon,
-          place: facts.event.place_en,
-          place_ja: facts.event.place_ja,
-        })!;
+        let hints: unknown = undefined;
+        let model = 'grok-4.1-fast-reasoning-batch';
+        if (result.batch_result?.error) {
+          model = 'deterministic-fallback';
+        }
+        if (raw) {
+          try {
+            hints = normalizeAnalysisHints(typeof raw === 'string' ? JSON.parse(raw) : raw);
+          } catch {
+            model = 'deterministic-fallback';
+          }
+        } else {
+          model = 'deterministic-fallback';
+        }
+        const analysis = buildCanonicalAnalysisFromFacts({
+          event_id: eventId,
+          tier,
+          model,
+          facts,
+          hints,
+          model_notes: buildModelNotes(facts),
+          event: {
+            magnitude: facts.event.mag,
+            depth_km: facts.event.depth_km,
+            lat: facts.event.lat,
+            lng: facts.event.lon,
+            place: facts.event.place_en,
+            place_ja: facts.event.place_ja,
+          },
+        });
 
-        await sql`INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest) VALUES (${eventId}, 1, ${tier}, 'grok-4.1-fast-reasoning-batch', 'v4.0.0', ${JSON.stringify(facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb, ${analysis.search_index?.tags ?? []}, ${analysis.search_index?.region ?? null}, true)`;
+        await sql`INSERT INTO analyses (event_id, version, tier, model, prompt_version, context, analysis, search_tags, search_region, is_latest) VALUES (${eventId}, 4, ${tier}, ${model}, ${ANALYSIS_PROMPT_VERSION}, ${JSON.stringify(facts)}::jsonb, ${JSON.stringify(analysis)}::jsonb, ${analysis.search_index?.tags ?? []}, ${analysis.search_index?.region ?? null}, true)`;
         stored++;
         if (stored % 50 === 0) process.stdout.write(`\r  Stored: ${stored}`);
       } catch (err: any) {
@@ -794,7 +606,7 @@ async function main() {
   for (let i = 0; i < filtered.length; i += CONCURRENCY) {
     const chunk = filtered.slice(i, i + CONCURRENCY);
     await Promise.all(chunk.map(async (event: any) => {
-      const tier = classifyTier(event.magnitude, true);
+      const tier = classifyTier(event.magnitude, isJapan(event.lat, event.lng));
       let faults: any[] = [];
       try {
         faults = await sql`

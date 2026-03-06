@@ -192,145 +192,165 @@ export interface GlobalAnalog {
 
 export interface EarthquakeAnalysis {
   event_id: string;
-  tier: 'S' | 'A';
+  tier: AnalysisTier;
   generated_at: string;
-  model: 'opus' | 'sonnet';
+  model: string;
   version: number;
 
+  facts: AnalysisFactsLayer;
+  interpretations: AnalysisInterpretation[];
+  dashboard: AnalysisDashboardLayer;
   public: AnalysisPublicLayer;
   expert: AnalysisExpertLayer;
-  visualization: AnalysisVisualization;
   search_index: AnalysisSearchIndex;
 }
 
-export interface AnalysisPublicLayer {
+export interface AnalysisFactsLayer {
+  max_intensity: {
+    value?: number | null;
+    class?: string | null;
+    scale?: 'JMA' | 'MMI';
+    source?: 'shakemap' | 'gmpe';
+    is_offshore?: boolean;
+    coast_distance_km?: number | null;
+  };
+  tsunami: {
+    risk: 'high' | 'moderate' | 'low' | 'none';
+    source?: string | null;
+    factors?: string[];
+    confidence?: 'high' | 'medium' | 'low';
+  };
+  aftershocks: {
+    forecast?: {
+      p24h_m4plus?: number;
+      p7d_m4plus?: number;
+      p24h_m5plus?: number;
+      p7d_m5plus?: number;
+    };
+    bath_expected_max?: number | null;
+  } | null;
+  mechanism: {
+    status: 'available' | 'missing';
+    strike?: number;
+    dip?: number;
+    rake?: number;
+    source?: string | null;
+    nodal_planes?: Array<{ strike: number; dip: number; rake: number }>;
+  };
+  tectonic: {
+    plate: string;
+    plate_pair?: string;
+    boundary_type: string;
+    boundary_segment?: string | null;
+    nearest_trench?: { name: string; segment?: string; distance_km: number } | null;
+    nearest_fault?: Record<string, unknown> | null;
+    all_nearby_faults?: Array<Record<string, unknown>>;
+    depth_class: 'shallow' | 'mid' | 'intermediate' | 'deep';
+    is_japan?: boolean;
+  };
+  spatial: {
+    total: number;
+    by_mag: Record<string, number>;
+    by_depth: Record<string, number>;
+    avg_per_year?: number;
+  } | null;
+  ground_motion: {
+    gmpe_model: string;
+    vs30: number;
+    site_class: string;
+  };
+  sources: {
+    event_source: string;
+    review_status: string;
+    shakemap_available: boolean;
+    moment_tensor_source: string | null;
+  };
+  uncertainty: {
+    mag_sigma: number | null;
+    depth_sigma: number | null;
+    location_uncert_km: number | null;
+  };
+}
+
+export interface AnalysisInterpretation {
+  claim: string;
+  summary: I18nText;
+  basis: string[];
+  confidence: 'high' | 'medium' | 'low';
+  type: string;
+}
+
+export interface AnalysisDashboardLayer {
   headline: I18nText;
-  why_it_happened: I18nText;
-  will_it_shake_again: I18nText;
-  intensity_guide: Array<{
-    intensity: number;
-    label: I18nText;
-    what_you_feel: I18nText;
-    cities: string[];
-    population: number;
-  }>;
-  action_items: Array<{
-    target: string;
-    actions: I18nText;
+  one_liner: I18nText;
+}
+
+export interface AnalysisPublicLayer {
+  why: I18nText;
+  why_refs: string[];
+  aftershock_note: I18nText;
+  aftershock_note_refs: string[];
+  do_now: Array<{
+    action: I18nText;
     urgency: 'immediate' | 'within_hours' | 'preparedness';
   }>;
-  tsunami_guide: {
-    risk: 'high' | 'moderate' | 'low' | 'none';
-    message: I18nText;
-  };
-  eli5: I18nText;
-  historical_simple: I18nText;
   faq: Array<{
-    question: I18nText;
-    answer: I18nText;
+    q: I18nText;
+    a: I18nText;
+    a_refs: string[];
   }>;
 }
 
 export interface AnalysisExpertLayer {
-  tectonic_context: I18nText;
-  mechanism_interpretation: I18nText | null;
+  tectonic_summary: I18nText;
+  tectonic_summary_refs: string[];
+  mechanism_note: I18nText | null;
+  mechanism_note_refs: string[] | null;
+  depth_analysis: I18nText;
+  depth_analysis_refs: string[];
+  coulomb_note: I18nText | null;
+  coulomb_note_refs: string[] | null;
   sequence: {
-    classification:
-      | 'mainshock'
-      | 'mainshock_with_foreshocks'
-      | 'possible_foreshock'
-      | 'aftershock'
-      | 'swarm_member'
-      | 'independent';
-    parent_event_id: string | null;
-    reasoning: I18nText;
+    classification: 'independent' | 'aftershock' | 'mainshock' | 'swarm_member' | 'possible_foreshock' | 'mainshock_with_foreshocks';
     confidence: 'high' | 'medium' | 'low';
+    reasoning: I18nText;
+    reasoning_refs: string[];
+  };
+  seismic_gap: {
+    is_gap: boolean;
+    note: I18nText | null;
   };
   historical_comparison: {
-    primary: {
-      event_id: string;
-      name: string;
-      similarities: string[];
-      differences: string[];
-    };
-    secondary: Array<{ event_id: string; name: string; relevance: string }>;
-    narrative: I18nText;
-  };
-  aftershock_assessment: {
-    omori_summary: I18nText;
-    verification: {
-      actual_largest: number | null;
-      accuracy_note: I18nText | null;
-    } | null;
-    caveat: I18nText;
+    primary_name: I18nText;
+    primary_year?: number;
+    similarities?: I18nText[];
+    differences?: I18nText[];
+    narrative?: I18nText;
+    narrative_refs?: string[];
   } | null;
-  seismic_gap: {
-    is_in_gap: boolean;
-    analysis: I18nText | null;
-  };
   notable_features: Array<{
-    feature: string;
-    description: I18nText;
+    feature: I18nText;
+    claim: I18nText;
+    because: I18nText;
+    because_refs: string[];
+    implication: I18nText;
   }>;
-  research_pointers: Array<{
-    topic: string;
-    relevant_studies: string[];
-    note: string;
-  }>;
-}
-
-export interface AnalysisVisualization {
-  cross_section: {
-    azimuth: number;
-    length_km: number;
-    slab_profile: Array<{ dist: number; depth: number }>;
-    hypocenter: { dist: number; depth: number };
-    moho_depth: number;
-    labels: Array<{ dist: number; depth: number; text: I18nText }>;
+  model_notes?: {
+    assumptions: string[];
+    unknowns: string[];
+    what_will_update: string[];
   };
-  timeline: {
-    events: Array<{
-      id: string;
-      date: string;
-      mag: number;
-      is_current: boolean;
-    }>;
-    milestones: Array<{ date: string; label: I18nText }>;
-  };
-  aftershock_curve: {
-    omori: Array<{ hours: number; rate: number }>;
-    actual?: Array<{ hours: number; mag: number }>;
-  } | null;
-  related_cluster: {
-    center: { lat: number; lon: number };
-    radius_km: number;
-    events: Array<{
-      id: string;
-      lat: number;
-      lon: number;
-      mag: number;
-      depth: number;
-      role: 'mainshock' | 'foreshock' | 'aftershock' | 'related';
-    }>;
-  };
-  impact_highlights: Array<{
-    name: string;
-    lat: number;
-    lon: number;
-    intensity: number;
-    population: number;
-  }> | null;
 }
 
 export interface AnalysisSearchIndex {
   tags: string[];
+  region: string;
   region_keywords: { ko: string[]; ja: string[]; en: string[] };
-  related_events: string[];
   categories: {
     plate: string;
     boundary: string;
     region: string;
-    depth_class: 'shallow' | 'intermediate' | 'deep';
+    depth_class: 'shallow' | 'mid' | 'intermediate' | 'deep';
     damage_level: 'catastrophic' | 'severe' | 'moderate' | 'minor' | 'none';
     tsunami_generated: boolean;
     has_foreshocks: boolean;

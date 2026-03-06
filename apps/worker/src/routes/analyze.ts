@@ -22,7 +22,8 @@ import {
   analyses, earthquakes, classifyLocation,
   inferFaultType as inferFaultTypeGeo,
   computeMaxIntensity as computeMaxIntensityShared,
-  canonicalizeAnalysisForStorage,
+  ANALYSIS_PROMPT_VERSION,
+  buildCanonicalAnalysisFromFacts,
 } from '@namazue/db';
 import type { AnalysisTier, BuilderInput } from '@namazue/db';
 import { eq, and, sql, gte, lte, desc } from 'drizzle-orm';
@@ -31,6 +32,7 @@ export const analyzeRoute = new Hono<{ Bindings: Env }>();
 
 interface AnalysisCacheRow {
   analysis: unknown;
+  context?: unknown;
 }
 
 async function getLatestAnalysis(
@@ -39,6 +41,7 @@ async function getLatestAnalysis(
 ): Promise<AnalysisCacheRow | null> {
   const rows = await db.select({
     analysis: analyses.analysis,
+    context: analyses.context,
     magnitude: earthquakes.magnitude,
     depth_km: earthquakes.depth_km,
     lat: earthquakes.lat,
@@ -66,6 +69,7 @@ async function getLatestAnalysis(
       place: row.place,
       place_ja: row.place_ja,
     }),
+    context: row.context,
   };
 }
 
@@ -112,22 +116,6 @@ function buildMomentTensor(event: typeof earthquakes.$inferSelect): BuilderInput
       { strike: secondaryStrike, dip: secondaryDip, rake: secondaryRake },
     ],
   };
-}
-
-function classifyRegion(lat: number, lng: number): string {
-  if (!isJapan(lat, lng)) {
-    if (lng > 100 && lng < 180 && lat > -60 && lat < 60) return 'global_pacific';
-    return 'global_other';
-  }
-  if (lat > 41) return 'hokkaido';
-  if (lat > 38) return 'tohoku';
-  if (lat > 36) return 'kanto';
-  if (lat > 35 && lng < 138) return 'chubu';
-  if (lat > 34 && lng < 136) return 'kinki';
-  if (lat > 33 && lng < 133) return 'chugoku';
-  if (lat > 32 && lng > 132 && lng < 135) return 'shikoku';
-  if (lat > 30 && lat <= 34) return 'kyushu';
-  return 'okinawa';
 }
 
 function inferFaultType(depth_km: number, lat: number, lng: number, place?: string, place_ja?: string): string {
@@ -187,7 +175,9 @@ export async function generateAndStoreAnalysis(
     const evRows = await db.select({ magnitude: earthquakes.magnitude })
       .from(earthquakes).where(eq(earthquakes.id, eventId)).limit(1);
     const currentMag = evRows[0]?.magnitude ?? 0;
-    const cachedMag = (cached.analysis as any)?.facts?.event?.magnitude ?? 0;
+    const cachedMag = (cached.context as any)?.event?.mag
+      ?? (cached.analysis as any)?.facts?.event?.mag
+      ?? 0;
     if (Math.abs(currentMag - cachedMag) < 0.3) {
       return { status: 'skipped', analysis: cached.analysis };
     }
@@ -335,115 +325,36 @@ export async function generateAndStoreAnalysis(
     uncertainty: { mag_sigma: null, depth_sigma: null, location_uncert_km: null },
   };
 
-  const { analysis: narrative, usage } = await callGrok(env, facts as any, tier);
+  let grokHints: unknown = undefined;
+  let usage = { input_tokens: 0, output_tokens: 0 };
+  let storedModel = 'grok-4.1-fast-reasoning';
 
-  // Merge facts + Grok narrative into v4 analysis
-  const grok = narrative as any;
-  const pub = grok.public ?? {};
-  const exp = grok.expert ?? {};
-  const si = grok.search_index ?? {};
+  try {
+    const result = await callGrok(env, facts as any, tier);
+    grokHints = result.analysis;
+    usage = result.usage;
+  } catch (err) {
+    storedModel = 'deterministic-fallback';
+    console.warn(`[analyze] ${event.id} AI hint generation failed, using deterministic fallback`);
+    console.warn(err);
+  }
 
-  const mergedAnalysis = canonicalizeAnalysisForStorage({
+  const mergedAnalysis = buildCanonicalAnalysisFromFacts({
     event_id: event.id,
     tier,
-    version: 4,
-    generated_at: new Date().toISOString(),
-    model: 'grok-4.1-fast-reasoning',
-
-    facts: {
-      max_intensity: facts.max_intensity,
-      tsunami: facts.tsunami,
-      aftershocks: facts.aftershocks,
-      mechanism: facts.mechanism,
-      tectonic: facts.tectonic,
-      spatial: facts.spatial,
-      ground_motion: facts.ground_motion,
-      sources: facts.sources,
-      uncertainty: facts.uncertainty,
+    model: storedModel,
+    facts,
+    hints: grokHints,
+    model_notes: buildModelNotes(facts),
+    event: {
+      magnitude: event.magnitude,
+      depth_km: event.depth_km,
+      lat: event.lat,
+      lng: event.lng,
+      place: event.place ?? undefined,
+      place_ja: event.place_ja ?? undefined,
     },
-
-    interpretations: (grok.interpretations ?? []).map((interp: any) => ({
-      claim: interp.claim ?? '',
-      summary: interp.summary ?? { ja: '', ko: '', en: '' },
-      basis: interp.basis ?? [],
-      confidence: interp.confidence ?? 'low',
-      type: interp.type ?? 'tectonic_context',
-    })),
-
-    dashboard: {
-      headline: grok.headline ?? grok.dashboard?.headline ?? { ja: '', ko: '', en: '' },
-      one_liner: grok.one_liner ?? grok.dashboard?.one_liner ?? { ja: '', ko: '', en: '' },
-    },
-
-    public: {
-      why: pub.why ?? { ja: '', ko: '', en: '' },
-      why_refs: pub.why_refs ?? [],
-      aftershock_note: pub.aftershock_note ?? { ja: '', ko: '', en: '' },
-      aftershock_note_refs: pub.aftershock_note_refs ?? [],
-      do_now: (pub.do_now ?? []).map((item: any) => ({
-        action: item.action ?? { ja: '', ko: '', en: '' },
-        urgency: item.urgency ?? 'preparedness',
-      })),
-      faq: (pub.faq ?? []).map((item: any) => ({
-        q: item.q ?? { ja: '', ko: '', en: '' },
-        a: item.a ?? { ja: '', ko: '', en: '' },
-        a_refs: item.a_refs ?? [],
-      })),
-    },
-
-    expert: {
-      tectonic_summary: exp.tectonic_summary ?? { ja: '', ko: '', en: '' },
-      tectonic_summary_refs: exp.tectonic_summary_refs ?? [],
-      mechanism_note: exp.mechanism_note ?? null,
-      mechanism_note_refs: exp.mechanism_note_refs ?? null,
-      depth_analysis: exp.depth_analysis ?? null,
-      depth_analysis_refs: exp.depth_analysis_refs ?? null,
-      coulomb_note: exp.coulomb_note ?? null,
-      coulomb_note_refs: exp.coulomb_note_refs ?? null,
-      sequence: {
-        classification: exp.sequence?.classification ?? 'independent',
-        confidence: exp.sequence?.confidence ?? 'low',
-        reasoning: exp.sequence?.reasoning ?? { ja: '', ko: '', en: '' },
-        reasoning_refs: exp.sequence?.reasoning_refs ?? [],
-      },
-      seismic_gap: {
-        is_gap: exp.seismic_gap?.is_gap ?? false,
-        note: exp.seismic_gap?.note ?? null,
-      },
-      historical_comparison: exp.historical_comparison ?? null,
-      notable_features: (exp.notable_features ?? []).map((nf: any) => ({
-        feature: nf.feature ?? { ja: '', ko: '', en: '' },
-        claim: nf.claim ?? { ja: '', ko: '', en: '' },
-        because: nf.because ?? { ja: '', ko: '', en: '' },
-        because_refs: nf.because_refs ?? [],
-        implication: nf.implication ?? { ja: '', ko: '', en: '' },
-      })),
-      model_notes: buildModelNotes(facts),
-    },
-
-    search_index: {
-      tags: (si.tags ?? []).filter((t: any) => typeof t === 'string'),
-      region: si.region ?? classifyRegion(event.lat, event.lng),
-      categories: {
-        plate: facts.tectonic.plate,
-        boundary: facts.tectonic.boundary_type,
-        region: si.region ?? classifyRegion(event.lat, event.lng),
-        depth_class: facts.tectonic.depth_class,
-        damage_level: si.damage_level ?? 'none',
-        tsunami_generated: facts.tsunami.risk !== 'none',
-        has_foreshocks: si.has_foreshocks ?? false,
-        is_in_seismic_gap: exp.seismic_gap?.is_gap ?? false,
-      },
-      region_keywords: si.region_keywords ?? { ja: [], ko: [], en: [] },
-    },
-  }, {
-    magnitude: event.magnitude,
-    depth_km: event.depth_km,
-    lat: event.lat,
-    lng: event.lng,
-    place: event.place ?? undefined,
-    place_ja: event.place_ja ?? undefined,
-  })!;
+  });
 
   await db.update(analyses)
     .set({ is_latest: false })
@@ -456,8 +367,8 @@ export async function generateAndStoreAnalysis(
     event_id: event.id,
     version: 4,
     tier,
-    model: 'grok-4.1-fast-reasoning',
-    prompt_version: 'v4.0.0',
+    model: storedModel,
+    prompt_version: ANALYSIS_PROMPT_VERSION,
     context: facts as any,
     analysis: mergedAnalysis as any,
     search_tags: mergedAnalysis.search_index.tags,
