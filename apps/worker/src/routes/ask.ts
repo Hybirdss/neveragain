@@ -2,8 +2,8 @@
  * Q&A route — POST /api/ask
  *
  * Accepts a question about a specific earthquake event,
- * retrieves the latest analysis, and asks Grok to answer
- * based solely on that analysis.
+ * retrieves the latest analysis, and answers using
+ * canonical facts + approved public guidance only.
  */
 
 import { Hono } from 'hono';
@@ -13,21 +13,18 @@ import { checkRateLimit } from '../lib/rateLimit.ts';
 import { prepareAnalysisForDelivery } from '../lib/analysisDelivery.ts';
 import { analyses, earthquakes } from '@namazue/db';
 import { eq, and, desc } from 'drizzle-orm';
+import {
+  ASK_SYSTEM_PROMPT,
+  buildAskPromptPayload,
+  buildDeterministicAskFallback,
+  parseAskResponse,
+} from '../lib/askSupport.ts';
 
 export const askRoute = new Hono<{ Bindings: Env }>();
 
 const XAI_API = 'https://api.x.ai/v1/chat/completions';
 
 const MAX_QUESTION_LENGTH = 200;
-
-const SYSTEM_PROMPT = `You are Namazue's earthquake Q&A assistant.
-Given a pre-generated earthquake analysis, answer the user's question.
-Rules:
-1. Reference ONLY facts/data from the provided analysis. Never invent numbers.
-2. Never predict future earthquakes. Never say "safe."
-3. Max 3 sentences per language.
-4. Return JSON: { "answer": { "ja": "...", "ko": "...", "en": "..." }, "refs": ["facts:...", "seismology:..."] }
-Return ONLY valid JSON.`;
 
 interface AskBody {
   event_id: string;
@@ -99,9 +96,15 @@ askRoute.post('/', async (c) => {
     place: rows[0].place,
     place_ja: rows[0].place_ja,
   });
+  const safePromptPayload = buildAskPromptPayload(analysisData);
+  const fallback = buildDeterministicAskFallback(analysisData, question);
 
-  // Call Grok
-  const userMsg = `Analysis:\n${JSON.stringify(analysisData, null, 2)}\n\nQuestion: ${question}`;
+  if (!c.env.XAI_API_KEY) {
+    return c.json(fallback);
+  }
+
+  // Call Grok with canonical facts + approved public guidance only.
+  const userMsg = `Canonical context:\n${JSON.stringify(safePromptPayload, null, 2)}\n\nQuestion: ${question}`;
 
   const resp = await fetch(XAI_API, {
     method: 'POST',
@@ -112,7 +115,7 @@ askRoute.post('/', async (c) => {
     body: JSON.stringify({
       model: 'grok-4-1-fast-reasoning',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: ASK_SYSTEM_PROMPT },
         { role: 'user', content: userMsg },
       ],
       stream: false,
@@ -124,7 +127,7 @@ askRoute.post('/', async (c) => {
   if (!resp.ok) {
     const errBody = await resp.text();
     console.error(`Grok API error: ${resp.status} ${errBody.slice(0, 200)}`);
-    return c.json({ error: 'AI service unavailable' }, 502);
+    return c.json(fallback);
   }
 
   const data = await resp.json() as {
@@ -133,15 +136,13 @@ askRoute.post('/', async (c) => {
 
   const raw = data.choices?.[0]?.message?.content;
   if (!raw) {
-    return c.json({ error: 'Empty AI response' }, 502);
+    return c.json(fallback);
   }
 
-  let parsed: AskResponse;
-  try {
-    parsed = JSON.parse(raw) as AskResponse;
-  } catch {
-    console.error('Failed to parse Grok response:', raw.slice(0, 200));
-    return c.json({ error: 'Invalid AI response format' }, 502);
+  const parsed = parseAskResponse(raw);
+  if (!parsed) {
+    console.error('Failed to validate Grok response:', raw.slice(0, 200));
+    return c.json(fallback);
   }
 
   return c.json(parsed);
