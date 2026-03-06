@@ -135,6 +135,27 @@ test('buildDeterministicAskFallback answers tsunami questions from canonical gui
   assert.deepEqual(response.refs, ['facts:tsunami.risk']);
 });
 
+test('buildDeterministicAskFallback keeps tsunami-none answers cautious', () => {
+  const response = buildDeterministicAskFallback(
+    {
+      ...ANALYSIS,
+      facts: {
+        ...ANALYSIS.facts,
+        tsunami: { risk: 'none' },
+      },
+      public: {
+        ...ANALYSIS.public,
+        faq: [],
+      },
+    },
+    'Is there any tsunami risk?',
+  );
+
+  assert.match(response.answer.ko, /현재로서는 쓰나미 위험이 낮아 보이지만/);
+  assert.match(response.answer.en, /tsunami risk is currently indicated as low/i);
+  assert.deepEqual(response.refs, ['facts:tsunami.risk']);
+});
+
 test('parseAskResponse rejects invalid AI payloads so route can fall back safely', () => {
   assert.equal(parseAskResponse('{"answer":{"ko":"ok"}}'), null);
   assert.equal(parseAskResponse('not-json'), null);

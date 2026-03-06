@@ -71,7 +71,7 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
     fallbackModerate: 'Noticeable shaking is likely. Watch for falling objects.',
     fallbackStrong: 'Strong shaking is possible. Protect yourself and secure loose items.',
     fallbackSevere: 'Strong shaking is likely. Protect yourself immediately and expect damage.',
-    noTsunami: 'No tsunami expected',
+    noTsunami: 'Low tsunami concern',
   },
   ja: {
     emptyHeadline: '現在大きな動きはありません',
@@ -82,7 +82,7 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
     fallbackModerate: 'はっきりした揺れが想定されます。落下物に注意してください。',
     fallbackStrong: '強い揺れの可能性があります。身を守り、落下物に注意してください。',
     fallbackSevere: '強い揺れが予想されます。直ちに身の安全を確保してください。',
-    noTsunami: '津波の心配はありません',
+    noTsunami: '津波リスク低め',
   },
   ko: {
     emptyHeadline: '지금은 잠잠합니다',
@@ -93,7 +93,7 @@ const UI_COPY: Record<PresentationLocale, Record<string, string>> = {
     fallbackModerate: '분명한 흔들림이 예상됩니다. 낙하물에 주의하세요.',
     fallbackStrong: '강한 흔들림 가능성이 있습니다. 몸을 보호하고 주변 물건을 확인하세요.',
     fallbackSevere: '강한 흔들림이 예상됩니다. 즉시 몸을 보호하고 피해에 대비하세요.',
-    noTsunami: '쓰나미 우려는 없습니다',
+    noTsunami: '낮은 쓰나미 우려',
   },
 };
 

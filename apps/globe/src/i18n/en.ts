@@ -98,11 +98,11 @@ const en: Record<string, string> = {
   'tsunami.risk.high': 'Tsunami Warning — Evacuate to high ground immediately',
   'tsunami.risk.moderate': 'Tsunami Advisory — Stay away from the coast',
   'tsunami.risk.low': 'Tsunami unlikely, but stay alert for official advisories',
-  'tsunami.risk.none': 'No tsunami expected from this earthquake',
+  'tsunami.risk.none': 'Tsunami risk is currently low, but keep watching official updates',
   'tsunami.label.high': 'TSUNAMI WARNING',
   'tsunami.label.moderate': 'TSUNAMI ADVISORY',
   'tsunami.label.low': 'Stay alert',
-  'tsunami.label.none': 'No tsunami expected',
+  'tsunami.label.none': 'Low tsunami concern',
 
   // Fault types
   'faultType.crustal': 'Crustal',

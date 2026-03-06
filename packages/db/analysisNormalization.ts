@@ -161,9 +161,9 @@ function tsunamiSentence(risk: string): LocalizedText {
     );
   }
   return makeI18n(
-    '현재로서는 쓰나미 우려가 낮습니다.',
-    '現時点では津波の心配は低いとみられます。',
-    'No significant tsunami concern is indicated at this time.',
+    '현재로서는 쓰나미 위험이 낮아 보이지만 공식 발표는 계속 확인하세요.',
+    '現時点で津波リスクは低いとみられますが、公式発表は引き続き確認してください。',
+    'Tsunami risk is currently indicated as low, but keep watching official updates.',
   );
 }
 

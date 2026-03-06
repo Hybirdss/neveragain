@@ -98,11 +98,11 @@ const ja: Record<string, string> = {
   'tsunami.risk.high': '津波警報 — 直ちに高台へ避難してください',
   'tsunami.risk.moderate': '津波注意 — 海岸から離れてください',
   'tsunami.risk.low': '津波の発生は予想されませんが、念のため今後の情報にご注意ください',
-  'tsunami.risk.none': 'この地震による津波の心配はありません',
+  'tsunami.risk.none': '現時点で津波リスクは低いとみられますが、公式発表は引き続き確認してください',
   'tsunami.label.high': '津波警報',
   'tsunami.label.moderate': '津波注意',
   'tsunami.label.low': '津波情報に注意',
-  'tsunami.label.none': '津波の心配なし',
+  'tsunami.label.none': '津波リスク低め',
 
   // Fault types
   'faultType.crustal': '\u5730\u6bbb\u5185',

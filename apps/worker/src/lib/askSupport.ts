@@ -127,9 +127,9 @@ function fallbackTsunamiFromRisk(risk: string): LocalizedText {
     };
   }
   return {
-    ko: '현재로서는 큰 쓰나미 우려가 보이지 않습니다.',
-    ja: '現時点では大きな津波の懸念は見られません。',
-    en: 'No significant tsunami concern is indicated at this time.',
+    ko: '현재로서는 쓰나미 위험이 낮아 보이지만 공식 발표는 계속 확인하세요.',
+    ja: '現時点で津波リスクは低いとみられますが、公式発表は引き続き確認してください。',
+    en: 'Tsunami risk is currently indicated as low, but keep watching official updates.',
   };
 }
 

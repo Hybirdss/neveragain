@@ -53,9 +53,9 @@ const ANALYSIS = {
       ko: '오사카 인근 강한 흔들림',
     },
     one_liner: {
-      en: 'Objects may fall indoors, but no tsunami is expected.',
-      ja: '室内の落下物に注意してください。津波の心配はありません。',
-      ko: '실내 낙하물에 주의하세요. 쓰나미 우려는 없습니다.',
+      en: 'Objects may fall indoors, and tsunami risk is currently low. Keep watching official updates.',
+      ja: '室内の落下物に注意してください。現時点で津波リスクは低いとみられますが、公式発表は引き続き確認してください。',
+      ko: '실내 낙하물에 주의하세요. 현재로서는 쓰나미 위험이 낮아 보이지만 공식 발표는 계속 확인하세요.',
     },
   },
   public: {
@@ -277,12 +277,12 @@ describe('buildHeroSummary', () => {
 
     expect(summary.state).toBe('ready');
     expect(summary.headline).toBe('Strong shaking near Osaka');
-    expect(summary.message).toBe('Objects may fall indoors, but no tsunami is expected.');
+    expect(summary.message).toBe('Objects may fall indoors, and tsunami risk is currently low. Keep watching official updates.');
     expect(summary.place).toBe('Near Osaka');
     expect(summary.relativeTime).toBe('4 min ago');
     expect(summary.magnitudeLabel).toBe('M5.8');
     expect(summary.depthLabel).toBe('12 km deep');
-    expect(summary.tsunami?.label).toBe('No tsunami expected');
+    expect(summary.tsunami?.label).toBe('Low tsunami concern');
   });
 
   it('keeps the meaning sentence visible while analysis is pending', () => {
@@ -298,7 +298,7 @@ describe('buildHeroSummary', () => {
     expect(summary.state).toBe('loading');
     expect(summary.headline).toBe('Near Osaka');
     expect(summary.message).not.toBe('Preparing AI summary...');
-    expect(summary.message).toContain('No tsunami expected from this earthquake');
+    expect(summary.message).toMatch(/tsunami risk is currently low/i);
   });
 
   it('falls back to a plain-language summary when analysis is missing', () => {
@@ -360,9 +360,9 @@ describe('buildLiveFeedSummary', () => {
 
     expect(summary.place).toBe('Near Osaka');
     expect(summary.relativeTime).toBe('4 min ago');
-    expect(summary.meaning).toBe('Objects may fall indoors, but no tsunami is expected.');
+    expect(summary.meaning).toBe('Objects may fall indoors, and tsunami risk is currently low. Keep watching official updates.');
     expect('coords' in summary).toBe(false);
-    expect(summary.tsunamiLabel).toBe('No tsunami expected');
+    expect(summary.tsunamiLabel).toBe('Low tsunami concern');
   });
 });
 
@@ -379,7 +379,7 @@ describe('buildShareSummary', () => {
     expect(summary.shortText).toContain('M5.8');
     expect(summary.shortText).toContain('Near Osaka');
     expect(summary.shortText).toContain('Strong shaking near Osaka');
-    expect(summary.shortText).toContain('No tsunami expected');
+    expect(summary.shortText).toContain('Low tsunami concern');
     expect(summary.lines).toContain('A shallow crustal fault moved beneath Osaka.');
   });
 });
@@ -394,7 +394,7 @@ describe('buildDetailSummary', () => {
       now: NOW,
     });
 
-    expect(summary.summary).toBe('Objects may fall indoors, but no tsunami is expected.');
+    expect(summary.summary).toBe('Objects may fall indoors, and tsunami risk is currently low. Keep watching official updates.');
     expect(summary.intensityMeaning.length).toBeGreaterThan(0);
     expect(summary.actionItems[0]).toBe('Check shelves and glass around you.');
     expect(summary.rawFacts[0]).toEqual({ label: 'Magnitude', value: 'M5.8' });
