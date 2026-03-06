@@ -7,8 +7,8 @@
  */
 
 import { consoleStore } from '../core/store';
-import type { ServiceReadModel } from '../ops/readModelTypes';
-import type { OpsPriority, OpsSeverity } from '../ops/types';
+import type { ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import type { OpsPriority, OpsSeverity } from '@namazue/ops/ops/types';
 
 function severityBadgeClass(sev: OpsSeverity): string {
   switch (sev) {

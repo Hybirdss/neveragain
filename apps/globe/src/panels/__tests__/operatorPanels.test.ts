@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ServiceReadModel } from '../../ops/readModelTypes';
+import type { ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
 import { renderEventSnapshotMarkup } from '../eventSnapshot';
 import { buildExposureEmptyMessage, selectExposureSummary } from '../assetExposure';
 import { buildPriorityEmptyMessage, selectPriorityQueue } from '../checkTheseNow';

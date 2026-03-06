@@ -4,7 +4,7 @@ import { assessTsunamiRisk, classifyLocation, inferFaultType } from '@namazue/db
 import en from '../i18n/en';
 import ja from '../i18n/ja';
 import ko from '../i18n/ko';
-import { computeGmpe } from '../engine/gmpe';
+import { computeGmpe } from '@namazue/ops/engine/gmpe';
 import type {
   EarthquakeEvent,
   JmaClass,
@@ -16,7 +16,7 @@ import type {
   PresentationShareSummary,
   PresentationTsunamiSummary,
   TsunamiAssessment,
-} from '../types';
+} from '@namazue/ops/types';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { getPlaceText } from '../utils/earthquakeUtils';
 

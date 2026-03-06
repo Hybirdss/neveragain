@@ -5,7 +5,7 @@
  * using SharedArrayBuffer + Atomics, with progressive rendering support.
  */
 
-import type { IntensityGrid } from '../types';
+import type { IntensityGrid } from '@namazue/ops/types';
 // Current dataset: 200 representative subfaults (simplified from CDMC's 5,773).
 // Performance and accuracy expectations should be calibrated to this reduced set.
 import subfaultsRaw from './nankai-subfaults.json';

@@ -1,5 +1,5 @@
-import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
-import type { OpsRegion } from '../ops/types';
+import type { RealtimeStatus, ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import type { OpsRegion } from '@namazue/ops/ops/types';
 
 export interface SystemBarState {
   regionLabel: string;

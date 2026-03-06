@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { IntensityGrid, TsunamiAssessment } from '../../types';
+import type { IntensityGrid, TsunamiAssessment } from '@namazue/ops/types';
 import { buildAssetExposures } from '../exposure';
-import type { OpsAsset } from '../types';
+import type { OpsAsset } from '@namazue/ops/ops/types';
 
 function makeUniformGrid(value: number): IntensityGrid {
   return {

@@ -12,7 +12,7 @@ import type {
   JmaClass,
   Prefecture,
   PrefectureImpact,
-} from '../types';
+} from '@namazue/ops/types';
 import { toJmaClass } from './gmpe';
 
 /**

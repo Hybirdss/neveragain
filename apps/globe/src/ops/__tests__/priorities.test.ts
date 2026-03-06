@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildOpsPriorities } from '../priorities';
-import type { OpsAsset, OpsAssetExposure } from '../types';
+import type { OpsAsset, OpsAssetExposure } from '@namazue/ops/ops/types';
 
 const assets: OpsAsset[] = [
   {

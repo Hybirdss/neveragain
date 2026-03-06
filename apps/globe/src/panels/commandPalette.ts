@@ -20,7 +20,7 @@ import {
   getOperatorViewPreset,
 } from '../layers/bundleRegistry';
 import { getAllLayerDefinitions } from '../layers/layerRegistry';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import type { OperatorViewId } from '../layers/bundleRegistry';
 
 // ── Types ─────────────────────────────────────────────────────

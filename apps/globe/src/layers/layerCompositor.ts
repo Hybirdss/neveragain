@@ -24,7 +24,7 @@ import { createAssetLayers } from './assetLayer';
 import { updateWaveData, createWaveLayers, type WaveSource } from './waveLayer';
 import { createIntensityLayer } from './intensityLayer';
 import type { LayerId } from './layerRegistry';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 // ── Wave Source Extraction ─────────────────────────────────────
 

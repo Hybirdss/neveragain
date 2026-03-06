@@ -11,7 +11,7 @@
  */
 
 import { PathLayer } from '@deck.gl/layers';
-import type { ActiveFault } from '../types';
+import type { ActiveFault } from '@namazue/ops/types';
 
 type RGBA = [number, number, number, number];
 

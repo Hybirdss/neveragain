@@ -7,7 +7,7 @@
  */
 
 import { computeIntensityGrid } from './gmpe';
-import type { GmpeWorkerRequest, GmpeWorkerResponse, Vs30Grid } from '../types';
+import type { GmpeWorkerRequest, GmpeWorkerResponse, Vs30Grid } from '@namazue/ops/types';
 
 const workerSelf = self as unknown as {
   onmessage: ((event: MessageEvent<GmpeWorkerRequest>) => void) | null;

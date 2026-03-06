@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent } from '../../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import { buildSnapshotModel } from '../presentation';
 import { selectConsoleFocus } from '../focus';
 

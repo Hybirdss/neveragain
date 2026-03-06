@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computePgv600, computeGmpe, haversine, toJmaClass } from '../gmpe';
-import type { GmpeInput } from '../../types';
+import type { GmpeInput } from '@namazue/ops/types';
 
 describe('haversine', () => {
   it('returns 0 for identical points', () => {

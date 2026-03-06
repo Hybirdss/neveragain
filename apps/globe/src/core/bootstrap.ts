@@ -26,8 +26,8 @@ import {
 } from './consoleOps';
 import { consoleStore } from './store';
 import { buildSystemBarState } from './systemBar';
-import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
-import { OPS_ASSETS } from '../ops/assetCatalog';
+import { createEmptyServiceReadModel } from '@namazue/ops/ops/serviceReadModel';
+import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
 import { createLayerCompositor } from '../layers/layerCompositor';
 import { mountEventSnapshot } from '../panels/eventSnapshot';
 import { mountRecentFeed } from '../panels/recentFeed';
@@ -50,9 +50,9 @@ import { formatHospitalTooltip, type Hospital } from '../layers/hospitalLayer';
 import { formatRailTooltip, type RailRoute } from '../layers/railLayer';
 import { formatPowerTooltip, type PowerPlant } from '../layers/powerLayer';
 import type { Vessel } from '../data/aisManager';
-import type { RealtimeSource } from '../ops/readModelTypes';
-import type { ViewportState as OpsViewportState } from '../ops/types';
-import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
+import type { RealtimeSource } from '@namazue/ops/ops/readModelTypes';
+import type { ViewportState as OpsViewportState } from '@namazue/ops/ops/types';
+import type { ActiveFault, EarthquakeEvent, FaultType } from '@namazue/ops/types';
 
 // ── Loading Progress ────────────────────────────────────────
 

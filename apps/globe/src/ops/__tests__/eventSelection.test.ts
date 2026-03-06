@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent } from '../../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import {
   buildCanonicalEventEnvelope,
   type CanonicalEventEnvelope,
-} from '../../data/eventEnvelope';
+} from '@namazue/ops/data/eventEnvelope';
 import { selectOperationalFocusEvent } from '../eventSelection';
 
 function createEvent(

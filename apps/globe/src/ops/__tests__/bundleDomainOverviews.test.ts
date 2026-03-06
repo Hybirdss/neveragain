@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildDefaultBundleDomainOverviews } from '../bundleDomainOverviews';
-import type { OpsAsset, OpsAssetExposure, OpsPriority } from '../types';
+import type { OpsAsset, OpsAssetExposure, OpsPriority } from '@namazue/ops/ops/types';
 
 describe('buildDefaultBundleDomainOverviews', () => {
   it('derives lifeline and built-environment overviews from future asset class families', () => {

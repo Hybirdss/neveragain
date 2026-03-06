@@ -1,4 +1,4 @@
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import type { OpsScenarioShift } from './types';
 
 function round(value: number, digits: number = 3): number {

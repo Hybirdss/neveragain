@@ -1,4 +1,4 @@
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 /**
  * Safely extract display text from the place field.

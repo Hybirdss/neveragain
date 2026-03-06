@@ -65,10 +65,10 @@ This truth is exposed through `eventTruth` and summarized again in `systemHealth
 
 Relevant files:
 
-- `apps/globe/src/data/eventEnvelope.ts`
+- `packages/ops/data/eventEnvelope.ts`
 - `apps/globe/src/data/earthquakeStore.ts`
-- `apps/globe/src/ops/readModelTypes.ts`
-- `apps/globe/src/ops/serviceReadModel.ts`
+- `packages/ops/ops/readModelTypes.ts`
+- `packages/ops/ops/serviceReadModel.ts`
 
 ### 2. Service Read Model Is Backend-Owned
 
@@ -91,8 +91,8 @@ This is the correct contract surface. The frontend should keep consuming this bo
 
 Relevant files:
 
-- `apps/globe/src/ops/readModelTypes.ts`
-- `apps/globe/src/ops/serviceReadModel.ts`
+- `packages/ops/ops/readModelTypes.ts`
+- `packages/ops/ops/serviceReadModel.ts`
 - `apps/globe/src/ops/serviceSelectors.ts`
 
 ### 3. Bundle Hierarchy Is Structured
@@ -110,9 +110,9 @@ Bundle summaries are no longer loose strings. They now expose operator-grade str
 
 Relevant files:
 
-- `apps/globe/src/ops/bundleSummaries.ts`
-- `apps/globe/src/ops/bundleDomainOverviews.ts`
-- `apps/globe/src/ops/readModelTypes.ts`
+- `packages/ops/ops/bundleSummaries.ts`
+- `packages/ops/ops/bundleDomainOverviews.ts`
+- `packages/ops/ops/readModelTypes.ts`
 
 ### 4. Asset Semantics Are Centralized
 
@@ -138,9 +138,9 @@ Current future-ready classes:
 
 Relevant files:
 
-- `apps/globe/src/ops/assetClassRegistry.ts`
-- `apps/globe/src/ops/exposure.ts`
-- `apps/globe/src/ops/priorities.ts`
+- `packages/ops/ops/assetClassRegistry.ts`
+- `packages/ops/ops/exposure.ts`
+- `packages/ops/ops/priorities.ts`
 - `apps/globe/src/panels/assetExposure.ts`
 - `apps/globe/src/layers/assetLayer.ts`
 
@@ -152,7 +152,7 @@ It now includes seeded `power_substation`, `water_facility`, and `building_clust
 
 Relevant file:
 
-- `apps/globe/src/ops/assetCatalog.ts`
+- `packages/ops/ops/assetCatalog.ts`
 
 ### 6. Frontend Already Consumes Backend Hierarchy
 
@@ -272,13 +272,13 @@ As rail, power, water, and building data grow, the backend should stay tile-mind
 
 When continuing backend work, prefer these targets:
 
-- `apps/globe/src/ops/assetClassRegistry.ts`
-- `apps/globe/src/ops/assetCatalog.ts`
-- `apps/globe/src/ops/bundleDomainOverviews.ts`
-- `apps/globe/src/ops/bundleSummaries.ts`
-- `apps/globe/src/ops/serviceReadModel.ts`
+- `packages/ops/ops/assetClassRegistry.ts`
+- `packages/ops/ops/assetCatalog.ts`
+- `packages/ops/ops/bundleDomainOverviews.ts`
+- `packages/ops/ops/bundleSummaries.ts`
+- `packages/ops/ops/serviceReadModel.ts`
 - `apps/globe/src/ops/serviceSelectors.ts`
-- `apps/globe/src/data/eventEnvelope.ts`
+- `packages/ops/data/eventEnvelope.ts`
 - `apps/globe/src/data/earthquakeStore.ts`
 
 Avoid pushing product logic into:

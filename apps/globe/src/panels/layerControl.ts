@@ -14,8 +14,8 @@ import type {
   OperatorBundleDomain,
   OperatorBundleSignal,
   OperatorBundleSummary,
-} from '../ops/readModelTypes';
-import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
+} from '@namazue/ops/ops/readModelTypes';
+import { createEmptyServiceReadModel } from '@namazue/ops/ops/serviceReadModel';
 
 export type BundleSummary = Pick<
   OperatorBundleSummary,

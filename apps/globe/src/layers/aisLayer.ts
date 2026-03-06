@@ -19,7 +19,7 @@
 import { IconLayer, PathLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import type { Vessel, VesselType } from '../data/aisManager';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import { isHighPriorityVessel } from '../ops/maritimeTelemetry';
 
 type RGBA = [number, number, number, number];

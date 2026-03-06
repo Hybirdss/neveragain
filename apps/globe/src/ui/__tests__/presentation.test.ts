@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent, TsunamiAssessment } from '../../types';
+import type { EarthquakeEvent, TsunamiAssessment } from '@namazue/ops/types';
 import {
   buildDetailSummary,
   buildEvidenceSummary,

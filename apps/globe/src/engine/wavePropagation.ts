@@ -8,7 +8,7 @@
  * Converts km distances to globe degrees using the 111.19 km/deg factor.
  */
 
-import type { WaveState, WaveConfig } from '../types';
+import type { WaveState, WaveConfig } from '@namazue/ops/types';
 
 // ---------------------------------------------------------------------------
 // Constants

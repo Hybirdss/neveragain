@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildOperatorBundleSummaries } from '../bundleSummaries';
 import type { OperationalOverview } from '../readModelTypes';
-import type { OpsAsset, OpsAssetExposure } from '../types';
+import type { OpsAsset, OpsAssetExposure } from '@namazue/ops/ops/types';
 
 const assets: OpsAsset[] = [
   {

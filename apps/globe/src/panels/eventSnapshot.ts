@@ -10,8 +10,8 @@
  */
 
 import { consoleStore } from '../core/store';
-import type { ServiceReadModel } from '../ops/readModelTypes';
-import type { EarthquakeEvent } from '../types';
+import type { ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;

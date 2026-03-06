@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { OpsAsset, ViewportState } from '../types';
+import type { OpsAsset, ViewportState } from '@namazue/ops/ops/types';
 import { deriveZoomTier, filterVisibleOpsAssets } from '../viewport';
 
 const assets: OpsAsset[] = [

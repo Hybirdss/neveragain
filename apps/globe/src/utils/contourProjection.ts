@@ -6,8 +6,8 @@
  */
 
 import { contours } from 'd3-contour';
-import type { IntensityGrid, JmaClass } from '../types';
-import { getJmaColor, JMA_THRESHOLDS } from '../types';
+import type { IntensityGrid, JmaClass } from '@namazue/ops/types';
+import { getJmaColor, JMA_THRESHOLDS } from '@namazue/ops/types';
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -9,7 +9,7 @@
  * Host: R2 or public/data/
  */
 
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 const CATALOG_URL = '/data/historical-catalog.json';
 

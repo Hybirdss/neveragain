@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { RealtimeStatus, ServiceReadModel } from '../../ops/readModelTypes';
-import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
+import type { RealtimeStatus, ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import { createEmptyServiceReadModel } from '@namazue/ops/ops/serviceReadModel';
 import { buildSystemBarState } from '../systemBar';
 
 const realtimeStatus: RealtimeStatus = {

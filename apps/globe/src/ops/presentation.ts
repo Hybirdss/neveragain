@@ -1,4 +1,4 @@
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import type { LaunchMetro, OpsPriority } from './types';
 
 export interface SnapshotModel {

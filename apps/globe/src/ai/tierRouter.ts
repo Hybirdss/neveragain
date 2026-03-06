@@ -5,7 +5,7 @@
  * earthquake parameters. User-triggered reads are handled separately.
  */
 
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 export type ClientTier = 'S' | 'A' | 'B' | 'skip';
 

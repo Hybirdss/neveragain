@@ -6,7 +6,7 @@ import {
 } from '../aisLayer';
 import type { Vessel } from '../../data/aisManager';
 import { buildMaritimeOverview } from '../../ops/maritimeTelemetry';
-import type { EarthquakeEvent } from '../../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 const selectedEvent: EarthquakeEvent = {
   id: 'eq-ais',

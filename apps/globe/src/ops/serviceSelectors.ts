@@ -1,4 +1,4 @@
-import type { AppState } from '../types';
+import type { AppState } from '@namazue/ops/types';
 import type {
   ReplayMilestone,
   ScenarioDelta,

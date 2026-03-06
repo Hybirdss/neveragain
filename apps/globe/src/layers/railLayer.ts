@@ -12,7 +12,7 @@
 
 import { PathLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import { haversineKm, impactRadiusKm } from './impactZone';
 
 type RGBA = [number, number, number, number];

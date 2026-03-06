@@ -6,7 +6,7 @@
  */
 
 import { consoleStore } from '../core/store';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;

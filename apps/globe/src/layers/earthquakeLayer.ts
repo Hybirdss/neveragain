@@ -14,7 +14,7 @@
  */
 
 import { ScatterplotLayer } from '@deck.gl/layers';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 type RGBA = [number, number, number, number];
 

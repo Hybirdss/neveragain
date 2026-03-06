@@ -16,7 +16,7 @@ import type {
   SlopeGrid,
   LandslideGrid,
   LandslideRisk,
-} from '../types';
+} from '@namazue/ops/types';
 
 // ============================================================
 // Constants

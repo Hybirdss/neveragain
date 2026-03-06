@@ -15,7 +15,7 @@
  */
 
 import { consoleStore } from '../core/store';
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 // ── Types ─────────────────────────────────────────────────────
 

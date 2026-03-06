@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent } from '../../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import type { Vessel } from '../../data/aisManager';
 import { earthquakeStore } from '../../data/earthquakeStore';
 import {
@@ -8,7 +8,7 @@ import {
   deriveConsoleOperationalState,
   refreshConsoleBundleTruth,
 } from '../consoleOps';
-import { OPS_ASSETS } from '../../ops/assetCatalog';
+import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
 
 function createEvent(
   id: string,

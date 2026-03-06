@@ -7,10 +7,10 @@
  */
 
 import { consoleStore } from '../core/store';
-import type { ServiceReadModel } from '../ops/readModelTypes';
-import type { OpsAssetExposure } from '../ops/types';
-import { OPS_ASSETS } from '../ops/assetCatalog';
-import { getOpsAssetClassDefinition } from '../ops/assetClassRegistry';
+import type { ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import type { OpsAssetExposure } from '@namazue/ops/ops/types';
+import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
+import { getOpsAssetClassDefinition } from '@namazue/ops/ops/assetClassRegistry';
 
 function severityBadge(sev: string): string {
   return `<span class="nz-expo__sev nz-expo__sev--${sev}">${sev.toUpperCase()}</span>`;

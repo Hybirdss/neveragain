@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pixelToGeo, getJmaClass } from '../contourProjection';
-import type { IntensityGrid } from '../../types';
+import type { IntensityGrid } from '@namazue/ops/types';
 
 function makeGrid(cols: number, rows: number, radiusDeg: number): IntensityGrid {
   return {

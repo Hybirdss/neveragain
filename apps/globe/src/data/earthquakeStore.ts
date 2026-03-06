@@ -16,7 +16,7 @@
  *   - No data is silently dropped — conflicts are logged
  */
 
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import {
   buildCanonicalEventEnvelope,
   pickPreferredEventEnvelope,

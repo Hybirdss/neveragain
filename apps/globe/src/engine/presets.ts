@@ -5,7 +5,7 @@
  * Each preset conforms to the HistoricalPreset type contract.
  */
 
-import type { HistoricalPreset } from '../types';
+import type { HistoricalPreset } from '@namazue/ops/types';
 
 export const HISTORICAL_PRESETS: HistoricalPreset[] = [
   {

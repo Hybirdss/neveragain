@@ -5,7 +5,7 @@
  * Pure DOM — no framework dependencies.
  */
 
-import type { HistoricalPreset } from '../types';
+import type { HistoricalPreset } from '@namazue/ops/types';
 import { t, onLocaleChange } from '../i18n/index';
 
 let overlayEl: HTMLElement | null = null;

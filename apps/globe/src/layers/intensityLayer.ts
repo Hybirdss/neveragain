@@ -16,7 +16,7 @@
  */
 
 import { ScatterplotLayer } from '@deck.gl/layers';
-import type { IntensityGrid } from '../types';
+import type { IntensityGrid } from '@namazue/ops/types';
 
 interface IntensityPoint {
   position: [number, number];

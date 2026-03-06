@@ -6,7 +6,7 @@
  * features into the application's EarthquakeEvent model.
  */
 
-import type { EarthquakeEvent, FaultType } from '../types';
+import type { EarthquakeEvent, FaultType } from '@namazue/ops/types';
 
 // ── Japan bounding box ──────────────────────────────────────────
 const JAPAN_BBOX = {

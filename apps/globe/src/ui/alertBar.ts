@@ -5,7 +5,7 @@
  * Pure DOM manipulation — no frameworks.
  */
 
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import { t } from '../i18n/index';
 import { getPlaceText } from '../utils/earthquakeUtils';
 

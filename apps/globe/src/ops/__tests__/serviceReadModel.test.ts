@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildServiceReadModel } from '../serviceReadModel';
-import { buildCanonicalEventEnvelope } from '../../data/eventEnvelope';
-import type { CanonicalEventEnvelope } from '../../data/eventEnvelope';
+import { buildCanonicalEventEnvelope } from '@namazue/ops/data/eventEnvelope';
+import type { CanonicalEventEnvelope } from '@namazue/ops/data/eventEnvelope';
 
 describe('buildServiceReadModel', () => {
   it('returns national and viewport-ready summaries from the selected event and ops priorities', () => {

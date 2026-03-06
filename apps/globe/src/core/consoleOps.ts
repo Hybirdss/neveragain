@@ -1,18 +1,18 @@
 import { earthquakeStore } from '../data/earthquakeStore';
 import type { Vessel } from '../data/aisManager';
-import { computeIntensityGrid } from '../engine/gmpe';
-import { OPS_ASSETS } from '../ops/assetCatalog';
-import { buildOperatorBundleSummaries } from '../ops/bundleSummaries';
-import { buildDefaultBundleDomainOverviews } from '../ops/bundleDomainOverviews';
-import { selectOperationalFocusEvent } from '../ops/eventSelection';
-import { buildAssetExposures } from '../ops/exposure';
-import type { OpsAsset, OpsAssetExposure } from '../ops/types';
-import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
-import { buildServiceReadModel } from '../ops/serviceReadModel';
-import type { ViewportState as OpsViewportState } from '../ops/types';
-import { buildOpsPriorities } from '../ops/priorities';
+import { computeIntensityGrid } from '@namazue/ops/engine/gmpe';
+import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
+import { buildOperatorBundleSummaries } from '@namazue/ops/ops/bundleSummaries';
+import { buildDefaultBundleDomainOverviews } from '@namazue/ops/ops/bundleDomainOverviews';
+import { selectOperationalFocusEvent } from '@namazue/ops/ops/eventSelection';
+import { buildAssetExposures } from '@namazue/ops/ops/exposure';
+import type { OpsAsset, OpsAssetExposure } from '@namazue/ops/ops/types';
+import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import { buildServiceReadModel } from '@namazue/ops/ops/serviceReadModel';
+import type { ViewportState as OpsViewportState } from '@namazue/ops/ops/types';
+import { buildOpsPriorities } from '@namazue/ops/ops/priorities';
 import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
-import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '../types';
+import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '@namazue/ops/types';
 import type { ViewportState as ConsoleViewportState } from './viewportManager';
 
 export interface DeriveConsoleOperationalStateInput {

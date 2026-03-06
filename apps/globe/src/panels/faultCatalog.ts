@@ -9,7 +9,7 @@
 
 import { consoleStore } from '../core/store';
 import { filterFaultsByZoom } from '../layers/faultLayer';
-import type { ActiveFault } from '../types';
+import type { ActiveFault } from '@namazue/ops/types';
 
 type FaultClickHandler = (fault: ActiveFault) => void;
 

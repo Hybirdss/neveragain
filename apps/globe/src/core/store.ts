@@ -5,11 +5,11 @@
  * but with a state shape designed for the Japan-wide console.
  */
 
-import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
+import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '@namazue/ops/types';
 import type { ViewportState } from './viewportManager';
-import type { OpsAssetExposure, OpsPriority } from '../ops/types';
-import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
-import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
+import type { OpsAssetExposure, OpsPriority } from '@namazue/ops/ops/types';
+import type { RealtimeStatus, ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import { createEmptyServiceReadModel } from '@namazue/ops/ops/serviceReadModel';
 import type { Vessel } from '../data/aisManager';
 import {
   createDefaultBundleSettings,

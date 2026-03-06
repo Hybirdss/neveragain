@@ -10,7 +10,7 @@
  * Returns a flat list of ClusteredEvent objects suitable for rendering.
  */
 
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 // ── Constants ──
 

@@ -11,7 +11,7 @@ import type {
   IntensityGrid,
   HazardGrid,
   ComparisonGrid,
-} from '../types';
+} from '@namazue/ops/types';
 
 /**
  * Sample the hazard grid at a geographic point.

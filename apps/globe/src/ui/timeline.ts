@@ -5,7 +5,7 @@
  * Uses requestAnimationFrame for playback — NOT setInterval.
  */
 
-import type { TimelineState } from '../types';
+import type { TimelineState } from '@namazue/ops/types';
 import { t, onLocaleChange } from '../i18n/index';
 
 // ---- Internal references ----

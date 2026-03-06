@@ -1,6 +1,6 @@
-import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
-import type { OpsAssetExposure, OpsPriority, ViewportState } from '../ops/types';
-import type { EarthquakeEvent, IntensityGrid } from '../types';
+import type { RealtimeStatus, ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import type { OpsAssetExposure, OpsPriority, ViewportState } from '@namazue/ops/ops/types';
+import type { EarthquakeEvent, IntensityGrid } from '@namazue/ops/types';
 
 const FETCH_TIMEOUT_MS = 8_000;
 

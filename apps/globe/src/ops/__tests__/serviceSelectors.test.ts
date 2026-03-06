@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AppState } from '../../types';
+import type { AppState } from '@namazue/ops/types';
 import { selectServiceBackendState } from '../serviceSelectors';
 
 function createState(): AppState {

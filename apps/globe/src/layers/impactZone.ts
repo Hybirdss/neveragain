@@ -2,7 +2,7 @@
  * Impact Zone Utilities — Shared geographic calculations for layer modules.
  */
 
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 
 export function impactRadiusKm(magnitude: number): number {
   return 30 * Math.pow(2, magnitude - 4);

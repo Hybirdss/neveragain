@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { buildBundleSummary, buildLayerControlModel } from '../layerControl';
 import { createDefaultBundleSettings, createDefaultLayerVisibility } from '../../layers/bundleRegistry';
-import type { ServiceReadModel } from '../../ops/readModelTypes';
-import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
+import type { ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
+import { createEmptyServiceReadModel } from '@namazue/ops/ops/serviceReadModel';
 import type { ConsoleState } from '../../core/store';
 
 function createReadModel(): ServiceReadModel {

@@ -1,4 +1,4 @@
-import type { EarthquakeEvent } from '../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import type { OpsFocus, OpsPriority } from './types';
 
 export function selectConsoleFocus(input: {

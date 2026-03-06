@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent } from '../../types';
+import type { EarthquakeEvent } from '@namazue/ops/types';
 import { earthquakeStore } from '../earthquakeStore';
 
 const baseEvent: EarthquakeEvent = {

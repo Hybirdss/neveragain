@@ -5,8 +5,8 @@
  * properties (colour, radius) for globe and UI rendering.
  */
 
-import { JMA_COLORS, JMA_THRESHOLDS } from '../types';
-import type { JmaClass } from '../types';
+import { JMA_COLORS, JMA_THRESHOLDS } from '@namazue/ops/types';
+import type { JmaClass } from '@namazue/ops/types';
 
 /**
  * Map a continuous JMA instrumental intensity value to its

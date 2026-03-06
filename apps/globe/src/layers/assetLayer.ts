@@ -8,8 +8,8 @@
 
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
-import { OPS_ASSETS } from '../ops/assetCatalog';
-import type { OpsAsset, OpsAssetExposure, OpsSeverity, ZoomTier } from '../ops/types';
+import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
+import type { OpsAsset, OpsAssetExposure, OpsSeverity, ZoomTier } from '@namazue/ops/ops/types';
 
 type RGBA = [number, number, number, number];
 
