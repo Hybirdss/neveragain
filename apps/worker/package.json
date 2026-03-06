@@ -11,6 +11,10 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@namazue/application-console": "*",
+    "@namazue/application-ingest": "*",
+    "@namazue/application-replay": "*",
+    "@namazue/application-scenario": "*",
     "@namazue/contracts": "*",
     "@namazue/db": "*",
     "@namazue/domain-earthquake": "*",

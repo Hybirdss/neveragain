@@ -1,13 +1,18 @@
 import { Hono, type Context } from 'hono';
 import { and, desc, gte, lte } from 'drizzle-orm';
+import { buildConsoleSnapshot } from '@namazue/application-console';
 import { earthquakes } from '@namazue/db';
-import { deriveZoomTier } from '@namazue/ops';
+import { computeIntensityGrid, deriveZoomTier } from '@namazue/ops';
+import { OPS_ASSETS } from '@namazue/ops/ops/assetCatalog';
+import {
+  buildServiceReadModel,
+  createEmptyServiceReadModel,
+} from '@namazue/ops/ops/serviceReadModel';
 import type { ConsoleSnapshot } from '@namazue/contracts';
 import type { FaultType, ViewportState } from '@namazue/kernel';
 
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
-import { buildConsoleSnapshot } from '../lib/consoleOps.ts';
 import {
   EARTHQUAKE_LIMITS,
   parseFiniteNumber,
@@ -139,6 +144,10 @@ opsRoute.get('/console', async (c) => {
     currentSelectedEventId: selectedEventId,
     events,
     viewport,
+    assets: OPS_ASSETS,
+    computeIntensityGrid,
+    buildServiceReadModel,
+    createEmptyServiceReadModel,
   });
 
   const response: ConsoleSnapshot = {

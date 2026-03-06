@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { OPS_ASSETS, deriveZoomTier } from '@namazue/ops';
-import { buildConsoleSnapshot } from '../src/lib/consoleOps.ts';
+import { buildConsoleSnapshot } from '@namazue/application-console';
+import { computeIntensityGrid, deriveZoomTier, OPS_ASSETS } from '@namazue/ops';
+import {
+  buildServiceReadModel,
+  createEmptyServiceReadModel,
+} from '@namazue/ops/ops/serviceReadModel';
 
 test('buildConsoleSnapshot derives backend-owned console truth for a viewport', () => {
   const now = Date.now();
@@ -32,6 +36,10 @@ test('buildConsoleSnapshot derives backend-owned console truth for a viewport', 
       },
     ],
     viewport,
+    assets: OPS_ASSETS,
+    computeIntensityGrid,
+    buildServiceReadModel,
+    createEmptyServiceReadModel,
   });
 
   assert.equal(snapshot.mode, 'event');
@@ -61,6 +69,10 @@ test('buildConsoleSnapshot keeps calm mode when no significant event is active',
       tier: 'national',
       activeRegion: 'kanto',
     },
+    assets: OPS_ASSETS,
+    computeIntensityGrid,
+    buildServiceReadModel,
+    createEmptyServiceReadModel,
   });
 
   assert.equal(snapshot.mode, 'calm');

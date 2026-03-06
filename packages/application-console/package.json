@@ -1,0 +1,19 @@
+{
+  "name": "@namazue/application-console",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@namazue/contracts": "*",
+    "@namazue/domain-earthquake": "*",
+    "@namazue/domain-ops": "*",
+    "@namazue/kernel": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}
