@@ -72,7 +72,10 @@ function scoreCandidate(now: number, candidate: EventSelectionCandidate): number
 export function selectOperationalFocusEvent(
   input: SelectOperationalFocusEventInput,
 ): SelectedOperationalFocus {
+  // Safety: scenario events must never be auto-selected by the ops focus algorithm.
+  // They are ephemeral and only valid while scenario mode is active.
   const significantCandidates = input.candidates.filter((candidate) =>
+    !candidate.event.id.startsWith('scenario-') &&
     isSignificantEvent(input.now, candidate.event),
   );
   if (significantCandidates.length === 0) {

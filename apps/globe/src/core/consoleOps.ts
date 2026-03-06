@@ -222,13 +222,19 @@ function estimateStrikeAngle(
 export function deriveConsoleOperationalState(
   input: DeriveConsoleOperationalStateInput,
 ): ConsoleOperationalState {
-  earthquakeStore.upsert(input.events, {
+  // CRITICAL: Never upsert scenario events into the persistent earthquake store.
+  // Scenario events (id starts with 'scenario-') are ephemeral and only exist
+  // while scenario mode is active. Storing them would cause the ops focus algorithm
+  // to auto-select them on subsequent polls even after scenario mode is turned off.
+  const realEvents = input.events.filter((e) => !e.id.startsWith('scenario-'));
+  earthquakeStore.upsert(realEvents, {
     source: input.source === 'fallback' ? 'usgs' : input.source,
     issuedAt: input.updatedAt,
     receivedAt: input.now,
   });
 
-  const events = [...earthquakeStore.getAll()];
+  // Build candidate list from store (real events only — scenario events are excluded)
+  const events = [...earthquakeStore.getAll()].filter((e) => !e.id.startsWith('scenario-'));
 
   // When user explicitly clicks an event, bypass ops focus scoring.
   // selectOperationalFocusEvent filters for "significant" events (M≥4.5, recent)
@@ -237,8 +243,9 @@ export function deriveConsoleOperationalState(
   let focusReason: SelectedOperationalFocus['reason'];
 
   if (input.forceSelection && input.currentSelectedEventId) {
+    // For scenario events, find in the input events (not in earthquakeStore)
     selectedEvent = earthquakeStore.get(input.currentSelectedEventId)
-      ?? events.find((e) => e.id === input.currentSelectedEventId)
+      ?? input.events.find((e) => e.id === input.currentSelectedEventId)
       ?? null;
     focusReason = 'retain-current';
   } else {

@@ -37,6 +37,7 @@ import { mountFaultCatalog } from '../panels/faultCatalog';
 import { mountImpactIntelligence } from '../panels/impactIntelligence';
 import { mountLayerControl } from '../panels/layerControl';
 import { mountMaritimeExposure } from '../panels/maritimeExposure';
+import { earthquakeStore } from '../data/earthquakeStore';
 import { fetchEventsWithMeta } from '../namazue/serviceEngine';
 import { createAisManager } from '../data/aisManager';
 import { createRailStatusManager } from '../data/railStatusManager';
@@ -454,6 +455,10 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   consoleStore.subscribe('scenarioMode', (on) => {
     syncScenarioClass();
     if (!on) {
+      // Purge scenario events from the persistent earthquake store.
+      // Without this, a stale scenario event (e.g. M8.5 Nankai) could be
+      // auto-selected by selectOperationalFocusEvent on the next poll cycle.
+      earthquakeStore.removeByPrefix('scenario-');
       const selected = consoleStore.get('selectedEvent');
       if (selected?.id.startsWith('scenario-')) {
         deselectEvent();

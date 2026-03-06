@@ -205,6 +205,23 @@ class EarthquakeStore {
     return () => { this.listeners.delete(fn); };
   }
 
+  /** Remove all events whose ID starts with the given prefix. */
+  removeByPrefix(prefix: string): number {
+    let removed = 0;
+    for (const id of this.byId.keys()) {
+      if (id.startsWith(prefix)) {
+        this.byId.delete(id);
+        this.historyById.delete(id);
+        removed++;
+      }
+    }
+    if (removed > 0) {
+      this.invalidateCache();
+      this.notify();
+    }
+    return removed;
+  }
+
   /** Clear all data. */
   clear(): void {
     this.byId.clear();
