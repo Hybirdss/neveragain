@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - feat/**
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:boundaries
+      - run: npm run check:boundaries
+      - run: npm run typecheck -w @namazue/worker
+      - run: npm test -w @namazue/worker
+      - run: npm test -w @namazue/globe
+      - run: npm run build -w @namazue/globe

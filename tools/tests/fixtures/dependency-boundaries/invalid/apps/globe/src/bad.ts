@@ -1,0 +1,1 @@
+import '@namazue/worker';
