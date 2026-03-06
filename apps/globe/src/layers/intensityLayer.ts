@@ -24,17 +24,17 @@ interface IntensityPoint {
   radius: number;
 }
 
-// JMA intensity → RGBA color (dark theme, restrained opacity)
+// JMA intensity → RGBA color (dark theme, semi-transparent so map shows through)
 function intensityToColor(jma: number): [number, number, number, number] {
-  if (jma >= 6.5) return [150, 0,   80,  140]; // 7: dark magenta
-  if (jma >= 6.0) return [200, 0,   0,   130]; // 6+: deep red
-  if (jma >= 5.5) return [239, 50,  0,   120]; // 6-: red
-  if (jma >= 5.0) return [255, 100, 0,   110]; // 5+: red-orange
-  if (jma >= 4.5) return [255, 160, 0,   100]; // 5-: orange
-  if (jma >= 3.5) return [255, 220, 0,   80];  // 4: yellow
-  if (jma >= 2.5) return [80,  200, 100, 60];  // 3: green
-  if (jma >= 1.5) return [60,  130, 200, 40];  // 2: blue
-  return                  [40,  80,  140, 25];  // 1: dim blue
+  if (jma >= 6.5) return [150, 0,   80,  90];  // 7: dark magenta
+  if (jma >= 6.0) return [200, 0,   0,   80];  // 6+: deep red
+  if (jma >= 5.5) return [239, 50,  0,   70];  // 6-: red
+  if (jma >= 5.0) return [255, 100, 0,   60];  // 5+: red-orange
+  if (jma >= 4.5) return [255, 160, 0,   50];  // 5-: orange
+  if (jma >= 3.5) return [255, 220, 0,   40];  // 4: yellow
+  if (jma >= 2.5) return [80,  200, 100, 30];  // 3: green
+  if (jma >= 1.5) return [60,  130, 200, 20];  // 2: blue
+  return                  [40,  80,  140, 12];  // 1: dim blue
 }
 
 // ── Static (non-animated) cache ─────────────────────────────────

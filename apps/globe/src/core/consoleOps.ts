@@ -256,15 +256,20 @@ export function deriveConsoleOperationalState(
       : null;
     focusReason = focus.reason;
   }
-  // Dynamic radius: large events need wider grids to avoid rectangular clipping
+  // Dynamic radius: scale dramatically with magnitude so M5 vs M8 look very different.
+  // Energy scales ~31.6x per magnitude unit, so radius should scale aggressively.
   const intensityRadiusDeg = selectedEvent
-    ? (selectedEvent.magnitude >= 8.5 ? 8
-      : selectedEvent.magnitude >= 8.0 ? 6
-      : selectedEvent.magnitude >= 7.0 ? 4
-      : 3)
+    ? (selectedEvent.magnitude >= 8.5 ? 12   // ~1330km — great earthquake, entire coast
+      : selectedEvent.magnitude >= 8.0 ? 8   // ~890km
+      : selectedEvent.magnitude >= 7.0 ? 5   // ~555km
+      : selectedEvent.magnitude >= 6.0 ? 3   // ~333km
+      : selectedEvent.magnitude >= 5.0 ? 1.8 // ~200km
+      : 1.2)                                 // ~133km — small local event
     : 3;
   // Coarser grid for very large events to keep performance budget
-  const intensitySpacing = intensityRadiusDeg >= 6 ? 0.15 : 0.1;
+  const intensitySpacing = intensityRadiusDeg >= 8 ? 0.2
+    : intensityRadiusDeg >= 5 ? 0.15
+    : 0.1;
 
   // Estimate fault strike for directional intensity propagation
   const strikeAngle = selectedEvent
