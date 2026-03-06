@@ -1,6 +1,7 @@
 import type { EarthquakeEvent, PrefectureImpact, TsunamiAssessment } from '../types';
-import type { OpsAssetExposure, OpsPriority, ViewportState } from './types';
+import type { OpsAssetExposure, OpsPriority, OpsRegion, OpsSeverity, ViewportState } from './types';
 import type { CanonicalEventConfidence, CanonicalEventSource } from '../data/eventEnvelope';
+import type { SelectedOperationalFocusReason } from './eventSelection';
 
 export type RealtimeSource = 'server' | 'usgs' | 'fallback';
 export type RealtimeState = 'fresh' | 'stale' | 'degraded';
@@ -34,11 +35,30 @@ export interface EventTruth {
   hasConflictingRevision: boolean;
 }
 
+export interface SystemHealthSummary {
+  level: 'nominal' | 'watch' | 'degraded';
+  headline: string;
+  detail: string;
+  flags: string[];
+}
+
+export interface OperationalOverview {
+  selectionReason: SelectedOperationalFocusReason | null;
+  selectionSummary: string;
+  impactSummary: string;
+  visibleAffectedAssetCount: number;
+  nationalAffectedAssetCount: number;
+  topRegion: OpsRegion | null;
+  topSeverity: OpsSeverity;
+}
+
 export interface ServiceReadModel {
   currentEvent: EarthquakeEvent | null;
   eventTruth: EventTruth | null;
   viewport: ViewportState | null;
   nationalSnapshot: OpsSnapshot | null;
+  systemHealth: SystemHealthSummary;
+  operationalOverview: OperationalOverview;
   nationalExposureSummary: OpsAssetExposure[];
   visibleExposureSummary: OpsAssetExposure[];
   nationalPriorityQueue: OpsPriority[];

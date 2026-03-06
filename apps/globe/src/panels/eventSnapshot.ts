@@ -61,13 +61,14 @@ function formatFreshnessLabel(readModel: ServiceReadModel | null, now: number): 
 
 function renderCalmState(readModel: ServiceReadModel | null, now: number): string {
   const freshness = formatFreshnessLabel(readModel, now);
+  const summary = readModel?.operationalOverview.selectionSummary ?? 'No significant seismic activity';
   return `
     <div class="nz-panel" id="nz-event-snapshot">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Situation</span>
         <span class="nz-snap__status nz-snap__status--calm">NOMINAL</span>
       </div>
-      <div class="nz-snap__headline">No significant seismic activity</div>
+      <div class="nz-snap__headline">${summary}</div>
       <div class="nz-snap__meta">
         <span class="nz-snap__metric">Monitoring active</span>
         <span class="nz-snap__metric">${freshness}</span>

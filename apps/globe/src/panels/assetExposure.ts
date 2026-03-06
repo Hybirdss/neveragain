@@ -21,22 +21,26 @@ function severityBadge(sev: string): string {
   return `<span class="nz-expo__sev nz-expo__sev--${sev}">${sev.toUpperCase()}</span>`;
 }
 
-function renderEmpty(): string {
+function renderEmpty(message: string): string {
   return `
     <div class="nz-panel nz-panel--collapsed" id="nz-asset-exposure">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Asset Exposure</span>
       </div>
-      <div class="nz-expo__clear">All assets clear</div>
+      <div class="nz-expo__clear">${message}</div>
     </div>
   `;
+}
+
+export function buildExposureEmptyMessage(readModel: ServiceReadModel | null): string {
+  return readModel?.operationalOverview.impactSummary ?? 'All assets clear';
 }
 
 function renderExposures(exposures: OpsAssetExposure[]): string {
   const assetMap = new Map(OPS_ASSETS.map((a) => [a.id, a]));
   const affected = exposures.filter((e) => e.severity !== 'clear');
 
-  if (affected.length === 0) return renderEmpty();
+  if (affected.length === 0) return renderEmpty('All assets clear');
 
   const items = affected.map((exp) => {
     const asset = assetMap.get(exp.assetId);
@@ -79,7 +83,13 @@ export function selectExposureSummary(readModel: ServiceReadModel | null): OpsAs
 
 export function mountAssetExposure(container: HTMLElement): () => void {
   function render(): void {
-    const exposures = selectExposureSummary(consoleStore.get('readModel'));
+    const readModel = consoleStore.get('readModel');
+    const exposures = selectExposureSummary(readModel);
+    if (exposures.every((entry) => entry.severity === 'clear')) {
+      container.innerHTML = renderEmpty(buildExposureEmptyMessage(readModel));
+      return;
+    }
+
     container.innerHTML = renderExposures(exposures);
   }
 

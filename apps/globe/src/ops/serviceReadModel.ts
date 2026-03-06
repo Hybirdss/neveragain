@@ -4,14 +4,23 @@ import type {
   TsunamiAssessment,
 } from '../types';
 import type { CanonicalEventEnvelope, CanonicalEventSource } from '../data/eventEnvelope';
-import type { EventTruth, OpsSnapshot, RealtimeStatus, ServiceReadModel } from './readModelTypes';
-import type { OpsAsset, OpsAssetExposure, OpsPriority, ViewportState } from './types';
+import type {
+  EventTruth,
+  OperationalOverview,
+  OpsSnapshot,
+  RealtimeStatus,
+  ServiceReadModel,
+  SystemHealthSummary,
+} from './readModelTypes';
+import type { OpsAsset, OpsAssetExposure, OpsPriority, OpsRegion, OpsSeverity, ViewportState } from './types';
 import { filterVisibleOpsAssets } from './viewport';
+import type { SelectedOperationalFocusReason } from './eventSelection';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
   selectedEventEnvelope?: CanonicalEventEnvelope | null;
   selectedEventRevisionHistory?: CanonicalEventEnvelope[];
+  selectionReason?: SelectedOperationalFocusReason | null;
   tsunamiAssessment: TsunamiAssessment | null;
   impactResults: PrefectureImpact[] | null;
   assets: OpsAsset[];
@@ -19,6 +28,181 @@ export interface BuildServiceReadModelInput {
   exposures: OpsAssetExposure[];
   priorities: OpsPriority[];
   freshnessStatus: RealtimeStatus;
+}
+
+function buildSystemHealth(
+  freshnessStatus: RealtimeStatus,
+  eventTruth: EventTruth | null,
+): SystemHealthSummary {
+  const flags: string[] = [];
+
+  if (freshnessStatus.source !== 'server') {
+    flags.push('fallback-feed');
+  }
+  if (freshnessStatus.state === 'stale') {
+    flags.push('stale-feed');
+  }
+  if (eventTruth?.hasConflictingRevision) {
+    flags.push('revision-conflict');
+  }
+
+  if (freshnessStatus.state === 'degraded') {
+    return {
+      level: 'degraded',
+      headline: 'Realtime feed degraded',
+      detail: freshnessStatus.message ?? 'Fallback realtime feed active. Verify source confidence before acting.',
+      flags,
+    };
+  }
+
+  if (flags.includes('revision-conflict') || freshnessStatus.state === 'stale') {
+    return {
+      level: 'watch',
+      headline: flags.includes('revision-conflict')
+        ? 'Conflicting source revisions detected'
+        : 'Realtime updates are delayed',
+      detail: flags.includes('revision-conflict')
+        ? `${eventTruth?.revisionCount ?? 0} revisions from ${(eventTruth?.sources ?? []).join('/')} require operator review.`
+        : freshnessStatus.message ?? 'Primary feed is stale; decisions may lag current field conditions.',
+      flags,
+    };
+  }
+
+  return {
+    level: 'nominal',
+    headline: 'Primary realtime feed healthy',
+    detail: 'No source conflicts or realtime degradation detected.',
+    flags,
+  };
+}
+
+function severityRank(severity: OpsSeverity): number {
+  switch (severity) {
+    case 'critical': return 3;
+    case 'priority': return 2;
+    case 'watch': return 1;
+    case 'clear': return 0;
+  }
+}
+
+function getAffectedEntries(exposures: OpsAssetExposure[]): OpsAssetExposure[] {
+  return exposures.filter((entry) => entry.severity !== 'clear');
+}
+
+function getTopRegion(
+  exposures: OpsAssetExposure[],
+  assets: OpsAsset[],
+): OpsRegion | null {
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const sorted = [...getAffectedEntries(exposures)].sort((left, right) =>
+    severityRank(right.severity) - severityRank(left.severity) || right.score - left.score,
+  );
+
+  return sorted.length > 0
+    ? assetById.get(sorted[0]!.assetId)?.region ?? null
+    : null;
+}
+
+function getTopSeverity(exposures: OpsAssetExposure[]): OpsSeverity {
+  return getAffectedEntries(exposures).reduce<OpsSeverity>(
+    (best, entry) => severityRank(entry.severity) > severityRank(best) ? entry.severity : best,
+    'clear',
+  );
+}
+
+function buildSelectionSummary(reason: SelectedOperationalFocusReason | null, hasEvent: boolean): string {
+  if (!hasEvent) {
+    return 'No operationally significant event selected';
+  }
+
+  switch (reason) {
+    case 'auto-select':
+      return 'Operational focus auto-selected from current incident stream';
+    case 'retain-current':
+      return 'Operational focus retained on the current incident';
+    case 'escalate':
+      return 'Operational focus escalated to a materially stronger incident';
+    case 'no-significant-event':
+    case null:
+      return 'Operational focus active';
+  }
+}
+
+function buildImpactSummary(
+  visibleCount: number,
+  nationalCount: number,
+  hasViewport: boolean,
+): string {
+  if (!hasViewport) {
+    if (nationalCount > 0) {
+      return `${nationalCount} asset${nationalCount === 1 ? '' : 's'} in elevated posture nationwide`;
+    }
+    return 'No assets in elevated posture';
+  }
+
+  if (visibleCount > 0) {
+    return `${visibleCount} visible asset${visibleCount === 1 ? '' : 's'} in elevated posture`;
+  }
+  if (nationalCount > 0) {
+    return `${nationalCount} asset${nationalCount === 1 ? '' : 's'} in elevated posture nationwide`;
+  }
+  return 'No assets in elevated posture';
+}
+
+function buildOperationalOverview(input: {
+  selectionReason: SelectedOperationalFocusReason | null;
+  assets: OpsAsset[];
+  nationalExposureSummary: OpsAssetExposure[];
+  visibleExposureSummary: OpsAssetExposure[];
+  hasEvent: boolean;
+  hasViewport: boolean;
+}): OperationalOverview {
+  const visibleAffected = getAffectedEntries(input.visibleExposureSummary);
+  const nationalAffected = getAffectedEntries(input.nationalExposureSummary);
+
+  return {
+    selectionReason: input.selectionReason,
+    selectionSummary: buildSelectionSummary(input.selectionReason, input.hasEvent),
+    impactSummary: buildImpactSummary(
+      visibleAffected.length,
+      nationalAffected.length,
+      input.hasViewport,
+    ),
+    visibleAffectedAssetCount: visibleAffected.length,
+    nationalAffectedAssetCount: nationalAffected.length,
+    topRegion: getTopRegion(
+      visibleAffected.length > 0 ? visibleAffected : nationalAffected,
+      input.assets,
+    ),
+    topSeverity: getTopSeverity(visibleAffected.length > 0 ? visibleAffected : nationalAffected),
+  };
+}
+
+export function createEmptyServiceReadModel(
+  freshnessStatus: RealtimeStatus,
+  viewport: ViewportState | null = null,
+): ServiceReadModel {
+  return {
+    currentEvent: null,
+    eventTruth: null,
+    viewport,
+    nationalSnapshot: null,
+    systemHealth: buildSystemHealth(freshnessStatus, null),
+    operationalOverview: {
+      selectionReason: null,
+      selectionSummary: 'No operationally significant event selected',
+      impactSummary: 'No assets in elevated posture',
+      visibleAffectedAssetCount: 0,
+      nationalAffectedAssetCount: 0,
+      topRegion: null,
+      topSeverity: 'clear',
+    },
+    nationalExposureSummary: [],
+    visibleExposureSummary: [],
+    nationalPriorityQueue: [],
+    visiblePriorityQueue: [],
+    freshnessStatus,
+  };
 }
 
 function buildOpsSnapshot(input: BuildServiceReadModelInput): OpsSnapshot | null {
@@ -110,16 +294,28 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
   const nationalExposureSummary = input.exposures;
   const nationalPriorityQueue = input.priorities;
   const visibleAssetIds = deriveVisibleAssetIds(input.assets, input.viewport);
+  const eventTruth = buildEventTruth(input.selectedEventEnvelope, input.selectedEventRevisionHistory);
+  const visibleExposureSummary = filterVisibleExposures(input.exposures, visibleAssetIds);
+  const visiblePriorityQueue = filterVisiblePriorities(input.priorities, visibleAssetIds);
 
   return {
     currentEvent: input.selectedEvent,
-    eventTruth: buildEventTruth(input.selectedEventEnvelope, input.selectedEventRevisionHistory),
+    eventTruth,
     viewport: input.viewport ?? null,
     nationalSnapshot: buildOpsSnapshot(input),
+    systemHealth: buildSystemHealth(input.freshnessStatus, eventTruth),
+    operationalOverview: buildOperationalOverview({
+      selectionReason: input.selectionReason ?? null,
+      assets: input.assets,
+      nationalExposureSummary,
+      visibleExposureSummary,
+      hasEvent: input.selectedEvent !== null,
+      hasViewport: Boolean(input.viewport),
+    }),
     nationalExposureSummary,
-    visibleExposureSummary: filterVisibleExposures(input.exposures, visibleAssetIds),
+    visibleExposureSummary,
     nationalPriorityQueue,
-    visiblePriorityQueue: filterVisiblePriorities(input.priorities, visibleAssetIds),
+    visiblePriorityQueue,
     freshnessStatus: input.freshnessStatus,
   };
 }

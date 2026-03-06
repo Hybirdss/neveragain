@@ -19,15 +19,19 @@ function severityBadgeClass(sev: OpsSeverity): string {
   }
 }
 
-function renderEmpty(): string {
+function renderEmpty(message: string): string {
   return `
     <div class="nz-panel" id="nz-check-now">
       <div class="nz-panel__header">
         <span class="nz-panel__title">Check These Now</span>
       </div>
-      <div class="nz-check__empty">All assets in clear posture</div>
+      <div class="nz-check__empty">${message}</div>
     </div>
   `;
+}
+
+export function buildPriorityEmptyMessage(readModel: ServiceReadModel | null): string {
+  return readModel?.operationalOverview.impactSummary ?? 'All assets in clear posture';
 }
 
 function renderPriorities(priorities: OpsPriority[]): string {
@@ -70,9 +74,10 @@ export function selectPriorityQueue(readModel: ServiceReadModel | null): OpsPrio
 
 export function mountCheckTheseNow(container: HTMLElement): () => void {
   function render(): void {
-    const priorities = selectPriorityQueue(consoleStore.get('readModel'));
+    const readModel = consoleStore.get('readModel');
+    const priorities = selectPriorityQueue(readModel);
     if (!priorities || priorities.length === 0) {
-      container.innerHTML = renderEmpty();
+      container.innerHTML = renderEmpty(buildPriorityEmptyMessage(readModel));
     } else {
       container.innerHTML = renderPriorities(priorities);
     }

@@ -18,6 +18,8 @@ export interface SelectedOperationalFocus {
   reason: 'no-significant-event' | 'auto-select' | 'retain-current' | 'escalate';
 }
 
+export type SelectedOperationalFocusReason = SelectedOperationalFocus['reason'];
+
 const OPERATIONAL_MAGNITUDE_THRESHOLD = 4.5;
 const MEDIUM_EVENT_WINDOW_MS = 24 * 60 * 60_000;
 const MAJOR_EVENT_WINDOW_MS = 72 * 60 * 60_000;

@@ -14,6 +14,21 @@ describe('read model backend contracts', () => {
       eventTruth: null,
       viewport: null,
       nationalSnapshot: null,
+      systemHealth: {
+        level: 'nominal',
+        headline: 'Primary realtime feed healthy',
+        detail: 'No source conflicts or realtime degradation detected.',
+        flags: [],
+      },
+      operationalOverview: {
+        selectionReason: null,
+        selectionSummary: 'No operationally significant event selected',
+        impactSummary: 'No assets in elevated posture',
+        visibleAffectedAssetCount: 0,
+        nationalAffectedAssetCount: 0,
+        topRegion: null,
+        topSeverity: 'clear',
+      },
       nationalExposureSummary: [],
       visibleExposureSummary: [],
       nationalPriorityQueue: [],
@@ -28,6 +43,8 @@ describe('read model backend contracts', () => {
 
     expect(model.freshnessStatus.state).toBe('fresh');
     expect(model.eventTruth).toBeNull();
+    expect(model.systemHealth.level).toBe('nominal');
+    expect(model.operationalOverview.topSeverity).toBe('clear');
   });
 
   it('supports replay and scenario state contracts', () => {

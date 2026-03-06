@@ -4,7 +4,7 @@ import { OPS_ASSETS } from '../ops/assetCatalog';
 import { selectOperationalFocusEvent } from '../ops/eventSelection';
 import { buildAssetExposures } from '../ops/exposure';
 import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
-import { buildServiceReadModel } from '../ops/serviceReadModel';
+import { buildServiceReadModel, createEmptyServiceReadModel } from '../ops/serviceReadModel';
 import type { ViewportState as OpsViewportState } from '../ops/types';
 import { buildOpsPriorities } from '../ops/priorities';
 import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '../types';
@@ -53,17 +53,7 @@ export function applyConsoleRealtimeError(input: {
           ...input.readModel,
           freshnessStatus: realtimeStatus,
         }
-      : {
-          currentEvent: null,
-          eventTruth: null,
-          viewport: null,
-          nationalSnapshot: null,
-          nationalExposureSummary: [],
-          visibleExposureSummary: [],
-          nationalPriorityQueue: [],
-          visiblePriorityQueue: [],
-          freshnessStatus: realtimeStatus,
-        },
+      : createEmptyServiceReadModel(realtimeStatus),
   };
 }
 
@@ -161,6 +151,7 @@ export function deriveConsoleOperationalState(
     selectedEvent,
     selectedEventEnvelope: selectedEvent ? earthquakeStore.getEnvelope(selectedEvent.id) ?? null : null,
     selectedEventRevisionHistory: selectedEvent ? [...earthquakeStore.getRevisionHistory(selectedEvent.id)] : [],
+    selectionReason: focus.reason,
     tsunamiAssessment,
     impactResults: null,
     assets: OPS_ASSETS,

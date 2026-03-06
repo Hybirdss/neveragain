@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ServiceReadModel } from '../../ops/readModelTypes';
 import { renderEventSnapshotMarkup } from '../eventSnapshot';
-import { selectExposureSummary } from '../assetExposure';
-import { selectPriorityQueue } from '../checkTheseNow';
+import { buildExposureEmptyMessage, selectExposureSummary } from '../assetExposure';
+import { buildPriorityEmptyMessage, selectPriorityQueue } from '../checkTheseNow';
 
 function createReadModel(overrides: Partial<ServiceReadModel> = {}): ServiceReadModel {
   return {
@@ -50,6 +50,21 @@ function createReadModel(overrides: Partial<ServiceReadModel> = {}): ServiceRead
         faultType: 'interface',
       },
       topImpact: null,
+    },
+    systemHealth: {
+      level: 'watch',
+      headline: 'Conflicting source revisions detected',
+      detail: '2 revisions from server/usgs require operator review.',
+      flags: ['revision-conflict'],
+    },
+    operationalOverview: {
+      selectionReason: 'auto-select',
+      selectionSummary: 'Operational focus auto-selected from current incident stream',
+      impactSummary: '1 visible asset in elevated posture',
+      visibleAffectedAssetCount: 1,
+      nationalAffectedAssetCount: 1,
+      topRegion: 'kanto',
+      topSeverity: 'critical',
     },
     nationalExposureSummary: [
       {
@@ -112,6 +127,51 @@ describe('operator panel selectors', () => {
     expect(markup).toContain('2 revisions');
     expect(markup).toContain('Conflict detected');
     expect(markup).toContain('Data fresh');
+  });
+
+  it('renders operational selection messaging in calm mode when no event is selected', () => {
+    const markup = renderEventSnapshotMarkup({
+      mode: 'calm',
+      selectedEvent: null,
+      readModel: createReadModel({
+        currentEvent: null,
+        eventTruth: null,
+        nationalSnapshot: null,
+        operationalOverview: {
+          selectionReason: null,
+          selectionSummary: 'No operationally significant event selected',
+          impactSummary: 'No assets in elevated posture',
+          visibleAffectedAssetCount: 0,
+          nationalAffectedAssetCount: 0,
+          topRegion: null,
+          topSeverity: 'clear',
+        },
+      }),
+      now: Date.parse('2026-03-06T10:00:00.000Z'),
+    });
+
+    expect(markup).toContain('No operationally significant event selected');
+  });
+
+  it('uses backend-owned overview messaging for empty exposure and priority panels', () => {
+    const readModel = createReadModel({
+      operationalOverview: {
+        selectionReason: null,
+        selectionSummary: 'Operational focus active',
+        impactSummary: '2 assets in elevated posture nationwide',
+        visibleAffectedAssetCount: 0,
+        nationalAffectedAssetCount: 2,
+        topRegion: 'kanto',
+        topSeverity: 'priority',
+      },
+      visibleExposureSummary: [],
+      visiblePriorityQueue: [],
+      nationalExposureSummary: [],
+      nationalPriorityQueue: [],
+    });
+
+    expect(buildExposureEmptyMessage(readModel)).toBe('2 assets in elevated posture nationwide');
+    expect(buildPriorityEmptyMessage(readModel)).toBe('2 assets in elevated posture nationwide');
   });
 
   it('prefers visible exposure summaries and visible priorities when available', () => {

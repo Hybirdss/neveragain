@@ -21,12 +21,14 @@ import { createShell } from './shell';
 import { applyConsoleRealtimeError, deriveConsoleOperationalState } from './consoleOps';
 import { consoleStore } from './store';
 import { buildSystemBarState } from './systemBar';
+import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 import { createLayerCompositor } from '../layers/layerCompositor';
 import { mountEventSnapshot } from '../panels/eventSnapshot';
 import { mountRecentFeed } from '../panels/recentFeed';
 import { mountCheckTheseNow } from '../panels/checkTheseNow';
 import { mountAssetExposure } from '../panels/assetExposure';
 import { fetchEventsWithMeta } from '../namazue/serviceEngine';
+import { createAisManager } from '../data/aisManager';
 import type { RealtimeSource } from '../ops/readModelTypes';
 import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
 
@@ -185,17 +187,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     consoleStore.set('intensityGrid', null);
     consoleStore.set('exposures', []);
     consoleStore.set('priorities', []);
-    consoleStore.set('readModel', {
-      currentEvent: null,
-      eventTruth: null,
-      viewport: null,
-      nationalSnapshot: null,
-      nationalExposureSummary: [],
-      visibleExposureSummary: [],
-      nationalPriorityQueue: [],
-      visiblePriorityQueue: [],
-      freshnessStatus: consoleStore.get('realtimeStatus'),
-    });
+    consoleStore.set('readModel', createEmptyServiceReadModel(consoleStore.get('realtimeStatus')));
     consoleStore.set('mode', 'calm');
   }
 
@@ -256,6 +248,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
         <button class="nz-layer-btn${vis.faults ? ' nz-layer-btn--on' : ''}" data-layer="faults">Faults</button>
         <button class="nz-layer-btn${vis.intensity ? ' nz-layer-btn--on' : ''}" data-layer="intensity">Intensity</button>
         <button class="nz-layer-btn${vis.earthquakes ? ' nz-layer-btn--on' : ''}" data-layer="earthquakes">Quakes</button>
+        <button class="nz-layer-btn${vis.ais ? ' nz-layer-btn--on' : ''}" data-layer="ais">Ships</button>
       </div>
     `;
     // Bind toggle clicks
@@ -294,10 +287,16 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     consoleStore.set('readModel', degraded.readModel);
   }
 
-  // 13. Start on map load
+  // 13. AIS vessel tracking
+  const aisManager = createAisManager((vessels) => {
+    consoleStore.set('vessels', vessels);
+  });
+
+  // 14. Start on map load
   engine.map.once('load', async () => {
     setLoadingProgress(60, 'Map ready, fetching events…');
     compositor.start();
+    aisManager.start();
 
     try {
       await fetchAndSync();
@@ -329,6 +328,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     import.meta.hot.dispose(() => {
       clearInterval(pollTimer);
       document.removeEventListener('keydown', handleKeydown);
+      aisManager.stop();
       compositor.stop();
       disposeSnapshot();
       disposeFeed();

@@ -52,6 +52,7 @@ describe('buildServiceReadModel', () => {
         issuedAt: 1_700_000_002_000,
         receivedAt: 1_700_000_003_000,
       }),
+      selectionReason: 'auto-select',
       tsunamiAssessment: {
         risk: 'moderate',
         confidence: 'high',
@@ -142,6 +143,13 @@ describe('buildServiceReadModel', () => {
     expect(model.nationalPriorityQueue).toHaveLength(2);
     expect(model.visiblePriorityQueue.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
     expect(model.nationalSnapshot?.summary).toMatch(/Sagami corridor/);
+    expect(model.systemHealth.level).toBe('watch');
+    expect(model.systemHealth.flags).toContain('revision-conflict');
+    expect(model.operationalOverview.selectionReason).toBe('auto-select');
+    expect(model.operationalOverview.visibleAffectedAssetCount).toBe(1);
+    expect(model.operationalOverview.nationalAffectedAssetCount).toBe(2);
+    expect(model.operationalOverview.topRegion).toBe('kanto');
+    expect(model.operationalOverview.impactSummary).toMatch(/1 visible asset/);
   });
 
   it('falls back to the national view when visible assets are not provided yet', () => {
@@ -149,6 +157,7 @@ describe('buildServiceReadModel', () => {
       selectedEvent: null,
       selectedEventEnvelope: null,
       selectedEventRevisionHistory: [],
+      selectionReason: null,
       tsunamiAssessment: null,
       impactResults: null,
       assets: [
@@ -193,5 +202,58 @@ describe('buildServiceReadModel', () => {
     expect(model.nationalExposureSummary.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
     expect(model.visibleExposureSummary.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
     expect(model.visiblePriorityQueue.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
+    expect(model.systemHealth.level).toBe('nominal');
+    expect(model.operationalOverview.impactSummary).toMatch(/1 asset in elevated posture nationwide/);
+  });
+
+  it('escalates system health and selection messaging when the realtime feed is degraded', () => {
+    const event = {
+      id: 'eq-2',
+      lat: 24.2,
+      lng: 125.1,
+      depth_km: 10,
+      magnitude: 5.2,
+      time: 1_700_000_000_000,
+      faultType: 'interface' as const,
+      tsunami: false,
+      place: { text: '53 km NW of Hirara, Japan' },
+    };
+
+    const model = buildServiceReadModel({
+      selectedEvent: event,
+      selectedEventEnvelope: buildCanonicalEventEnvelope({
+        event,
+        source: 'usgs',
+        issuedAt: 1_700_000_001_000,
+        receivedAt: 1_700_000_001_500,
+      }),
+      selectedEventRevisionHistory: [],
+      selectionReason: 'auto-select',
+      tsunamiAssessment: null,
+      impactResults: null,
+      assets: [],
+      viewport: {
+        center: { lat: 35.6, lng: 139.7 },
+        zoom: 5.5,
+        bounds: [122, 24, 150, 46],
+        tier: 'national',
+        activeRegion: 'kanto',
+      },
+      exposures: [],
+      priorities: [],
+      freshnessStatus: {
+        source: 'usgs',
+        state: 'degraded',
+        updatedAt: 1_700_000_005_000,
+        staleAfterMs: 60_000,
+        message: 'Running on fallback realtime feed',
+      },
+    });
+
+    expect(model.systemHealth.level).toBe('degraded');
+    expect(model.systemHealth.flags).toContain('fallback-feed');
+    expect(model.operationalOverview.selectionReason).toBe('auto-select');
+    expect(model.operationalOverview.selectionSummary).toMatch(/auto-selected/i);
+    expect(model.operationalOverview.impactSummary).toBe('No assets in elevated posture');
   });
 });
