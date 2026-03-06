@@ -163,6 +163,16 @@ describe('buildServiceReadModel', () => {
       { id: 'affected-assets', label: 'Affected', value: 2, tone: 'priority' },
       { id: 'visible-assets', label: 'Visible', value: 1, tone: 'priority' },
     ]);
+    expect(model.bundleSummaries.lifelines).toMatchObject({
+      metric: 'No lifeline corridors in elevated posture',
+      detail: 'Rail, power, water, and telecom views are standing by for corridor stress.',
+      trust: 'pending',
+    });
+    expect(model.bundleSummaries.medical).toMatchObject({
+      metric: 'No medical access posture shift',
+      detail: 'Medical access and hospital readiness are standing by.',
+      trust: 'pending',
+    });
     expect(model.bundleSummaries.maritime?.metric).toContain('122 tracked');
     expect(model.bundleSummaries.maritime?.detail).toContain('Port of Tokyo');
     expect(model.bundleSummaries.maritime?.counters).toEqual([
@@ -228,6 +238,122 @@ describe('buildServiceReadModel', () => {
     expect(model.bundleSummaries.lifelines?.detail).toContain('standing by');
     expect(model.bundleSummaries.maritime?.trust).toBe('confirmed');
     expect(model.bundleSummaries.maritime?.counters).toEqual([]);
+  });
+
+  it('derives lifeline and medical domain overviews from current priorities when those domains are active', () => {
+    const model = buildServiceReadModel({
+      selectedEvent: {
+        id: 'eq-ops',
+        lat: 35.6,
+        lng: 139.7,
+        depth_km: 18,
+        magnitude: 6.7,
+        time: 1_700_000_000_000,
+        faultType: 'interface',
+        tsunami: false,
+        place: { text: 'Tokyo Bay' },
+      },
+      selectedEventEnvelope: null,
+      selectedEventRevisionHistory: [],
+      selectionReason: 'auto-select',
+      tsunamiAssessment: null,
+      impactResults: null,
+      assets: [
+        {
+          id: 'tokyo-station',
+          region: 'kanto',
+          class: 'rail_hub',
+          name: 'Tokyo Station',
+          lat: 35.68,
+          lng: 139.76,
+          tags: ['rail'],
+          minZoomTier: 'regional',
+        },
+        {
+          id: 'tokyo-univ-hospital',
+          region: 'kanto',
+          class: 'hospital',
+          name: 'University of Tokyo Hospital',
+          lat: 35.71,
+          lng: 139.76,
+          tags: ['medical'],
+          minZoomTier: 'city',
+        },
+      ],
+      viewport: {
+        center: { lat: 35.6, lng: 139.7 },
+        zoom: 9.5,
+        bounds: [138.8, 34.9, 140.1, 36.1],
+        tier: 'regional',
+        activeRegion: 'kanto',
+      },
+      exposures: [
+        {
+          assetId: 'tokyo-station',
+          severity: 'priority',
+          score: 71,
+          summary: 'Tokyo Station is in priority posture.',
+          reasons: ['hub inspection priority'],
+        },
+        {
+          assetId: 'tokyo-univ-hospital',
+          severity: 'watch',
+          score: 48,
+          summary: 'University of Tokyo Hospital is in watch posture.',
+          reasons: ['access route sensitivity'],
+        },
+      ],
+      priorities: [
+        {
+          id: 'priority-tokyo-station',
+          assetId: 'tokyo-station',
+          severity: 'priority',
+          title: 'Inspect Tokyo Station rail hub',
+          rationale: 'Kanto rail hub posture is priority because hub inspection priority.',
+        },
+        {
+          id: 'priority-tokyo-hospital',
+          assetId: 'tokyo-univ-hospital',
+          severity: 'watch',
+          title: 'Confirm University of Tokyo Hospital access posture',
+          rationale: 'Kanto hospital posture is watch because access route sensitivity.',
+        },
+      ],
+      maritimeOverview: null,
+      freshnessStatus: {
+        source: 'server',
+        state: 'fresh',
+        updatedAt: 1_700_000_005_000,
+        staleAfterMs: 60_000,
+      },
+    });
+
+    expect(model.bundleSummaries.lifelines).toMatchObject({
+      metric: '1 corridor check queued',
+      detail: 'Inspect Tokyo Station rail hub',
+      severity: 'priority',
+      availability: 'live',
+      trust: 'confirmed',
+    });
+    expect(model.bundleSummaries.lifelines?.counters).toEqual([
+      { id: 'checks', label: 'Checks', value: 1, tone: 'priority' },
+      { id: 'rail-hubs', label: 'Rail Hubs', value: 1, tone: 'priority' },
+    ]);
+    expect(model.bundleSummaries.lifelines?.signals).toEqual([
+      { id: 'next-check', label: 'Next Check', value: 'Inspect Tokyo Station rail hub', tone: 'priority' },
+      { id: 'lifeline-region', label: 'Region', value: 'Kanto', tone: 'priority' },
+    ]);
+    expect(model.bundleSummaries.medical).toMatchObject({
+      metric: '1 medical access check queued',
+      detail: 'Confirm University of Tokyo Hospital access posture',
+      severity: 'watch',
+      availability: 'live',
+      trust: 'confirmed',
+    });
+    expect(model.bundleSummaries.medical?.signals).toEqual([
+      { id: 'next-check', label: 'Next Check', value: 'Confirm University of Tokyo Hospital access posture', tone: 'watch' },
+      { id: 'medical-region', label: 'Region', value: 'Kanto', tone: 'watch' },
+    ]);
   });
 
   it('escalates system health and selection messaging when the realtime feed is degraded', () => {

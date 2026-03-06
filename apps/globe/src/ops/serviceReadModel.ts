@@ -24,6 +24,7 @@ import {
   buildOperatorBundleSummaries,
   type MaritimeTelemetryOverview,
 } from './bundleSummaries';
+import { buildDefaultBundleDomainOverviews } from './bundleDomainOverviews';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
@@ -398,6 +399,15 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
     : systemHealth.level === 'watch'
       ? 'review'
       : 'confirmed';
+  const bundleDomainOverviews = {
+    ...buildDefaultBundleDomainOverviews({
+      assets: input.assets,
+      exposures: nationalExposureSummary,
+      priorities: nationalPriorityQueue,
+      trustLevel,
+    }),
+    ...input.domainOverviews,
+  };
 
   return {
     currentEvent: input.selectedEvent,
@@ -412,7 +422,7 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
       exposures: input.exposures,
       operationalOverview,
       maritimeOverview: input.maritimeOverview ?? null,
-      domainOverviews: input.domainOverviews,
+      domainOverviews: bundleDomainOverviews,
       trustLevel,
     }),
     nationalExposureSummary,

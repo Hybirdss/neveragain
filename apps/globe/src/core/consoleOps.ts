@@ -3,6 +3,7 @@ import type { Vessel } from '../data/aisManager';
 import { computeIntensityGrid } from '../engine/gmpe';
 import { OPS_ASSETS } from '../ops/assetCatalog';
 import { buildOperatorBundleSummaries } from '../ops/bundleSummaries';
+import { buildDefaultBundleDomainOverviews } from '../ops/bundleDomainOverviews';
 import { selectOperationalFocusEvent } from '../ops/eventSelection';
 import { buildAssetExposures } from '../ops/exposure';
 import type { OpsAsset, OpsAssetExposure } from '../ops/types';
@@ -69,7 +70,11 @@ export function refreshConsoleBundleTruth(input: {
 }): ServiceReadModel {
   const baseReadModel = input.readModel;
   const currentEvent = input.selectedEvent ?? baseReadModel.currentEvent;
-
+  const trustLevel = baseReadModel.systemHealth.level === 'degraded'
+    ? 'degraded'
+    : baseReadModel.systemHealth.level === 'watch'
+      ? 'review'
+      : 'confirmed';
   return {
     ...baseReadModel,
     currentEvent,
@@ -79,11 +84,13 @@ export function refreshConsoleBundleTruth(input: {
       exposures: input.exposures,
       operationalOverview: baseReadModel.operationalOverview,
       maritimeOverview: buildMaritimeOverview(input.vessels),
-      trustLevel: baseReadModel.systemHealth.level === 'degraded'
-        ? 'degraded'
-        : baseReadModel.systemHealth.level === 'watch'
-          ? 'review'
-          : 'confirmed',
+      domainOverviews: buildDefaultBundleDomainOverviews({
+        assets: input.assets,
+        exposures: baseReadModel.nationalExposureSummary,
+        priorities: baseReadModel.nationalPriorityQueue,
+        trustLevel,
+      }),
+      trustLevel,
     }),
     freshnessStatus: input.realtimeStatus,
   };

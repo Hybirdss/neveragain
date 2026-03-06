@@ -175,4 +175,39 @@ describe('deriveConsoleOperationalState', () => {
     expect(refreshed.bundleSummaries.maritime?.metric).toContain('2 tracked');
     expect(refreshed.bundleSummaries.seismic?.metric).toContain('assets');
   });
+
+  it('preserves derived lifeline and medical domain overviews during AIS-only bundle refresh', () => {
+    const derived = deriveConsoleOperationalState({
+      now,
+      events: [
+        createEvent('severe', 6.8, now - 4 * 60_000, { tsunami: true }),
+        createEvent('minor', 4.2, now - 8 * 60_000),
+      ],
+      currentSelectedEventId: null,
+      source: 'server',
+      updatedAt: now,
+      viewport: {
+        center: { lat: 35.68, lng: 139.69 },
+        zoom: 9.2,
+        bounds: [138.8, 34.8, 140.2, 36.2],
+        tier: 'regional',
+        pitch: 0,
+        bearing: 0,
+      },
+    });
+
+    const refreshed = refreshConsoleBundleTruth({
+      readModel: derived.readModel,
+      realtimeStatus: derived.realtimeStatus,
+      selectedEvent: derived.selectedEvent,
+      exposures: derived.exposures,
+      vessels: [],
+      assets: OPS_ASSETS,
+    });
+
+    expect(refreshed.bundleSummaries.lifelines?.signals.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(refreshed.bundleSummaries.medical?.signals.length ?? 0).toBeGreaterThanOrEqual(0);
+    expect(refreshed.bundleSummaries.lifelines?.metric).toBe(derived.readModel.bundleSummaries.lifelines?.metric);
+    expect(refreshed.bundleSummaries.medical?.metric).toBe(derived.readModel.bundleSummaries.medical?.metric);
+  });
 });
