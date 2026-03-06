@@ -1,14 +1,27 @@
-# Namazue Live Development TODO
+# Namazue Backend Development TODO
 
 **Status:** Active  
 **Date:** 2026-03-06
 
-This is the working build order for the new `namazue.dev` service route.
+This is the working backend build order for the new `namazue.dev` service.
 
 ## In Progress
 
-- [ ] Replace static service-root console content with live event-backed snapshot data
-- [ ] Connect `ops.exposures` and `ops.priorities` into the root service shell
+- [ ] Add a first-class service read model for `currentEvent`, `opsSnapshot`, `assetExposureSummary`, `priorityQueue`, and `freshnessStatus`
+- [ ] Publish backend-owned operational truth objects instead of forcing the service shell to assemble them ad hoc
+
+## Next
+
+- [ ] Add realtime health state for source, freshness, fallback mode, and stale thresholds
+- [ ] Add replay milestone derivation for event lock, impact ready, tsunami posture, exposure ready, and priorities published
+- [ ] Add scenario delta contracts for change summary, reordered exposures, reordered priorities, and reason lines
+
+## After That
+
+- [ ] Connect root service shell to backend-owned read models only
+- [ ] Connect replay rail to replay milestones instead of raw timeline timestamps alone
+- [ ] Connect scenario UI to backend-produced deltas instead of view-layer inference
+- [ ] Add selective caching and invalidation for scenario/replay outputs
 
 ## Completed
 
@@ -17,21 +30,53 @@ This is the working build order for the new `namazue.dev` service route.
 - [x] Compute launch asset exposure for ports, rail hubs, and hospitals
 - [x] Generate `Check These Now` priorities from exposure + tsunami posture
 
-## Next
+## Workstreams
 
-- [ ] Add `/lab/architecture` visual layer map tied to real code ownership
-- [ ] Add scenario-shift state model and service-lab delta rendering
+### 1. Service Read Models
 
-## After That
+Primary target:
 
-- [ ] Connect replay rail to actual event timing and known-state updates
-- [ ] Move selected legacy utilities into explicit shared modules only where justified
-- [ ] Add direct lab deep links for all review tabs on the live domain
-- [ ] Start swapping shell placeholder copy for computed operational language
+- `apps/globe/src/ops/serviceReadModel.ts`
+
+Purpose:
+
+- turn store state into service-ready operational objects
+- keep the service route thin
+- stabilize the contract between backend logic and UI
+
+### 2. Realtime Operational Health
+
+Primary targets:
+
+- `apps/globe/src/orchestration/realtimeOrchestrator.ts`
+- `apps/globe/src/data/usgsRealtime.ts`
+- `apps/globe/src/data/earthquakeStore.ts`
+
+Purpose:
+
+- expose source health
+- expose freshness
+- expose degraded/fallback mode
+- make selection and staleness policy explicit
+
+### 3. Replay And Scenario State
+
+Primary targets:
+
+- `apps/globe/src/orchestration/timelineOrchestrator.ts`
+- `apps/globe/src/orchestration/scenarioOrchestrator.ts`
+- `apps/globe/src/ops/`
+
+Purpose:
+
+- derive known-state milestones
+- produce scenario delta objects
+- explain what changed and why
 
 ## Guardrails
 
-- Root route stays product-first.
-- Review and documentation surfaces stay behind `/lab`.
-- Legacy globe remains available behind `/legacy` until the new console can replace it on merit.
-- Every new product behavior should land with a focused test first.
+- Root route stays service-first.
+- `/lab` may inspect backend state, but it must not define backend truth.
+- Legacy globe remains isolated behind `/legacy`.
+- Every new backend contract should land with a focused pure test first.
+- UI should read `serviceReadModel`, not reconstruct backend meaning from scattered store fields.

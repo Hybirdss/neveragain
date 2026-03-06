@@ -8,6 +8,13 @@ These are the only product/design documents that should drive new work.
 - `product/earthquake-ops-os-implementation-plan.md`
 - `product/live-development-todo.md`
 
+Current execution focus inside `product/live-development-todo.md` is backend-first:
+
+- service read models
+- realtime health and freshness
+- replay milestones
+- scenario delta contracts
+
 ## Design Review Surface
 
 - `review/console-review-design.md`
