@@ -27,8 +27,11 @@ import { mountEventSnapshot } from '../panels/eventSnapshot';
 import { mountRecentFeed } from '../panels/recentFeed';
 import { mountCheckTheseNow } from '../panels/checkTheseNow';
 import { mountAssetExposure } from '../panels/assetExposure';
+import { mountMaritimeExposure } from '../panels/maritimeExposure';
 import { fetchEventsWithMeta } from '../namazue/serviceEngine';
 import { createAisManager } from '../data/aisManager';
+import { formatVesselTooltip } from '../layers/aisLayer';
+import type { Vessel } from '../data/aisManager';
 import type { RealtimeSource } from '../ops/readModelTypes';
 import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
 
@@ -130,7 +133,21 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   shell.leftRail.appendChild(expoContainer);
   const disposeExpo = mountAssetExposure(expoContainer);
 
+  const maritimeContainer = document.createElement('div');
+  shell.leftRail.appendChild(maritimeContainer);
+  const disposeMaritime = mountMaritimeExposure(maritimeContainer);
+
   const disposeCheck = mountCheckTheseNow(shell.rightRail);
+
+  // 6a. Tooltip — vessel hover details
+  engine.setTooltip((info) => {
+    if (info.layer?.id === 'ais-vessels' && info.object) {
+      const vessel = info.object as Vessel;
+      const selected = consoleStore.get('selectedEvent');
+      return { html: formatVesselTooltip(vessel, selected) };
+    }
+    return null;
+  });
 
   // 6. Picking — earthquakes, faults, empty space
   engine.onClick((info) => {
@@ -333,6 +350,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       disposeSnapshot();
       disposeFeed();
       disposeExpo();
+      disposeMaritime();
       disposeCheck();
       viewport.dispose();
       engine.dispose();

@@ -596,6 +596,106 @@
   margin-top: 1px;
 }
 
+/* ── Maritime Exposure Panel ──────────────────────────────── */
+
+.nz-maritime__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-maritime__count--alert {
+  color: var(--nz-critical);
+  font-weight: 600;
+}
+
+.nz-maritime__summary {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+  margin-bottom: 8px;
+}
+
+.nz-maritime__breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nz-maritime__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.nz-maritime__type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nz-maritime__type-label {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+  flex: 1;
+}
+
+.nz-maritime__type-count {
+  font-family: var(--nz-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  min-width: 20px;
+  text-align: right;
+}
+
+.nz-maritime__type-sev {
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.nz-maritime__row--critical .nz-maritime__type-sev {
+  color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.nz-maritime__row--priority .nz-maritime__type-sev {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-maritime__total {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--nz-panel-border);
+}
+
+/* ── Deck.gl Tooltip Override ────────────────────────────── */
+
+.deck-tooltip {
+  font-family: var(--nz-font-ui);
+  font-size: 12px;
+  color: var(--nz-text-primary);
+  background: rgba(10, 14, 20, 0.92) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--nz-panel-border) !important;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  max-width: 280px;
+  pointer-events: none;
+  z-index: 20;
+  line-height: 1.4;
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 
 @media (max-width: 1024px) {

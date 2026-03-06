@@ -9,6 +9,7 @@ import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
 import type { ViewportState } from './viewportManager';
 import type { OpsAssetExposure, OpsPriority } from '../ops/types';
 import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
+import type { Vessel } from '../data/aisManager';
 
 // ── Console State ──────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ export interface ConsoleState {
   readModel: ServiceReadModel | null;
   realtimeStatus: RealtimeStatus;
   intensityGrid: IntensityGrid | null;
+  vessels: Vessel[];
   faults: ActiveFault[];
   layerVisibility: Record<string, boolean>;
   panelsVisible: boolean;
@@ -93,13 +95,14 @@ const initialState: ConsoleState = {
     staleAfterMs: 60_000,
   },
   intensityGrid: null,
+  vessels: [],
   faults: [],
   layerVisibility: {
     earthquakes: true,
     intensity: true,
     faults: true,
     buildings: false,
-    ais: false,
+    ais: true,
     rail: false,
     power: false,
   },

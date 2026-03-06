@@ -17,12 +17,14 @@ const DEFAULT_PITCH = 0;
 const DEFAULT_BEARING = 0;
 
 export type PickHandler = (info: PickingInfo) => void;
+export type TooltipHandler = (info: PickingInfo) => string | { html: string; style?: Record<string, string> } | null;
 
 export interface MapEngine {
   map: maplibregl.Map;
   overlay: MapboxOverlay;
   setLayers(layers: Layer[]): void;
   onClick(handler: PickHandler): void;
+  setTooltip(handler: TooltipHandler): void;
   dispose(): void;
 }
 
@@ -54,6 +56,7 @@ export function createMapEngine(container: HTMLElement): MapEngine {
   map.dragRotate.disable();
 
   let clickHandler: PickHandler | null = null;
+  let tooltipHandler: TooltipHandler | null = null;
 
   const overlay = new MapboxOverlay({
     interleaved: true,
@@ -61,6 +64,10 @@ export function createMapEngine(container: HTMLElement): MapEngine {
     layers: [],
     onClick: (info) => {
       if (clickHandler) clickHandler(info as PickingInfo);
+    },
+    getTooltip: (info) => {
+      if (tooltipHandler) return tooltipHandler(info as PickingInfo);
+      return null;
     },
   } as ConstructorParameters<typeof MapboxOverlay>[0]);
 
@@ -85,5 +92,9 @@ export function createMapEngine(container: HTMLElement): MapEngine {
     clickHandler = handler;
   }
 
-  return { map, overlay, setLayers, onClick, dispose };
+  function setTooltip(handler: TooltipHandler): void {
+    tooltipHandler = handler;
+  }
+
+  return { map, overlay, setLayers, onClick, setTooltip, dispose };
 }

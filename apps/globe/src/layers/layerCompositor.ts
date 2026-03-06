@@ -28,7 +28,9 @@ import { updateWaveData, createWaveLayers, type WaveSource } from './waveLayer';
 import { createAssetLayers } from './assetLayer';
 import { createIntensityLayer } from './intensityLayer';
 import { createFaultLayer } from './faultLayer';
+import { createAisLayers } from './aisLayer';
 import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
+import type { Vessel } from '../data/aisManager';
 import type { OpsAssetExposure } from '../ops/types';
 
 // ── Wave Source Extraction ─────────────────────────────────────
@@ -68,16 +70,20 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let exposures: OpsAssetExposure[] = [];
   let intensityGrid: IntensityGrid | null = null;
   let faults: ActiveFault[] = [];
+  let vessels: Vessel[] = [];
+  let selectedEvent: EarthquakeEvent | null = null;
 
   // Layer instances — only recreated when needed
   let earthquakeLayer: Layer | null = null;
   let assetLayers: Layer[] = [];
   let intensityLayer: Layer | null = null;
   let faultLayer: Layer | null = null;
+  let aisLayers: Layer[] = [];
   let dirtyEarthquake = true;
   let dirtyAssets = true;
   let dirtyIntensity = true;
   let dirtyFaults = true;
+  let dirtyAis = true;
 
   // Timing
   let lastWaveUpdate = 0;
@@ -93,7 +99,9 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
   const unsubSelected = consoleStore.subscribe('selectedEvent', (event) => {
     selectedId = event?.id ?? null;
+    selectedEvent = event;
     dirtyEarthquake = true;
+    dirtyAis = true; // impact zone highlighting
   });
 
   const unsubExposures = consoleStore.subscribe('exposures', (exp) => {
@@ -115,6 +123,11 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     dirtyFaults = true;
   });
 
+  const unsubVessels = consoleStore.subscribe('vessels', (v) => {
+    vessels = v;
+    dirtyAis = true;
+  });
+
   // ── Render loop ──────────────────────────────────────────────
 
   function tick(): void {
@@ -127,7 +140,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     const vis = consoleStore.get('layerVisibility');
 
     // Layer order (bottom to top):
-    // 1. Faults  2. Intensity  3. Earthquakes  4. Assets  5. Waves
+    // 1. Faults  2. Intensity  3. AIS  4. Earthquakes  5. Assets  6. Waves
 
     if (dirtyFaults) {
       faultLayer = createFaultLayer(faults);
@@ -143,6 +156,14 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     }
     if (intensityLayer && vis.intensity) {
       layers.push(intensityLayer);
+    }
+
+    if (dirtyAis) {
+      aisLayers = createAisLayers(vessels, selectedEvent);
+      dirtyAis = false;
+    }
+    if (vis.ais) {
+      layers.push(...aisLayers);
     }
 
     if (dirtyEarthquake) {
@@ -186,10 +207,13 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       exposures = consoleStore.get('exposures');
       intensityGrid = consoleStore.get('intensityGrid');
       faults = consoleStore.get('faults');
+      vessels = consoleStore.get('vessels');
+      selectedEvent = consoleStore.get('selectedEvent');
       dirtyEarthquake = true;
       dirtyAssets = true;
       dirtyIntensity = true;
       dirtyFaults = true;
+      dirtyAis = true;
       lastWaveUpdate = 0;
       tick();
     },
@@ -206,6 +230,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       unsubViewport();
       unsubIntensity();
       unsubFaults();
+      unsubVessels();
     },
   };
 }
