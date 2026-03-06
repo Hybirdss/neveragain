@@ -18,7 +18,7 @@ import './console.css';
 import { createMapEngine } from './mapEngine';
 import { createViewportManager, type ViewportState } from './viewportManager';
 import { createShell } from './shell';
-import { deriveConsoleOperationalState } from './consoleOps';
+import { applyConsoleRealtimeError, deriveConsoleOperationalState } from './consoleOps';
 import { consoleStore } from './store';
 import { buildSystemBarState } from './systemBar';
 import { createLayerCompositor } from '../layers/layerCompositor';
@@ -104,7 +104,9 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     updateBottomBar(state);
     if (consoleStore.get('events').length > 0) {
       syncOperationalTruth();
+      return;
     }
+    updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
   });
 
   // 4. Compositor
@@ -219,6 +221,12 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   consoleStore.subscribe('events', (events) => {
     updateSystemBar(consoleStore.get('mode'), events.length);
   });
+  consoleStore.subscribe('readModel', () => {
+    updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
+  });
+  consoleStore.subscribe('realtimeStatus', () => {
+    updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
+  });
 
   function updateSystemBar(mode: string, eventCount: number): void {
     const state = buildSystemBarState({
@@ -274,6 +282,18 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     syncOperationalTruth();
   }
 
+  function syncRealtimeError(error: unknown): void {
+    const degraded = applyConsoleRealtimeError({
+      now: Date.now(),
+      source: lastFetchSource,
+      updatedAt: lastUpdatedAt || Date.now(),
+      message: error instanceof Error ? error.message : 'Realtime poll failed',
+      readModel: consoleStore.get('readModel'),
+    });
+    consoleStore.set('realtimeStatus', degraded.realtimeStatus);
+    consoleStore.set('readModel', degraded.readModel);
+  }
+
   // 13. Start on map load
   engine.map.once('load', async () => {
     setLoadingProgress(60, 'Map ready, fetching events…');
@@ -284,6 +304,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       setLoadingProgress(90, `${consoleStore.get('events').length} events loaded`);
     } catch (err) {
       console.error('[console] Initial fetch failed:', err);
+      syncRealtimeError(err);
       setLoadingProgress(90, 'Using cached data…');
     }
 
@@ -297,8 +318,9 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const pollTimer = setInterval(async () => {
     try {
       await fetchAndSync();
-    } catch {
-      // Silent retry
+    } catch (err) {
+      console.error('[console] Poll failed:', err);
+      syncRealtimeError(err);
     }
   }, 60_000);
 

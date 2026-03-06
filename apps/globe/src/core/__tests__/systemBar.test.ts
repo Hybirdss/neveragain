@@ -85,4 +85,38 @@ describe('buildSystemBarState', () => {
     expect(state.statusText).toContain('usgs degraded');
     expect(state.statusMode).toBe('calm');
   });
+
+  it('shows an explicit degraded status message when realtime health drops', () => {
+    const state = buildSystemBarState({
+      mode: 'event',
+      eventCount: 1,
+      readModel,
+      realtimeStatus: {
+        source: 'server',
+        state: 'degraded',
+        updatedAt: 0,
+        staleAfterMs: 60_000,
+        message: 'Realtime poll failed',
+      },
+    });
+
+    expect(state.statusText).toContain('server degraded');
+  });
+
+  it('falls back to Japan at national zoom even if the viewport center is in Kanto', () => {
+    const state = buildSystemBarState({
+      mode: 'event',
+      eventCount: 4,
+      readModel: {
+        ...readModel,
+        viewport: {
+          ...readModel.viewport!,
+          tier: 'national',
+        },
+      },
+      realtimeStatus,
+    });
+
+    expect(state.regionLabel).toBe('Japan');
+  });
 });

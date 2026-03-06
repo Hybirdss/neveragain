@@ -57,6 +57,7 @@ export function createMapEngine(container: HTMLElement): MapEngine {
 
   const overlay = new MapboxOverlay({
     interleaved: true,
+    pickingRadius: 8,
     layers: [],
     onClick: (info) => {
       if (clickHandler) clickHandler(info as PickingInfo);

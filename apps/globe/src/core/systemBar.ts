@@ -36,8 +36,13 @@ export function buildSystemBarState(input: {
     parts.push('conflict');
   }
 
+  const region =
+    input.readModel?.viewport?.tier === 'national'
+      ? null
+      : input.readModel?.viewport?.activeRegion;
+
   return {
-    regionLabel: formatRegionLabel(input.readModel?.viewport?.activeRegion),
+    regionLabel: formatRegionLabel(region),
     statusText: parts.join(' · '),
     statusMode: input.mode,
   };

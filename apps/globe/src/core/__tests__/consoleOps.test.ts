@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { EarthquakeEvent } from '../../types';
 import { earthquakeStore } from '../../data/earthquakeStore';
-import { deriveConsoleOperationalState } from '../consoleOps';
+import { applyConsoleRealtimeError, deriveConsoleOperationalState } from '../consoleOps';
 
 function createEvent(
   id: string,
@@ -81,5 +81,36 @@ describe('deriveConsoleOperationalState', () => {
     expect(result.readModel.visibleExposureSummary.length).toBeGreaterThan(0);
     expect(result.readModel.visiblePriorityQueue.length).toBeGreaterThan(0);
     expect(result.readModel.viewport?.activeRegion).toBe('kanto');
+  });
+
+  it('preserves the current read model while degrading freshness on realtime errors', () => {
+    const derived = deriveConsoleOperationalState({
+      now,
+      events: [createEvent('severe', 6.8, now - 4 * 60_000, { tsunami: true })],
+      currentSelectedEventId: null,
+      source: 'server',
+      updatedAt: now,
+      viewport: {
+        center: { lat: 35.68, lng: 139.69 },
+        zoom: 9.2,
+        bounds: [138.8, 34.8, 140.2, 36.2],
+        tier: 'regional',
+        pitch: 0,
+        bearing: 0,
+      },
+    });
+
+    const degraded = applyConsoleRealtimeError({
+      now: now + 30_000,
+      source: 'server',
+      updatedAt: now,
+      message: 'Realtime poll failed',
+      readModel: derived.readModel,
+    });
+
+    expect(degraded.realtimeStatus.state).toBe('degraded');
+    expect(degraded.realtimeStatus.message).toBe('Realtime poll failed');
+    expect(degraded.readModel.currentEvent?.id).toBe('severe');
+    expect(degraded.readModel.freshnessStatus.state).toBe('degraded');
   });
 });

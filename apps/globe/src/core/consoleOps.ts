@@ -30,6 +30,43 @@ export interface ConsoleOperationalState {
   realtimeStatus: RealtimeStatus;
 }
 
+export function applyConsoleRealtimeError(input: {
+  now: number;
+  source: RealtimeSource;
+  updatedAt: number;
+  message: string;
+  readModel: ServiceReadModel | null;
+}): Pick<ConsoleOperationalState, 'readModel' | 'realtimeStatus'> {
+  const realtimeStatus = deriveRealtimeStatus({
+    source: input.source,
+    updatedAt: input.updatedAt,
+    now: input.now,
+    staleAfterMs: STALE_AFTER_MS,
+    fallbackActive: input.source !== 'server',
+    networkError: input.message,
+  });
+
+  return {
+    realtimeStatus,
+    readModel: input.readModel
+      ? {
+          ...input.readModel,
+          freshnessStatus: realtimeStatus,
+        }
+      : {
+          currentEvent: null,
+          eventTruth: null,
+          viewport: null,
+          nationalSnapshot: null,
+          nationalExposureSummary: [],
+          visibleExposureSummary: [],
+          nationalPriorityQueue: [],
+          visiblePriorityQueue: [],
+          freshnessStatus: realtimeStatus,
+        },
+  };
+}
+
 const STALE_AFTER_MS = 60_000;
 
 function classifyRegion(lat: number, lng: number): OpsViewportState['activeRegion'] {

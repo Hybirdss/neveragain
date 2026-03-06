@@ -136,4 +136,53 @@ describe('selectOperationalFocusEvent', () => {
     expect(result.selectedEventId).toBe('severe');
     expect(result.reason).toBe('escalate');
   });
+
+  it('does not keep stale medium events active after the operational window expires', () => {
+    const result = selectOperationalFocusEvent({
+      now,
+      currentSelectedEventId: null,
+      candidates: [
+        {
+          event: createEvent('stale-medium', 5.9, now - 4 * 24 * 60 * 60_000),
+          envelope: createEnvelope(
+            createEvent('stale-medium', 5.9, now - 4 * 24 * 60 * 60_000),
+            'server',
+            now - 4 * 24 * 60 * 60_000 + 5_000,
+          ),
+          revisionHistory: [],
+        },
+        {
+          event: createEvent('recent-watch', 4.6, now - 3 * 60 * 60_000),
+          envelope: createEnvelope(
+            createEvent('recent-watch', 4.6, now - 3 * 60 * 60_000),
+            'server',
+            now - 3 * 60 * 60_000 + 5_000,
+          ),
+          revisionHistory: [],
+        },
+      ],
+    });
+
+    expect(result.selectedEventId).toBe('recent-watch');
+    expect(result.reason).toBe('auto-select');
+  });
+
+  it('allows a major tsunami event to remain eligible beyond the normal medium-event window', () => {
+    const major = createEvent('major-tsunami', 7.4, now - 48 * 60 * 60_000, { tsunami: true });
+
+    const result = selectOperationalFocusEvent({
+      now,
+      currentSelectedEventId: null,
+      candidates: [
+        {
+          event: major,
+          envelope: createEnvelope(major, 'server', major.time + 5_000),
+          revisionHistory: [],
+        },
+      ],
+    });
+
+    expect(result.selectedEventId).toBe('major-tsunami');
+    expect(result.reason).toBe('auto-select');
+  });
 });

@@ -155,6 +155,7 @@ export function mountEventSnapshot(container: HTMLElement): () => void {
   const unsub1 = consoleStore.subscribe('selectedEvent', render);
   const unsub2 = consoleStore.subscribe('mode', render);
   const unsub3 = consoleStore.subscribe('readModel', render);
+  const unsub4 = consoleStore.subscribe('realtimeStatus', render);
 
   // Refresh time labels every 30s
   const timer = setInterval(render, 30_000);
@@ -163,6 +164,7 @@ export function mountEventSnapshot(container: HTMLElement): () => void {
     unsub1();
     unsub2();
     unsub3();
+    unsub4();
     clearInterval(timer);
   };
 }

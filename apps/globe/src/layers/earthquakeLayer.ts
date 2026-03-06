@@ -27,7 +27,7 @@ function depthColor(depth_km: number): RGBA {
 }
 
 function magToRadius(mag: number): number {
-  return Math.max(2, 3 * Math.pow(2, mag - 3));
+  return Math.max(4, 3.5 * Math.pow(2, mag - 3));
 }
 
 export function createEarthquakeLayer(
@@ -38,10 +38,13 @@ export function createEarthquakeLayer(
     id: 'earthquakes',
     data: events,
     pickable: true,
+    autoHighlight: true,
+    highlightColor: [125, 211, 252, 180],
     stroked: true,
     filled: true,
     radiusUnits: 'pixels',
     lineWidthUnits: 'pixels',
+    radiusMinPixels: 4,
     // radiusScale is animated externally by compositor — uniform, ~0 cost
     radiusScale: 1,
 

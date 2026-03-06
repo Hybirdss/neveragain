@@ -19,10 +19,19 @@ export interface SelectedOperationalFocus {
 }
 
 const OPERATIONAL_MAGNITUDE_THRESHOLD = 4.5;
+const MEDIUM_EVENT_WINDOW_MS = 24 * 60 * 60_000;
+const MAJOR_EVENT_WINDOW_MS = 72 * 60 * 60_000;
+const MAJOR_EVENT_MAGNITUDE_THRESHOLD = 6.8;
 const ESCALATION_MARGIN = 18;
 
-function isSignificantEvent(event: EarthquakeEvent): boolean {
-  return event.magnitude >= OPERATIONAL_MAGNITUDE_THRESHOLD || event.tsunami;
+function isSignificantEvent(now: number, event: EarthquakeEvent): boolean {
+  const ageMs = Math.max(0, now - event.time);
+
+  if (event.tsunami || event.magnitude >= MAJOR_EVENT_MAGNITUDE_THRESHOLD) {
+    return ageMs <= MAJOR_EVENT_WINDOW_MS;
+  }
+
+  return event.magnitude >= OPERATIONAL_MAGNITUDE_THRESHOLD && ageMs <= MEDIUM_EVENT_WINDOW_MS;
 }
 
 function scoreCandidate(now: number, candidate: EventSelectionCandidate): number {
@@ -50,7 +59,9 @@ function scoreCandidate(now: number, candidate: EventSelectionCandidate): number
 export function selectOperationalFocusEvent(
   input: SelectOperationalFocusEventInput,
 ): SelectedOperationalFocus {
-  const significantCandidates = input.candidates.filter((candidate) => isSignificantEvent(candidate.event));
+  const significantCandidates = input.candidates.filter((candidate) =>
+    isSignificantEvent(input.now, candidate.event),
+  );
   if (significantCandidates.length === 0) {
     return { selectedEventId: null, reason: 'no-significant-event' };
   }

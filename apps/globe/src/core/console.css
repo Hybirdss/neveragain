@@ -276,6 +276,13 @@
   color: var(--nz-text-secondary);
 }
 
+.nz-snap__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
 .nz-snap__coords {
   font-family: var(--nz-font-mono);
   font-size: 10px;
