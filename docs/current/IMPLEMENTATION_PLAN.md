@@ -210,7 +210,38 @@ Get the first real operational map online.
 
 ---
 
-## Phase 7 — Operator Panels
+## Phase 7 — Operator Control Surface
+
+### Outcome
+
+Prevent the product from collapsing into per-layer toggle spam as domains grow.
+
+### Tasks
+
+- introduce `layerRegistry`
+- introduce `bundleRegistry`
+- define bundle metadata and operator view presets
+- build bottom dock as bundle switcher, not raw layer buttons
+- build bundle drawer with summary + per-bundle layer controls
+- keep layer toggles scoped inside the selected bundle only
+
+### Files
+
+- `apps/globe/src/layers/layerRegistry.ts`
+- `apps/globe/src/layers/bundleRegistry.ts`
+- `apps/globe/src/panels/layerControl.ts`
+- `apps/globe/src/panels/panelSystem.ts`
+- `apps/globe/src/core/bootstrap.ts`
+- `apps/globe/src/core/store.ts`
+
+### Exit Criteria
+
+- root route has bundle-first control with no raw checkbox wall
+- new data domains can plug in without rewriting the shell
+
+---
+
+## Phase 8 — Operator Panels
 
 ### Outcome
 
@@ -222,6 +253,7 @@ Move from a map demo to a usable console.
 - event snapshot
 - asset exposure
 - check these now
+- bundle summary panels
 - replay rail
 
 ### Files
@@ -230,16 +262,18 @@ Move from a map demo to a usable console.
 - `apps/globe/src/panels/eventSnapshot.ts`
 - `apps/globe/src/panels/assetExposure.ts`
 - `apps/globe/src/panels/checkTheseNow.ts`
+- `apps/globe/src/panels/maritimeExposure.ts`
 - `apps/globe/src/panels/replayRail.ts`
 - `apps/globe/src/core/panelSystem.ts`
 
 ### Exit Criteria
 
 - root route reads like an operations console, not a map viewer
+- panels summarize bundles instead of mirroring every individual layer
 
 ---
 
-## Phase 8 — 3D Buildings Spike
+## Phase 9 — 3D Buildings Spike
 
 ### Outcome
 
@@ -262,7 +296,7 @@ Validate whether PLATEAU should be a first-class renderer path or a city-tier en
 
 ---
 
-## Phase 9 — Infrastructure Layers
+## Phase 10 — Infrastructure Layers
 
 ### Outcome
 
@@ -273,17 +307,20 @@ Turn the console into living infrastructure, not just seismic visualization.
 - AIS layer contract and first live rendering
 - rail network contract and regional rendering
 - power topology contract and static rendering
+- medical + lifeline bundles can mount more layers without shell rewrites
 
 ### Files
 
 - `apps/globe/src/layers/ais/index.ts`
 - `apps/globe/src/layers/rail/index.ts`
 - `apps/globe/src/layers/power/index.ts`
+- `apps/globe/src/layers/layerRegistry.ts`
+- `apps/globe/src/layers/bundleRegistry.ts`
 - supporting normalized feed contracts
 
 ---
 
-## Phase 10 — Replay And Scenario
+## Phase 11 — Replay And Scenario
 
 ### Outcome
 
@@ -303,7 +340,7 @@ Finish the product’s high-value interaction layer.
 
 ---
 
-## Phase 11 — Performance And Reliability
+## Phase 12 — Performance And Reliability
 
 ### Outcome
 
@@ -315,6 +352,7 @@ Make the product operationally credible.
 - add `updateTriggers` where required
 - reduce unnecessary picking
 - add layer-level density policies
+- add bundle-level density policies
 - add cache and invalidation rules for scenario/replay outputs
 - validate degraded realtime states in shell behavior
 
@@ -324,11 +362,11 @@ Make the product operationally credible.
 
 If continuing implementation right now, do this next:
 
-1. add viewport and zoom-tier contracts
-2. expand asset metadata from metro to region
-3. remove metro-specific priority text
-4. upgrade backend read model shape
-5. build the MapLibre + Deck shell
+1. lock bundle-first control architecture
+2. add `layerRegistry` and `bundleRegistry`
+3. move bottom controls from raw layer toggles to bundle switching
+4. add bundle summary panels
+5. continue infrastructure domains inside the registry model
 
 ---
 

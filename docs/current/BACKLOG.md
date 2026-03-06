@@ -14,25 +14,24 @@ Refit the existing backend foundation for the Japan-wide, viewport-driven consol
 
 ## In Progress
 
-- [ ] Refactor `ops` contracts from metro-scoped to Japan-scoped
 - [ ] Define viewport-aware backend contracts that the frontend can consume without inventing logic
+- [ ] Upgrade `serviceReadModel` to distinguish national snapshot vs visible/viewport summary
 
 ---
 
 ## Next
 
-- [ ] Replace `LaunchMetro` and metro-local asset helpers with region-aware asset contracts
-- [ ] Expand `ops/assetCatalog.ts` from 6 demo assets to a nationwide starter catalog
-- [ ] Remove metro-specific text generation from `ops/priorities.ts`
-- [ ] Upgrade `serviceReadModel` to distinguish national snapshot vs visible/viewport summary
-- [ ] Add `ViewportState` and zoom-tier helper contracts to shared types
+- [ ] Add backend-owned bundle summary contracts for maritime, lifelines, medical, and built-environment panels
+- [ ] Add normalized feed contracts for AIS, rail, and power layers
+- [ ] Add visible-asset filtering helpers keyed by bounds and zoom tier
+- [ ] Connect replay rail to backend-owned milestone bundles on the new shell
+- [ ] Connect scenario UI to backend-produced scenario deltas only
+- [ ] Add cache/invalidation policy for replay/scenario outputs
 
 ---
 
 ## After That
 
-- [ ] Add normalized feed contracts for AIS, rail, and power layers
-- [ ] Add visible-asset filtering helpers keyed by bounds and zoom tier
 - [ ] Connect replay rail to backend-owned milestone bundles on the new shell
 - [ ] Connect scenario UI to backend-produced scenario deltas only
 - [ ] Add cache/invalidation policy for replay/scenario outputs
@@ -47,6 +46,11 @@ Refit the existing backend foundation for the Japan-wide, viewport-driven consol
 - [x] Added scenario delta derivation
 - [x] Added service selector boundary so UI can consume a backend bundle
 - [x] Added scenario shift producer path for backend what-if state transitions
+- [x] Refactored `ops` contracts from metro-scoped to Japan-scoped (regions + nationwide)
+- [x] Replaced `LaunchMetro` asset helpers with `getRegionAssets()`
+- [x] Expanded `ops/assetCatalog.ts` from 6 → 30 assets (all 8 regions)
+- [x] Removed metro-specific text from `ops/priorities.ts`
+- [x] Added `ViewportState`, `ZoomTier`, `OpsRegion` to shared types
 
 ---
 
@@ -54,6 +58,7 @@ Refit the existing backend foundation for the Japan-wide, viewport-driven consol
 
 - Do not rebuild operational meaning in the frontend.
 - Do not couple backend contracts to MapLibre, Deck.gl, or panel placement.
+- Do not let frontend bundle drawers invent their own summaries from raw layer payloads.
 - Do not keep Tokyo/Osaka assumptions in shared ops types.
 - Do not block on final feed integrations before defining contracts.
 - Prefer renderer-agnostic, testable pure functions in `ops/`.

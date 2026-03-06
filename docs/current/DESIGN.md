@@ -118,6 +118,63 @@ No city/metro selection. The camera position determines what loads.
  0. MapLibre           Dark vector base
 ```
 
+### Operator Control Model
+
+The operator does **not** manage raw layers first.
+
+That fails immediately once maritime, medical, lifelines, buildings, power,
+water, telecom, and future layers begin stacking.
+
+The product control model is:
+
+```text
+data source -> layer plugin -> bundle -> operator view
+```
+
+- `data source` = AIS, ODPT, PLATEAU, J-SHIS, hospital registry, power grid
+- `layer plugin` = the renderer implementation unit
+- `bundle` = the user-facing control unit
+- `operator view` = a saved composition of bundles, density rules, and panels
+
+This is a hard architectural rule. The console must never turn into a wall of
+checkboxes.
+
+### Bundle-First UX
+
+The default user-facing units are bundles:
+
+| Bundle | Purpose | Typical Contents |
+|--------|---------|------------------|
+| `Seismic` | event truth and hazard propagation | epicenters, wave rings, intensity, faults, tsunami |
+| `Maritime` | coastal and vessel operations | AIS vessels, trails, ports, coastal posture |
+| `Lifelines` | network stress and corridor failure | power, water, telecom, key corridors |
+| `Medical` | emergency access and hospital posture | hospitals, access routes, emergency hubs |
+| `Built Environment` | city-scale structural exposure | PLATEAU buildings, districts, density stress |
+
+Operators first switch bundles, then drill into layers inside the selected
+bundle only.
+
+### Operator View Presets
+
+Bundles are still not the highest UX unit.
+
+The highest unit is an operator view preset:
+
+- `National Impact`
+- `Coastal Operations`
+- `Rail Stress`
+- `Medical Access`
+- `Built Environment`
+
+Each operator view preset declares:
+- which bundles start visible
+- which bundle is primary
+- which panels are mounted
+- which density policy applies at each zoom tier
+
+This is what makes the product feel like an operational console rather than a
+GIS settings surface.
+
 ---
 
 ## Data Sources
@@ -186,8 +243,8 @@ Fullscreen map. Everything else floats.
 | Asset  |                             | Analyst       |
 | Expo   |                             | Note          |
 |        |                             |               |
-+--------+------[layer ctrl]-----------+---------------+
-| [replay rail]  --*------*-------*------*--           |
++--------+------[ops dock / bundle ctrl]-+---------------+
+| [replay rail]  --*------*-------*------*-- [views]   |
 +------------------------------------------------------+
 ```
 
@@ -198,6 +255,49 @@ Fullscreen map. Everything else floats.
 - `Tab` key hides all panels -> fullscreen map only
 - Panels update by focus (click earthquake, click asset, etc.)
 - Navigation by focus, not by page
+
+### Dock Rules
+
+The bottom dock is **not** a raw layer toggle strip.
+
+It has 3 responsibilities only:
+
+1. viewport telemetry
+2. bundle switching
+3. quick operator actions
+
+The control flow is:
+
+- click `Seismic`, `Maritime`, `Lifelines`, `Medical`, or `Built Environment`
+- open the bundle drawer
+- inside that drawer, adjust only the layers, legends, density, and summaries
+  for that bundle
+
+### Bundle Drawer
+
+The bundle drawer is the scalable control surface.
+
+Each bundle drawer must contain:
+
+- bundle status header
+  - title
+  - freshness
+  - affected count
+  - severity state
+- bundle summary
+  - what changed
+  - why it matters
+- layer modules
+  - visible toggle
+  - density toggle
+  - legend / unit
+  - quick inspect action
+- bundle-specific quick actions
+  - maritime: ports only / all vessels / hazardous vessels
+  - medical: hospitals only / access stress / emergency hubs
+  - lifelines: power only / water only / all corridors
+
+New domains fit inside this drawer without changing the shell grammar.
 
 ### URL Structure
 
@@ -222,14 +322,11 @@ The operations intelligence pipeline is already built and valid:
 - `ops/focus.ts` — Calm/event state selection
 - `engine/gmpe.ts` — GMPE core (pure math, no renderer dependency)
 
-### Asset Catalog Expansion
+### Asset Catalog
 
-Currently 6 assets (3 Tokyo, 3 Osaka). Expand to cover all major Japanese infrastructure:
-
-- Major ports: Tokyo, Yokohama, Kobe, Osaka, Nagoya, Hakata, etc.
-- Rail hubs: Tokyo Station, Shin-Osaka, Nagoya, Hakata, Sapporo, Sendai, etc.
-- Hospitals: Major medical centers in each region
-- Organize by region: kanto, kansai, chubu, kyushu, hokkaido, tohoku, chugoku, shikoku
+30 assets across 10 regions (port + rail hub + hospital per region):
+kanto, kansai, chubu, kyushu, hokkaido, tohoku, chugoku, shikoku.
+Each asset has lat/lng for map placement and `minZoomTier` for LOD.
 
 ---
 
@@ -281,6 +378,25 @@ Every screen has exactly 3 visual layers. This is non-negotiable.
 - THIS is the conclusion of the screen
 - Always answers: "what do I check first?"
 
+### Information Hierarchy
+
+The console must remain calm even when the system becomes information-dense.
+
+The hierarchy is:
+
+1. `truth`
+   - current event, source confidence, system health
+2. `impact`
+   - what is changing in the physical world
+3. `operations`
+   - what assets, corridors, and facilities are affected
+4. `controls`
+   - which bundle or operator view is active
+5. `details`
+   - legends, raw values, hover tooltips, secondary metrics
+
+The product fails if controls become louder than truth.
+
 ### Motion
 
 - Still by default
@@ -320,12 +436,17 @@ apps/globe/src/
     aisLayer.ts                    ScatterplotLayer (ships)
     railLayer.ts                   PathLayer + positions
     layerCompositor.ts             Orchestrator + animation loop
+    layerRegistry.ts               Layer plugin metadata + registration
+    bundleRegistry.ts              Bundle definitions and operator views
 
   panels/                        HUD-style floating panels
     eventSnapshot.ts               Current situation at a glance
     recentFeed.ts                  Compact earthquake list
     checkTheseNow.ts               Priority action queue
     assetExposure.ts               Asset severity display
+    maritimeExposure.ts            Bundle summary panel for maritime
+    layerControl.ts                Bundle drawer + layer control modules
+    panelSystem.ts                 Slot-aware panel mounting and visibility
 
   ops/                           Operational domain (keep + expand)
   engine/                        GMPE engine (keep as-is)
@@ -339,15 +460,60 @@ interface DataLayer {
   id: string;
   name: string;
   category: 'base' | 'hazard' | 'infra' | 'realtime';
+  bundle: 'seismic' | 'maritime' | 'lifelines' | 'medical' | 'built-environment';
 
   init(ctx: LayerContext): void;
   getLayers(state: AppState): DeckLayer[];
   dispose(): void;
 
   getDefaultVisible(): boolean;
+  getDefaultDensity?(): 'low' | 'medium' | 'high';
+  getSummary?(state: AppState): LayerSummary | null;
+  getLegend?(): LayerLegend | null;
   onEvent?(event: SeismicEvent): void;
 }
 ```
+
+### Bundle Registry
+
+```typescript
+interface LayerBundle {
+  id: 'seismic' | 'maritime' | 'lifelines' | 'medical' | 'built-environment';
+  label: string;
+  description: string;
+  layerIds: string[];
+  panelIds: string[];
+  defaultExpanded: boolean;
+  quickActions?: BundleQuickAction[];
+}
+```
+
+### Operator View Registry
+
+```typescript
+interface OperatorViewPreset {
+  id: string;
+  label: string;
+  primaryBundle: LayerBundle['id'];
+  activeBundles: LayerBundle['id'][];
+  panelIds: string[];
+  zoomDensityPolicy: Partial<Record<ZoomTier, 'low' | 'medium' | 'high'>>;
+}
+```
+
+### Panel Philosophy
+
+Panels are not one-per-layer.
+
+Panels summarize operational meaning by bundle:
+
+- `Maritime Exposure`
+- `Medical Access`
+- `Lifeline Stress`
+- `Built Environment`
+
+If adding one layer requires adding one panel every time, the architecture is
+wrong.
 
 ### Panel Slot System
 
@@ -373,15 +539,16 @@ interface PanelModule {
 |-------|-------|------------|
 | P0 | Core runtime | mapEngine + MapboxOverlay, viewportManager, consoleStore, shell |
 | P1 | Wave + dots | Earthquake ScatterplotLayer, P/S-wave ring animation, pulse |
-| P2 | HUD panels | Event snapshot, recent feed, system bar, bottom bar info |
+| P2 | HUD panels | Event snapshot, recent feed, system bar, bottom dock telemetry |
 | P3 | Intensity | HeatmapLayer from GMPE, ink-in-water spread animation |
 | P4 | Faults + hazard | GeoJsonLayer for active faults, J-SHIS hazard tiles |
 | P5 | PLATEAU spike | Tile3DLayer risk validation: load/memory/z-order/color |
-| P6 | AIS ships | ScatterplotLayer real-time via AISstream WebSocket |
-| P7 | Rail network | PathLayer + ODPT positions, corridor stress view |
-| P8 | Ops panels | Check These Now, asset exposure, action queue |
-| P9 | Replay + scenario | Timeline scrub, scenario shift, split comparison |
-| P10 | Performance | Stable data refs, updateTriggers, picking policy, FPS gate |
+| P6 | Bundle control | layerRegistry, bundleRegistry, bundle drawer, operator views |
+| P7 | AIS ships | ScatterplotLayer real-time via AISstream WebSocket |
+| P8 | Rail network | PathLayer + ODPT positions, corridor stress view |
+| P9 | Ops panels | Check These Now, asset exposure, bundle summaries |
+| P10 | Replay + scenario | Timeline scrub, scenario shift, split comparison |
+| P11 | Performance | Stable data refs, updateTriggers, picking policy, FPS gate |
 
 Build order note: P5 (PLATEAU) is a spike, not a commitment. If Tile3DLayer
 proves too heavy, buildings become city-tier progressive enhancement only.
@@ -396,6 +563,7 @@ proves too heavy, buildings become city-tier progressive enhancement only.
 - Agency-specific workflow engines
 - Cinematic over-design (glow, bloom, neon, spring physics)
 - All layers visible simultaneously
+- Raw layer checkbox walls
 - Dashboard-card layout (this is a HUD, not a dashboard)
 - 3D buildings as default (city-tier only, progressive enhancement)
 
@@ -407,4 +575,5 @@ proves too heavy, buildings become city-tier progressive enhancement only.
 4. Buildings change color by computed intensity
 5. "Check These Now" populates with ordered nationwide priorities
 6. Scenario shift visibly recomputes consequences on the map
-7. Adding a new data layer = one plugin file, zero core changes
+7. Adding a new data layer = one plugin file + one bundle registration, zero shell rewrites
+8. Operators can switch bundles and views without losing spatial context
