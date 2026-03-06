@@ -29,6 +29,7 @@ import { shouldFetchOnClick } from '../ai/tierRouter';
 import { HISTORICAL_PRESETS } from '../engine/presets';
 import { startWaveAnimation, stopWaveAnimation } from './waveOrchestrator';
 import { hideTooltip } from '../ui/tooltip';
+import { resolvePresetAfterSelectionChange } from './expertPresetGuard';
 
 let skipNextFlyTo = false;
 
@@ -60,8 +61,19 @@ export function initSelectionOrchestrator(
 
   // selectedEvent → GMPE + ShakeMap + camera + waves + AI
   let selectedEventVersion = 0;
+  let previousSelectedEventId: string | null = null;
   unsubs.push(store.subscribe('selectedEvent', async (event: EarthquakeEvent | null) => {
     const myVersion = ++selectedEventVersion;
+    const currentPreset = store.get('viewPreset');
+    const normalizedPreset = resolvePresetAfterSelectionChange({
+      currentPreset,
+      previousSelectedId: previousSelectedEventId,
+      nextSelectedId: event?.id ?? null,
+    });
+    previousSelectedEventId = event?.id ?? null;
+    if (normalizedPreset !== currentPreset) {
+      store.set('viewPreset', normalizedPreset);
+    }
 
     // Always hide tooltip (may have been shown by globe click for a different event)
     hideTooltip();

@@ -27,9 +27,6 @@ export function initKeyboardShortcuts(): () => void {
       case 's':
         store.set('viewPreset', 'shakemap');
         break;
-      case 'x':
-        store.set('viewPreset', 'crossSection');
-        break;
       case 'escape':
         store.set('viewPreset', 'default');
         break;

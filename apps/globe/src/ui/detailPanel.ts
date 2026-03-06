@@ -5,6 +5,7 @@ import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
 import { buildAnalysisSection, disposeAnalysisPanel, updateAnalysis } from './analysisPanel';
 import { createHelpButton } from './intensityGuide';
 import { buildDetailSummary, buildTrustSummary, deriveTsunamiAssessmentFromEvent } from './presentation';
+import { canActivateCrossSection } from '../orchestration/expertPresetGuard';
 
 let detailPanel: HTMLElement;
 let headlineEl: HTMLElement;
@@ -132,7 +133,17 @@ function buildDetailDOM(): HTMLElement {
   advancedToolsSummaryEl = el('summary', 'detail-tools__summary', uiText('tools'));
   const actions = el('div', 'detail-actions');
   crossSectionBtn = el('button', 'detail-action-btn', t('detail.crossSection'));
-  crossSectionBtn.addEventListener('click', () => store.set('viewPreset', 'crossSection'));
+  crossSectionBtn.addEventListener('click', () => {
+    const selectedEvent = store.get('selectedEvent');
+    if (!canActivateCrossSection({
+      selectedEventId: selectedEvent?.id ?? null,
+      magnitude: selectedEvent?.magnitude ?? null,
+      advancedToolsOpen: advancedToolsEl.open,
+    })) {
+      return;
+    }
+    store.set('viewPreset', 'crossSection');
+  });
   actions.appendChild(crossSectionBtn);
   advancedToolsEl.append(advancedToolsSummaryEl, actions);
   detailPanel.appendChild(advancedToolsEl);

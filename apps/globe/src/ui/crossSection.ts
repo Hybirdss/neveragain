@@ -66,6 +66,7 @@ let headerInfoEl: HTMLElement | null = null;
 let footerEl: HTMLElement | null = null;
 let titleEl: HTMLElement | null = null;
 let globeRef: GlobeInstance | null = null;
+let mountContainerEl: HTMLElement | null = null;
 let isOpen = false;
 
 let projectedPoints: (ProjectedPoint & { screenX: number; screenY: number })[] = [];
@@ -108,9 +109,13 @@ const DISCONTINUITIES = [
 
 export function initCrossSection(container: HTMLElement, globe: GlobeInstance): void {
   globeRef = globe;
+  mountContainerEl = container;
 
   overlayEl = document.createElement('div');
   overlayEl.className = 'cross-section-overlay';
+  overlayEl.hidden = true;
+  overlayEl.setAttribute('aria-hidden', 'true');
+  overlayEl.inert = true;
 
   // Header
   const header = document.createElement('div');
@@ -149,8 +154,6 @@ export function initCrossSection(container: HTMLElement, globe: GlobeInstance): 
   footerEl.className = 'cross-section-overlay__footer';
   overlayEl.appendChild(footerEl);
 
-  container.appendChild(overlayEl);
-
   // Hover
   canvasEl.addEventListener('mousemove', handleCanvasHover);
   mouseLeaveHandler = () => {
@@ -184,6 +187,9 @@ export function showCrossSection(
   events: EarthquakeEvent[],
 ): void {
   if (!overlayEl || !canvasEl || !globeRef) return;
+  if (!overlayEl.isConnected) {
+    mountContainerEl?.appendChild(overlayEl);
+  }
 
   const config = autoGenerateCrossSectionConfig(earthquake);
   const totalDist = haversineDistance(
@@ -224,6 +230,9 @@ export function showCrossSection(
     setTimeout(() => {
       if (myVersion !== showVersion) return;
       isOpen = true;
+      overlayEl!.hidden = false;
+      overlayEl!.setAttribute('aria-hidden', 'false');
+      overlayEl!.inert = false;
       overlayEl!.classList.add('cross-section-overlay--open');
       startPulseAnimation();
       requestAnimationFrame(() => {
@@ -238,7 +247,11 @@ export function hideCrossSection(): void {
   ++showVersion; // Cancel any in-flight showCrossSection async chain
   isOpen = false;
   overlayEl.classList.remove('cross-section-overlay--open');
+  overlayEl.hidden = true;
+  overlayEl.setAttribute('aria-hidden', 'true');
+  overlayEl.inert = true;
   stopPulseAnimation();
+  overlayEl.remove();
 }
 
 export function isCrossSectionOpen(): boolean {
@@ -279,6 +292,7 @@ export function disposeCrossSection(): void {
   footerEl = null;
   titleEl = null;
   globeRef = null;
+  mountContainerEl = null;
   isOpen = false;
   projectedPoints = [];
   hoveredIndex = -1;

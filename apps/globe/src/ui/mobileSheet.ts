@@ -13,6 +13,7 @@ import type { EarthquakeEvent } from '../types';
 import { store } from '../store/appState';
 import { getLocale, t, onLocaleChange } from '../i18n/index';
 import { getLiveFeedEvents } from './liveFeed';
+import { resolvePresetForMobileSnap } from '../orchestration/expertPresetGuard';
 import {
   buildHeroSummary,
   buildStatusSummary,
@@ -104,6 +105,14 @@ function setSheetPosition(height: number, animate = true): void {
 
 function snapTo(snap: SnapPoint): void {
   currentSnap = snap;
+  const currentPreset = store.get('viewPreset');
+  const normalizedPreset = resolvePresetForMobileSnap({
+    currentPreset,
+    snap,
+  });
+  if (normalizedPreset !== currentPreset) {
+    store.set('viewPreset', normalizedPreset);
+  }
   setSheetPosition(getSnapHeight(snap), true);
 }
 
