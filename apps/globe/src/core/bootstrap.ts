@@ -113,6 +113,9 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   let lastFetchSource: RealtimeSource = 'server';
   let lastUpdatedAt = 0;
 
+  // 0. Parse deep link BEFORE MapLibre init (hash:true overwrites the URL hash)
+  const deepLink = parseDeepLink();
+
   // 1. Shell
   const shell = createShell(root);
 
@@ -505,7 +508,6 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     }
 
     // Deep link: select event from URL (/event/{id})
-    const deepLink = parseDeepLink();
     if (deepLink.eventId) {
       const match = consoleStore.get('events').find((e) => e.id === deepLink.eventId);
       if (match) selectEvent(match);

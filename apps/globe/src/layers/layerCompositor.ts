@@ -157,11 +157,14 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     const bundleSettings: BundleSettings = consoleStore.get('bundleSettings');
 
     // 1. Factory layers (ordered by factory.order)
+    const intensityAnimActive = intensityAnimEpicenter != null && intensityAnimStart > 0;
     for (const factory of LAYER_FACTORIES) {
       if (dirty.get(factory.id)) {
         cache.set(factory.id, factory.create(consoleStore.getState()));
         dirty.set(factory.id, false);
       }
+      // Skip intensity push during animation — step 1b handles it
+      if (factory.id === 'intensity' && intensityAnimActive) continue;
       if (isLayerEffectivelyVisible(factory.id, vis[factory.id], bundleSettings)) {
         const cached = cache.get(factory.id);
         if (cached) layers.push(...cached);
@@ -169,18 +172,22 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     }
 
     // 1b. Intensity ink-in-water animation override (TIER 2: 50ms interval)
-    if (intensityAnimEpicenter && intensityAnimStart > 0) {
+    if (intensityAnimActive) {
       const elapsed = now - intensityAnimStart;
       if (elapsed < INTENSITY_ANIM_DURATION) {
-        // Only rebuild every INTENSITY_ANIM_INTERVAL ms
         if (now - lastIntensityAnimUpdate >= INTENSITY_ANIM_INTERVAL) {
           const revealRadiusKm = (elapsed / 1000) * INTENSITY_SPREAD_SPEED;
           const grid = consoleStore.get('intensityGrid');
           if (grid) {
-            const animLayer = createIntensityLayer(grid, intensityAnimEpicenter, revealRadiusKm);
+            const animLayer = createIntensityLayer(grid, intensityAnimEpicenter!, revealRadiusKm);
             cache.set('intensity', animLayer ? [animLayer] : []);
             lastIntensityAnimUpdate = now;
           }
+        }
+        // Push animated intensity if visible
+        if (isLayerEffectivelyVisible('intensity', vis['intensity'], bundleSettings)) {
+          const cached = cache.get('intensity');
+          if (cached) layers.push(...cached);
         }
       } else {
         // Animation complete — final full render (no animation params)
@@ -188,6 +195,13 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
         intensityAnimStart = 0;
         intensityAnimEpicenter = null;
         lastIntensityAnimUpdate = 0;
+        // Rebuild and push immediately
+        cache.set('intensity', LAYER_FACTORIES.find((f) => f.id === 'intensity')!.create(consoleStore.getState()));
+        dirty.set('intensity', false);
+        if (isLayerEffectivelyVisible('intensity', vis['intensity'], bundleSettings)) {
+          const cached = cache.get('intensity');
+          if (cached) layers.push(...cached);
+        }
       }
     }
 
