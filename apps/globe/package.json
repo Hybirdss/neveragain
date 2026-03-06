@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:service-boundary": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:entry-routing": "vitest run src/core/__tests__/entryRouting.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

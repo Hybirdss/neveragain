@@ -1,28 +1,61 @@
-import { resolveAppRoute } from './namazue/routeModel';
+import { resolveAppRoute, type AppRoute } from './namazue/routeModel';
 
-async function start(): Promise<void> {
-  const route = resolveAppRoute(window.location.pathname);
+export interface EntryRouteLoaders {
+  service(appRoot: HTMLElement): Promise<void>;
+  legacy(): Promise<void>;
+  lab(): Promise<void>;
+}
 
-  if (route === 'legacy') {
+export const DEFAULT_ENTRY_ROUTE_LOADERS: EntryRouteLoaders = {
+  async service(appRoot) {
+    const { bootstrapConsole } = await import('./core/bootstrap');
+    await bootstrapConsole(appRoot);
+  },
+  async legacy() {
     const { bootstrapLegacyApp, registerLegacyServiceWorker } = await import('./main');
     registerLegacyServiceWorker();
     await bootstrapLegacyApp();
+  },
+  async lab() {
+    const { bootstrapNamazueApp } = await import('./namazue/app');
+    bootstrapNamazueApp('lab');
+  },
+};
+
+export async function runEntryRoute(
+  route: AppRoute,
+  options: {
+    appRoot?: HTMLElement | null;
+    loaders?: Partial<EntryRouteLoaders>;
+  } = {},
+): Promise<void> {
+  const loaders: EntryRouteLoaders = {
+    ...DEFAULT_ENTRY_ROUTE_LOADERS,
+    ...options.loaders,
+  };
+
+  if (route === 'legacy') {
+    await loaders.legacy();
     return;
   }
 
   if (route === 'lab') {
-    const { bootstrapNamazueApp } = await import('./namazue/app');
-    bootstrapNamazueApp(route);
+    await loaders.lab();
     return;
   }
 
-  // Default: new spatial console
-  const app = document.getElementById('app');
+  const app = options.appRoot ?? document.getElementById('app');
   if (!app) throw new Error('Missing #app root');
-  const { bootstrapConsole } = await import('./core/bootstrap');
-  await bootstrapConsole(app);
+  await loaders.service(app);
 }
 
-start().catch((error) => {
-  console.error('[namazue] entry bootstrap failed:', error);
-});
+export async function start(): Promise<void> {
+  const route = resolveAppRoute(window.location.pathname);
+  await runEntryRoute(route);
+}
+
+if (typeof window !== 'undefined') {
+  void start().catch((error) => {
+    console.error('[namazue] entry bootstrap failed:', error);
+  });
+}

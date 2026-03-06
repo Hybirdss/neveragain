@@ -8,8 +8,52 @@ export default defineConfig({
     cesiumBuildPath: resolve(__dirname, '../../node_modules/cesium/Build/Cesium'),
   })],
   optimizeDeps: {
+    exclude: ['cesium'],
     esbuildOptions: {
       sourcemap: 'inline',
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            id.includes('/src/main.ts') ||
+            id.includes('/src/globe/') ||
+            id.includes('/src/bootstrap/') ||
+            id.includes('/node_modules/cesium/')
+          ) {
+            return 'legacy-route';
+          }
+
+          if (
+            id.includes('/src/namazue/serviceEngine.ts')
+          ) {
+            return 'service-route';
+          }
+
+          if (id.includes('/src/namazue/routeModel.ts')) {
+            return 'route-shared';
+          }
+
+          if (id.includes('/src/namazue/')) {
+            return 'lab-route';
+          }
+
+          if (
+            id.includes('/src/core/') ||
+            id.includes('/src/layers/') ||
+            id.includes('/src/panels/') ||
+            id.includes('/src/ops/') ||
+            id.includes('/node_modules/maplibre-gl/') ||
+            id.includes('/node_modules/@deck.gl/')
+          ) {
+            return 'service-route';
+          }
+
+          return undefined;
+        },
+      },
     },
   },
   // COOP/COEP disabled — blocks MapTiler tile loading.
