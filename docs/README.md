@@ -5,6 +5,8 @@
 Single source of truth for the current `namazue.dev` direction.
 
 - **`docs/current/DESIGN.md`** — The authoritative design document
+- **`docs/current/BACKEND.md`** — Backend architecture companion to the design
+- **`docs/current/BACKLOG.md`** — Active backend execution order
 
 This defines the approved product direction:
 
@@ -49,5 +51,7 @@ Operational reports and deployment records.
 ## Rule of Thumb
 
 If it defines what `namazue.dev` should become now: `docs/current/DESIGN.md`.
+
+If it defines how backend contracts and execution should follow that design: `docs/current/BACKEND.md` and `docs/current/BACKLOG.md`.
 
 Everything else is either reference material or legacy.

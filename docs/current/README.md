@@ -4,6 +4,11 @@ The only authoritative product document is:
 
 **`DESIGN.md`**
 
+Companion current documents:
+
+- **`BACKEND.md`** — backend ownership, contracts, and migration guidance
+- **`BACKLOG.md`** — execution order for backend work aligned to the new design
+
 ## Key Decisions
 
 - **Renderer**: MapLibre GL JS + Deck.gl (not CesiumJS)
@@ -31,3 +36,4 @@ The new direction is:
 - Japan-wide with viewport-driven detail loading
 - Fullscreen map with floating overlay panels
 - Operator-grade spatial intelligence console
+- Backend-owned operational truth with viewport-aware contracts
