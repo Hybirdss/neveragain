@@ -13,6 +13,10 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "paths": {
+      "@namazue/db": ["../../packages/db/index.ts"],
+      "@namazue/db/*": ["../../packages/db/*"]
+    },
 
     /* Linting */
     "strict": true,

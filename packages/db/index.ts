@@ -5,3 +5,4 @@ export * from './analysisAiHints.ts';
 export * from './analysisNormalization.ts';
 export * from './analysisConsumption.ts';
 export * from './maritime.ts';
+export * from './runtimeGovernor.ts';
