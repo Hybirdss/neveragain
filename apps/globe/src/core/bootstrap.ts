@@ -564,7 +564,16 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       ...consoleStore.get('dataFreshness'),
       usgs: Date.now(),
     });
-    syncOperationalTruth();
+
+    // In scenario mode with a scenario event selected, preserve the selection.
+    // Without this, the ops focus algorithm would auto-select a real earthquake
+    // and override the user's scenario choice on every poll cycle.
+    const selected = consoleStore.get('selectedEvent');
+    if (consoleStore.get('scenarioMode') && selected?.id.startsWith('scenario-')) {
+      syncOperationalTruth(selected);
+    } else {
+      syncOperationalTruth();
+    }
   }
 
   function syncRealtimeError(error: unknown): void {
