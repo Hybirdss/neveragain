@@ -387,3 +387,61 @@ git commit -m "docs(plans): record operator latency optimization verification"
 - When implementing density degradation, prefer removing optional detail rather
   than muting the primary truth surfaces.
 - Do not let frontend heuristics become the final source for queue language.
+
+## Verification Results
+
+Executed on 2026-03-07 after Tasks 1-7 completed in the isolated worktree.
+
+Targeted verification:
+
+```bash
+npm test -w @namazue/globe -- operatorLatency bootstrapPhases runtimeGovernor layerCompositorGovernor operatorActionSurface consequenceTruthContracts entryRouting
+```
+
+Result:
+
+- `7` files passed
+- `23` tests passed
+
+Full suite:
+
+```bash
+npm test -w @namazue/globe
+```
+
+Result:
+
+- `39` files passed
+- `151` tests passed
+
+Production build:
+
+```bash
+npm run build -w @namazue/globe
+```
+
+Result:
+
+- passed in `13.60s`
+- no new critical warnings
+- known warning remains from loaders.gl browser external handling of `spawn`
+
+Route chunk outputs:
+
+- `service-route`: `1,947.23 kB` raw / `529.08 kB` gzip
+- `lab-route`: `38.36 kB` raw / `10.93 kB` gzip
+- `legacy-route`: `4,346.49 kB` raw / `1,201.88 kB` gzip
+- `route-shared`: `0.43 kB` raw / `0.30 kB` gzip
+
+Implementation notes:
+
+- Task 2 landed with explicit first-truth versus secondary-surface bootstrap phases.
+- Task 3 and Task 4 introduced governor-managed effective density and compositor rebuild/suppression wiring.
+- Task 5 removed top-action duplication across the snapshot, queue, and bundle drawer.
+- Task 6 made consequence metadata explicit and marked impact-zone math as visual-only heuristic support.
+- Task 7 isolated route execution into a pure runner and removed the manual-chunk circular warning by splitting `route-shared`.
+
+Remaining debt:
+
+- `service-route` size is still above the intended load budget and needs deeper dependency separation.
+- legacy Cesium dependencies still live in the same workspace package even though route loading is now isolated.

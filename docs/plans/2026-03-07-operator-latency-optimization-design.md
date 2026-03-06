@@ -239,3 +239,31 @@ contracts.
 - adding visual spectacle that increases reading cost
 - shipping richer heuristics in the frontend instead of fixing consequence
   ownership properly
+
+## Verification Snapshot
+
+Verified on 2026-03-07 in the isolated worktree implementation branch.
+
+- targeted operator-latency suite: `23/23` tests passing
+- full `@namazue/globe` suite: `151/151` tests passing
+- production build: passing
+
+Measured route build outputs:
+
+- `service-route`: `1,947.23 kB` raw / `529.08 kB` gzip
+- `lab-route`: `38.36 kB` raw / `10.93 kB` gzip
+- `legacy-route`: `4,346.49 kB` raw / `1,201.88 kB` gzip
+- `route-shared`: `0.43 kB` raw / `0.30 kB` gzip
+
+Observed outcomes:
+
+- service startup now has an explicit route runner and no Node/test-time browser bootstrap side effect
+- runtime governor contracts are wired through compositor visibility and density rebuild paths
+- truth surfaces now keep confidence/freshness/reason separate from ranked action copy
+- consequence metadata is explicit on queue and bundle contracts, and impact-zone math is marked visual-only
+
+Remaining debt:
+
+- `service-route` payload is still too large for the load-budget target and needs deeper code splitting or dependency separation
+- Cesium remains in the package surface even though the default route is no longer legacy
+- the known loaders.gl browser warning about `spawn` remains during production build
