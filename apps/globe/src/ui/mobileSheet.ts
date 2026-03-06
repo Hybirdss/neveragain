@@ -54,6 +54,7 @@ let unsubTimeline: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
 let unsubAi: (() => void) | null = null;
 let unsubTsunami: (() => void) | null = null;
+let unsubFocus: (() => void) | null = null;
 let peekTimerId: ReturnType<typeof setInterval> | null = null;
 
 // ── Helpers ──
@@ -221,6 +222,7 @@ function onBodyTouchStart(e: TouchEvent): void {
 function updatePeekSummary(event: EarthquakeEvent | null): void {
   peekEl.innerHTML = '';
   const locale = getLocale();
+  const focusLocation = store.get('focusLocation');
 
   if (event) {
     const ai = store.get('ai');
@@ -228,6 +230,7 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
       event,
       analysis: ai.currentAnalysis,
       tsunamiAssessment: store.get('tsunamiAssessment') ?? deriveTsunamiAssessmentFromEvent(event),
+      focusLocation,
       locale,
       isLoading: ai.analysisLoading,
     });
@@ -238,6 +241,14 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
     peekEl.appendChild(headerRow);
 
     peekEl.appendChild(el('div', 'peek__summary-text', summary.message));
+    if (summary.relevance) {
+      const relevanceRow = el('div', 'peek__relevance');
+      relevanceRow.appendChild(el('span', 'peek__relevance-title', summary.relevance.title));
+      for (const chip of summary.relevance.chips.slice(0, 2)) {
+        relevanceRow.appendChild(el('span', 'peek__relevance-chip', chip));
+      }
+      peekEl.appendChild(relevanceRow);
+    }
     const metaRow = el('div', 'peek__meta-row');
     metaRow.appendChild(el('span', 'peek__meta', `${summary.place} · ${summary.relativeTime}`));
     if (summary.tsunami) {
@@ -258,6 +269,7 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
       event: heroEvent,
       analysis: null,
       tsunamiAssessment: deriveTsunamiAssessmentFromEvent(heroEvent),
+      focusLocation,
       locale,
     });
 
@@ -280,6 +292,14 @@ function updatePeekSummary(event: EarthquakeEvent | null): void {
     peekEl.appendChild(summaryRow);
 
     peekEl.appendChild(el('div', 'peek__summary-text', summary.message));
+    if (summary.relevance) {
+      const relevanceRow = el('div', 'peek__relevance');
+      relevanceRow.appendChild(el('span', 'peek__relevance-title', summary.relevance.title));
+      for (const chip of summary.relevance.chips.slice(0, 2)) {
+        relevanceRow.appendChild(el('span', 'peek__relevance-chip', chip));
+      }
+      peekEl.appendChild(relevanceRow);
+    }
 
     const metaRow = el('div', 'peek__meta-row');
     metaRow.appendChild(el('span', 'peek__meta', summary.place));
@@ -387,6 +407,10 @@ export function initMobileSheet(): SheetContainers {
     const selected = store.get('selectedEvent');
     updatePeekSummary(selected);
   });
+  unsubFocus = store.subscribe('focusLocation', () => {
+    const selected = store.get('selectedEvent');
+    updatePeekSummary(selected);
+  });
 
   return {
     listContainer: listEl,
@@ -405,6 +429,8 @@ export function disposeMobileSheet(): void {
   unsubAi = null;
   unsubTsunami?.();
   unsubTsunami = null;
+  unsubFocus?.();
+  unsubFocus = null;
   if (peekTimerId) { clearInterval(peekTimerId); peekTimerId = null; }
   sheetRevealed = false;
   // Clean up drag listeners that may still be active mid-drag

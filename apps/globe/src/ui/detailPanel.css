@@ -83,6 +83,11 @@
   color: var(--text-secondary);
 }
 
+.detail-card--relevance {
+  border-left: 3px solid transparent;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+}
+
 .detail-card {
   margin-top: 12px;
   padding: 12px 14px;

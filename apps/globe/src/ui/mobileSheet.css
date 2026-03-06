@@ -186,6 +186,28 @@
     color: var(--text-secondary);
   }
 
+  .peek__relevance {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .peek__relevance-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  .peek__relevance-chip {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-disabled);
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
   .peek__time {
     font-family: var(--font-mono);
     font-size: var(--text-xs);

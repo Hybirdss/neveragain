@@ -1,7 +1,7 @@
 import { computeGmpe } from '../engine/gmpe';
 import { t, onLocaleChange, getLocale } from '../i18n/index';
 import { store } from '../store/appState';
-import type { EarthquakeEvent, IntensitySource, JmaClass } from '../types';
+import { getJmaColor, type EarthquakeEvent, type IntensitySource, type JmaClass } from '../types';
 import { buildAnalysisSection, disposeAnalysisPanel, updateAnalysis } from './analysisPanel';
 import { createHelpButton } from './intensityGuide';
 import { buildDetailSummary, buildTrustSummary, deriveTsunamiAssessmentFromEvent } from './presentation';
@@ -12,6 +12,10 @@ let headlineEl: HTMLElement;
 let metaEl: HTMLElement;
 let trustChipsEl: HTMLElement;
 let summaryEl: HTMLElement;
+let relevanceCardEl: HTMLElement;
+let relevanceTitleEl: HTMLElement;
+let relevanceDetailEl: HTMLElement;
+let relevanceChipsEl: HTMLElement;
 let intensityTitleEl: HTMLElement;
 let intensityValueEl: HTMLElement;
 let intensityMeaningEl: HTMLElement;
@@ -30,6 +34,7 @@ let unsubSelected: (() => void) | null = null;
 let unsubAi: (() => void) | null = null;
 let unsubIntensity: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
+let unsubFocus: (() => void) | null = null;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -97,6 +102,13 @@ function buildDetailDOM(): HTMLElement {
   summaryEl = el('div', 'detail-panel__summary');
   summaryCard.append(headlineEl, metaEl, trustChipsEl, summaryEl);
   detailPanel.appendChild(summaryCard);
+
+  relevanceCardEl = el('div', 'detail-card detail-card--relevance');
+  relevanceTitleEl = el('div', 'detail-card__title');
+  relevanceDetailEl = el('div', 'detail-card__description');
+  relevanceChipsEl = el('div', 'detail-panel__trust');
+  relevanceCardEl.append(relevanceTitleEl, relevanceDetailEl, relevanceChipsEl);
+  detailPanel.appendChild(relevanceCardEl);
 
   const intensityCard = el('div', 'detail-card detail-card--intensity');
   const intensityHeader = el('div', 'detail-card__header');
@@ -212,6 +224,7 @@ export function refreshDetail(
     event: selectedEvent,
     analysis: ai.currentAnalysis,
     tsunamiAssessment: tsunami,
+    focusLocation: store.get('focusLocation'),
     locale: getLocale(),
   });
 
@@ -229,6 +242,23 @@ export function refreshDetail(
   }
   trustChipsEl.style.display = trust.chips.length > 0 ? 'flex' : 'none';
   summaryEl.textContent = summary.summary;
+
+  if (summary.relevance) {
+    relevanceCardEl.style.display = '';
+    relevanceCardEl.style.borderLeftColor = getJmaColor(summary.relevance.severity, store.get('colorblind'));
+    relevanceTitleEl.textContent = summary.relevance.title;
+    relevanceDetailEl.textContent = summary.relevance.detail;
+    relevanceChipsEl.innerHTML = '';
+    for (const chip of summary.relevance.chips) {
+      relevanceChipsEl.appendChild(el('span', 'detail-panel__trust-chip', chip));
+    }
+  } else {
+    relevanceCardEl.style.display = 'none';
+    relevanceTitleEl.textContent = '';
+    relevanceDetailEl.textContent = '';
+    relevanceChipsEl.innerHTML = '';
+    relevanceCardEl.style.borderLeftColor = 'transparent';
+  }
 
   intensityTitleEl.textContent = uiText('intensity');
   intensityTitleEl.appendChild(createHelpButton());
@@ -268,6 +298,10 @@ export function initDetailPanel(container: HTMLElement): void {
     const selected = store.get('selectedEvent');
     if (selected) refreshDetail(selected, store.get('intensitySource'));
   });
+  unsubFocus = store.subscribe('focusLocation', () => {
+    const selected = store.get('selectedEvent');
+    if (selected) refreshDetail(selected, store.get('intensitySource'));
+  });
   unsubLocale = onLocaleChange(() => {
     crossSectionBtn.textContent = t('detail.crossSection');
     advancedToolsSummaryEl.textContent = uiText('tools');
@@ -284,6 +318,8 @@ export function disposeDetailPanel(): void {
   unsubAi = null;
   unsubIntensity?.();
   unsubIntensity = null;
+  unsubFocus?.();
+  unsubFocus = null;
   unsubLocale?.();
   unsubLocale = null;
 }

@@ -6,6 +6,7 @@
  */
 
 import * as Cesium from 'cesium';
+import { store } from '../store/appState';
 import type { GlobeInstance } from './globeInstance';
 
 interface NominatimResult {
@@ -161,6 +162,12 @@ function renderResults(results: NominatimResult[], viewer: GlobeInstance): void 
     li.textContent = r.display_name;
     li.addEventListener('click', () => {
       flyToResult(r, viewer);
+      store.set('focusLocation', {
+        label: r.display_name.split(',')[0]?.trim() || r.display_name,
+        lat: Number(r.lat),
+        lng: Number(r.lon),
+        source: 'search',
+      });
       clearResults();
       if (inputEl) inputEl.value = r.display_name.split(',')[0];
       inputEl?.blur();

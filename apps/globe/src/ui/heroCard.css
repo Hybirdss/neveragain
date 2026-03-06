@@ -91,6 +91,44 @@
   color: var(--text-secondary);
 }
 
+.hero-card__relevance {
+  display: none;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hero-card__relevance-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.hero-card__relevance-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.hero-card__relevance-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hero-card__relevance-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-disabled);
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .hero-card__tsunami {
   width: fit-content;
   font-family: var(--font-mono);

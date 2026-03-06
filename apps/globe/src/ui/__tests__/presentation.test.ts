@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent, TsunamiAssessment } from '../../types';
+import type { EarthquakeEvent, FocusLocation, TsunamiAssessment } from '../../types';
 import {
   buildDetailSummary,
   buildEvidenceSummary,
   buildHeroSummary,
   buildLiveFeedSummary,
+  buildRelevanceSummary,
   buildShareSummary,
   buildStatusSummary,
   buildTrustSummary,
@@ -45,6 +46,13 @@ const TSUNAMI_WARNING: TsunamiAssessment = {
   locationType: 'offshore',
   coastDistanceKm: 8,
   faultType: 'interface',
+};
+
+const TOKYO_FOCUS: FocusLocation = {
+  label: 'Tokyo',
+  lat: 35.6762,
+  lng: 139.6503,
+  source: 'search',
 };
 
 const ANALYSIS = {
@@ -267,6 +275,48 @@ describe('buildHeroSummary', () => {
     expect(summary.headline).toBe('Quiet for now');
     expect(summary.message).toBe('No recent earthquakes require attention.');
   });
+
+  it('surfaces focus-location relevance when a user place is available', () => {
+    const summary = buildHeroSummary({
+      event: EVENT,
+      analysis: ANALYSIS,
+      tsunamiAssessment: TSUNAMI_NONE,
+      locale: 'en',
+      now: NOW,
+      focusLocation: TOKYO_FOCUS,
+    });
+
+    expect(summary.relevance?.title).toBe('For Tokyo');
+    expect(summary.relevance?.chips[0]).toContain('km away');
+    expect(summary.relevance?.chips[1]).toContain('JMA');
+  });
+});
+
+describe('buildRelevanceSummary', () => {
+  it('returns null when no focus location is available', () => {
+    const summary = buildRelevanceSummary({
+      event: EVENT,
+      focusLocation: null,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary).toBeNull();
+  });
+
+  it('builds place-specific relevance with distance and expected shaking', () => {
+    const summary = buildRelevanceSummary({
+      event: EVENT,
+      focusLocation: TOKYO_FOCUS,
+      locale: 'en',
+      now: NOW,
+    });
+
+    expect(summary?.title).toBe('For Tokyo');
+    expect(summary?.detail).toContain('Tokyo');
+    expect(summary?.chips[0]).toContain('km away');
+    expect(summary?.chips[1]).toContain('JMA');
+  });
 });
 
 describe('buildLiveFeedSummary', () => {
@@ -402,6 +452,20 @@ describe('buildDetailSummary', () => {
       'Review official updates on transport, utilities, and local advisories.',
       'Expect aftershocks and re-check official guidance before moving.',
     ]);
+  });
+
+  it('includes focus-location relevance inside the detail summary', () => {
+    const summary = buildDetailSummary({
+      event: EVENT,
+      analysis: ANALYSIS,
+      tsunamiAssessment: TSUNAMI_NONE,
+      locale: 'en',
+      now: NOW,
+      focusLocation: TOKYO_FOCUS,
+    });
+
+    expect(summary.relevance?.title).toBe('For Tokyo');
+    expect(summary.relevance?.detail).toContain('shaking');
   });
 });
 

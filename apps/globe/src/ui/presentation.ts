@@ -6,12 +6,14 @@ import ko from '../i18n/ko';
 import { computeGmpe } from '../engine/gmpe';
 import type {
   EarthquakeEvent,
+  FocusLocation,
   JmaClass,
   PresentationDetailSummary,
   PresentationEvidenceSummary,
   PresentationHeroSummary,
   PresentationLiveFeedSummary,
   PresentationLocale,
+  PresentationRelevanceSummary,
   PresentationShareSummary,
   PresentationStatusSummary,
   PresentationTsunamiSummary,
@@ -21,6 +23,7 @@ import type {
 } from '../types';
 import { getJapanPlaceName } from '../utils/japanGeo';
 import { getPlaceText } from '../utils/earthquakeUtils';
+import { haversineDistance } from '../utils/coordinates';
 
 const I18N = { en, ja, ko };
 
@@ -610,6 +613,78 @@ function formatDepth(event: EarthquakeEvent, locale: PresentationLocale): string
   return `깊이 ${depth}km`;
 }
 
+function formatDistanceValue(distanceKm: number): string {
+  if (distanceKm < 10) return distanceKm.toFixed(1);
+  return String(Math.round(distanceKm));
+}
+
+function formatRelevanceTitle(locale: PresentationLocale, label: string): string {
+  if (locale === 'ja') return `${label}では`;
+  if (locale === 'ko') return `${label} 기준`;
+  return `For ${label}`;
+}
+
+function formatRelevanceDistanceChip(locale: PresentationLocale, distanceKm: number): string {
+  const value = formatDistanceValue(distanceKm);
+  if (locale === 'ja') return `震源から約${value}km`;
+  if (locale === 'ko') return `진원 약 ${value}km 거리`;
+  return `${value} km away`;
+}
+
+function computeSeverityAtFocus(event: EarthquakeEvent, focusLocation: FocusLocation): JmaClass {
+  const surfaceDistanceKm = haversineDistance(
+    event.lat,
+    event.lng,
+    focusLocation.lat,
+    focusLocation.lng,
+  );
+  const hypocentralDistanceKm = Math.sqrt((surfaceDistanceKm ** 2) + (Math.max(event.depth_km, 1) ** 2));
+  return computeGmpe({
+    Mw: event.magnitude,
+    depth_km: event.depth_km,
+    distance_km: Math.max(hypocentralDistanceKm, 1),
+    faultType: event.faultType,
+  }).jmaClass;
+}
+
+function formatRelevanceDetail(
+  locale: PresentationLocale,
+  focusLocation: FocusLocation,
+  distanceKm: number,
+  severity: JmaClass,
+): string {
+  const distance = formatDistanceValue(distanceKm);
+  if (locale === 'ja') {
+    return `${focusLocation.label}は震源から約${distance}kmです。現地では震度${severity}程度の揺れが見込まれます。${intensityMeaning(severity, locale)}。`;
+  }
+  if (locale === 'ko') {
+    return `${focusLocation.label}은 진원에서 약 ${distance}km 떨어져 있습니다. 현지에서는 JMA ${severity} 정도의 흔들림이 예상됩니다. ${intensityMeaning(severity, locale)}.`;
+  }
+  return `${focusLocation.label} is about ${distance} km from the epicenter. Around JMA ${severity} shaking is possible there. ${intensityMeaning(severity, locale)}.`;
+}
+
+export function buildRelevanceSummary(args: {
+  event: EarthquakeEvent;
+  focusLocation?: FocusLocation | null;
+  locale: PresentationLocale;
+  now?: number;
+}): PresentationRelevanceSummary | null {
+  const { event, focusLocation, locale } = args;
+  if (!focusLocation) return null;
+
+  const distanceKm = haversineDistance(event.lat, event.lng, focusLocation.lat, focusLocation.lng);
+  const severity = computeSeverityAtFocus(event, focusLocation);
+  return {
+    title: formatRelevanceTitle(locale, focusLocation.label),
+    detail: formatRelevanceDetail(locale, focusLocation, distanceKm, severity),
+    chips: [
+      formatRelevanceDistanceChip(locale, distanceKm),
+      `JMA ${severity}`,
+    ],
+    severity,
+  };
+}
+
 export function deriveTsunamiAssessmentFromEvent(event: EarthquakeEvent): TsunamiAssessment {
   const placeText = event.place?.text;
   const location = classifyLocation(event.lat, event.lng, placeText, undefined);
@@ -649,6 +724,7 @@ export function buildHeroSummary(args: {
   event: EarthquakeEvent | null;
   analysis?: unknown;
   tsunamiAssessment?: TsunamiAssessment | null;
+  focusLocation?: FocusLocation | null;
   locale: PresentationLocale;
   now?: number;
   isLoading?: boolean;
@@ -668,6 +744,7 @@ export function buildHeroSummary(args: {
       depthLabel: '',
       severity: 'none',
       tsunami: null,
+      relevance: null,
     };
   }
 
@@ -691,6 +768,12 @@ export function buildHeroSummary(args: {
     depthLabel: formatDepth(event, locale),
     severity,
     tsunami,
+    relevance: buildRelevanceSummary({
+      event,
+      focusLocation: args.focusLocation,
+      locale,
+      now,
+    }),
   };
 }
 
@@ -754,6 +837,7 @@ export function buildDetailSummary(args: {
   event: EarthquakeEvent;
   analysis?: unknown;
   tsunamiAssessment?: TsunamiAssessment | null;
+  focusLocation?: FocusLocation | null;
   locale: PresentationLocale;
   now?: number;
 }): PresentationDetailSummary {
@@ -778,6 +862,12 @@ export function buildDetailSummary(args: {
     intensityLabel: severity,
     intensityMeaning: intensityMeaning(severity, locale),
     tsunami: buildTsunamiSummary(args.tsunamiAssessment, locale),
+    relevance: buildRelevanceSummary({
+      event,
+      focusLocation: args.focusLocation,
+      locale,
+      now,
+    }),
     actionItems: actionItems.length > 0
       ? actionItems
       : fallbackActionItems(event, args.tsunamiAssessment, locale, now),

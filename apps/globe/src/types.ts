@@ -231,6 +231,13 @@ export interface TsunamiAssessment {
   faultType: string;
 }
 
+export interface FocusLocation {
+  label: string;
+  lat: number;
+  lng: number;
+  source: 'search' | 'device';
+}
+
 // ── AI Analysis State ──────────────────────────────────────
 
 export type AiTab = 'easy' | 'expert' | 'data';
@@ -255,6 +262,13 @@ export interface PresentationTsunamiSummary {
   detail: string;
 }
 
+export interface PresentationRelevanceSummary {
+  title: string;
+  detail: string;
+  chips: string[];
+  severity: JmaClass;
+}
+
 export interface PresentationHeroSummary {
   state: 'empty' | 'loading' | 'ready';
   headline: string;
@@ -265,6 +279,7 @@ export interface PresentationHeroSummary {
   depthLabel: string;
   severity: JmaClass | 'none';
   tsunami: PresentationTsunamiSummary | null;
+  relevance: PresentationRelevanceSummary | null;
 }
 
 export interface PresentationStatusSummary {
@@ -294,6 +309,7 @@ export interface PresentationDetailSummary {
   intensityLabel: string;
   intensityMeaning: string;
   tsunami: PresentationTsunamiSummary | null;
+  relevance: PresentationRelevanceSummary | null;
   actionItems: string[];
   rawFacts: Array<{ label: string; value: string }>;
 }
@@ -325,6 +341,7 @@ export interface AppState {
   viewState: ViewState;
   activePanel: PanelTab;
   selectedEvent: EarthquakeEvent | null;
+  focusLocation: FocusLocation | null;
   tsunamiAssessment: TsunamiAssessment | null;
   intensityGrid: IntensityGrid | null;
   intensitySource: IntensitySource;

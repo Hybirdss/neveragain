@@ -15,6 +15,10 @@ let statusDetailEl: HTMLElement | null = null;
 let statusChipsEl: HTMLElement | null = null;
 let headlineEl: HTMLElement | null = null;
 let messageEl: HTMLElement | null = null;
+let relevanceEl: HTMLElement | null = null;
+let relevanceTitleEl: HTMLElement | null = null;
+let relevanceDetailEl: HTMLElement | null = null;
+let relevanceChipsEl: HTMLElement | null = null;
 let metaEl: HTMLElement | null = null;
 let tsunamiEl: HTMLElement | null = null;
 let ctaEl: HTMLElement | null = null;
@@ -24,6 +28,7 @@ let unsubSelected: (() => void) | null = null;
 let unsubAi: (() => void) | null = null;
 let unsubTsunami: (() => void) | null = null;
 let unsubLocale: (() => void) | null = null;
+let unsubFocus: (() => void) | null = null;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -43,13 +48,14 @@ function getHeroEvent(): EarthquakeEvent | null {
 }
 
 function render(): void {
-  if (!rootEl || !headlineEl || !messageEl || !metaEl || !tsunamiEl || !ctaEl) return;
+  if (!rootEl || !headlineEl || !messageEl || !relevanceEl || !relevanceTitleEl || !relevanceDetailEl || !relevanceChipsEl || !metaEl || !tsunamiEl || !ctaEl) return;
 
   const heroEvent = getHeroEvent();
   const selected = store.get('selectedEvent');
   const ai = store.get('ai');
   const locale = getLocale();
   const timeline = store.get('timeline');
+  const focusLocation = store.get('focusLocation');
 
   const isSelectedHero = !!heroEvent && selected?.id === heroEvent.id;
   const tsunamiAssessment = heroEvent
@@ -64,6 +70,7 @@ function render(): void {
     event: heroEvent,
     analysis: isSelectedHero ? ai.currentAnalysis : null,
     tsunamiAssessment,
+    focusLocation,
     locale,
     isLoading: isSelectedHero && ai.analysisLoading,
   });
@@ -88,6 +95,24 @@ function render(): void {
 
   headlineEl.textContent = summary.headline;
   messageEl.textContent = summary.message;
+
+  if (summary.relevance) {
+    relevanceEl.style.display = 'grid';
+    relevanceEl.style.borderLeftColor = getJmaColor(summary.relevance.severity, store.get('colorblind'));
+    relevanceTitleEl.textContent = summary.relevance.title;
+    relevanceDetailEl.textContent = summary.relevance.detail;
+    relevanceChipsEl.innerHTML = '';
+    for (const chip of summary.relevance.chips) {
+      relevanceChipsEl.appendChild(el('span', 'hero-card__relevance-chip', chip));
+    }
+  } else {
+    relevanceEl.style.display = 'none';
+    relevanceTitleEl.textContent = '';
+    relevanceDetailEl.textContent = '';
+    relevanceChipsEl.innerHTML = '';
+    relevanceEl.style.borderLeftColor = 'transparent';
+  }
+
   metaEl.textContent = [summary.magnitudeLabel, summary.depthLabel, summary.relativeTime]
     .filter(Boolean)
     .join(' · ');
@@ -139,11 +164,16 @@ export function initHeroCard(container: HTMLElement): void {
   statusEl.append(statusHeadlineEl, statusDetailEl, statusChipsEl);
   headlineEl = el('div', 'hero-card__headline');
   messageEl = el('div', 'hero-card__message');
+  relevanceEl = el('div', 'hero-card__relevance');
+  relevanceTitleEl = el('div', 'hero-card__relevance-title');
+  relevanceDetailEl = el('div', 'hero-card__relevance-detail');
+  relevanceChipsEl = el('div', 'hero-card__relevance-chips');
+  relevanceEl.append(relevanceTitleEl, relevanceDetailEl, relevanceChipsEl);
   tsunamiEl = el('div', 'hero-card__tsunami');
   metaEl = el('div', 'hero-card__meta');
   ctaEl = el('div', 'hero-card__cta');
 
-  content.append(statusEl, headlineEl, messageEl, tsunamiEl, metaEl, ctaEl);
+  content.append(statusEl, headlineEl, messageEl, relevanceEl, tsunamiEl, metaEl, ctaEl);
   rootEl.appendChild(content);
   container.appendChild(rootEl);
 
@@ -151,6 +181,7 @@ export function initHeroCard(container: HTMLElement): void {
   unsubSelected = store.subscribe('selectedEvent', render);
   unsubAi = store.subscribe('ai', render);
   unsubTsunami = store.subscribe('tsunamiAssessment', render);
+  unsubFocus = store.subscribe('focusLocation', render);
   unsubLocale = onLocaleChange(render);
 
   render();
@@ -165,6 +196,8 @@ export function disposeHeroCard(): void {
   unsubAi = null;
   unsubTsunami?.();
   unsubTsunami = null;
+  unsubFocus?.();
+  unsubFocus = null;
   unsubLocale?.();
   unsubLocale = null;
   rootEl?.remove();
@@ -175,6 +208,10 @@ export function disposeHeroCard(): void {
   statusChipsEl = null;
   headlineEl = null;
   messageEl = null;
+  relevanceEl = null;
+  relevanceTitleEl = null;
+  relevanceDetailEl = null;
+  relevanceChipsEl = null;
   metaEl = null;
   tsunamiEl = null;
   ctaEl = null;
