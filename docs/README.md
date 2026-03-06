@@ -1,52 +1,53 @@
 # Documentation Map
 
-This repository now uses three documentation buckets.
-
 ## `docs/current/`
 
-Authoritative source-of-truth documents for the current `namazue.dev` direction.
+Single source of truth for the current `namazue.dev` direction.
 
-Use these first:
+- **`docs/current/DESIGN.md`** — The authoritative design document
 
-- `docs/current/product/earthquake-ops-os-design.md`
-- `docs/current/product/earthquake-ops-os-implementation-plan.md`
-- `docs/current/review/console-review-design.md`
-- `docs/current/review/console-review-implementation-plan.md`
+This defines the approved product direction:
 
-These define the approved product direction:
-
-- Tokyo-first earthquake operations console
-- calm-mode default
-- focus-based navigation
-- second-stage `Scenario Shift`
-- living review HTML as the design surface
+- Japan-wide spatial operations console (not Tokyo-only)
+- MapLibre GL JS + Deck.gl (not CesiumJS)
+- Fullscreen dark map + floating operator panels
+- Viewport-driven data loading (not metro selection)
+- Plugin-based layer architecture
+- Real-time infrastructure: AIS ships, rail, power grid, PLATEAU 3D buildings
 
 ## `docs/legacy/`
 
-Archived and superseded material from the earlier `NeverAgain` and consumer-first phases.
+Archived material from prior product phases.
 
-This now includes:
+- `legacy/product-v2/` — Previous "Tokyo-first metro ops console" direction (CesiumJS-based)
+- `legacy/plans/archived-2026-03-06/` — Implementation plans for the previous direction
+- `legacy/STRATEGY.md` — Consumer-first "AI earthquake narrator" direction
+- `legacy/PRD.md`, `legacy/PRD_v2.md` — Earlier PRDs
+- Other legacy design, architecture, and plan documents
 
-- old PRDs and architecture notes
-- older AI generation and prompt docs
-- consumer-first strategy and TODOs
-- prior execution and optimization plans
-- old design-system review HTML
+Use these only for historical reference. Do not build new work from these.
 
-Use these only for historical reference.
+## `docs/technical/`
 
-## Shared Support Docs
+Still valid technical reference:
 
-These are not product source-of-truth documents, but still remain useful as technical or operational reference:
+- `technical/GMPE_ENGINE.md` — GMPE engine documentation
+- `technical/DATA_SOURCES.md` — Data source reference
 
-- `docs/technical/`
-- `docs/reference/`
-- `docs/ops/`
+## `docs/reference/`
 
-They describe engine behavior, formulas, presets, and operational reports that may still support the rebuild.
+Still valid reference material:
 
-## Rule Of Thumb
+- `reference/EQUATIONS.md` — Seismological equations
+- `reference/HISTORICAL_PRESETS.md` — Historical earthquake presets
+- `reference/JMA_INTENSITY_COLORS.md` — JMA intensity color scale
 
-If a document defines what `namazue.dev` should become now, it belongs in `docs/current/`.
+## `docs/ops/`
 
-If it describes a superseded product direction, UX model, roadmap, or implementation plan, it belongs in `docs/legacy/`.
+Operational reports and deployment records.
+
+## Rule of Thumb
+
+If it defines what `namazue.dev` should become now: `docs/current/DESIGN.md`.
+
+Everything else is either reference material or legacy.

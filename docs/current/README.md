@@ -1,34 +1,33 @@
-# Current Docs
+# Current Product Direction
 
-These are the only product/design documents that should drive new work.
+The only authoritative product document is:
 
-## Product Direction
+**`DESIGN.md`**
 
-- `product/earthquake-ops-os-design.md`
-- `product/earthquake-ops-os-implementation-plan.md`
-- `product/live-development-todo.md`
+## Key Decisions
 
-Current execution focus inside `product/live-development-todo.md` is backend-first:
+- **Renderer**: MapLibre GL JS + Deck.gl (not CesiumJS)
+- **Scope**: All of Japan (not Tokyo-first)
+- **Map style**: Dark vector tiles (not satellite imagery)
+- **Data loading**: Viewport-driven (not city selection)
+- **Architecture**: Plugin-based layers + slot-based panels
+- **Target**: Operators (not general consumers)
+- **3D Buildings**: PLATEAU via Deck.gl Tile3DLayer
+- **Real-time data**: AIS ships, ODPT rail, earthquake feeds
+- **Framework**: Vanilla TypeScript + DOM (no React/Vue)
 
-- service read models
-- realtime health and freshness
-- replay milestones
-- scenario delta contracts
+## What Changed From v2
 
-## Design Review Surface
+The previous direction ("Tokyo-first earthquake operations console") was:
+- CesiumJS for 3D globe
+- Metro-first camera with city selection
+- Text-card dashboard layout for the service page
+- Consumer-adjacent positioning
 
-- `review/console-review-design.md`
-- `review/console-review-implementation-plan.md`
-- `review/live-shell-architecture.md`
+That entire direction is now in `docs/legacy/product-v2/`.
 
-## Current Product Definition
-
-`namazue.dev` is a Tokyo-first earthquake operations console.
-
-Key approved traits:
-
-- operator-first, not consumer-first
-- calm mode as the default state
-- metro-first camera, globe-second
-- launch assets: ports, rail hubs, hospitals
-- flagship depth interaction: `Scenario Shift`
+The new direction is:
+- MapLibre + Deck.gl for spatial visualization
+- Japan-wide with viewport-driven detail loading
+- Fullscreen map with floating overlay panels
+- Operator-grade spatial intelligence console
