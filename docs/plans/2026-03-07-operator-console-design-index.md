@@ -33,6 +33,18 @@ operator console. It does not replace the active product source documents in
    - bundle-specific display language
    - readability guardrails
 
+5. `2026-03-07-operator-latency-optimization-design.md`
+   - operator-latency optimization north star
+   - performance budgets
+   - phased boot strategy
+   - runtime governor and truth upgrade priorities
+
+6. `2026-03-07-operator-latency-optimization-implementation-plan.md`
+   - execution plan for phased startup
+   - runtime governor rollout
+   - action-surface compression
+   - consequence-truth contract upgrades
+
 ## Relationship To Existing Docs
 
 - `docs/current/DESIGN.md` remains the primary product truth.
