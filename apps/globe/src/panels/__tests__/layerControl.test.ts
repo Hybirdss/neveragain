@@ -5,6 +5,7 @@ import { createDefaultBundleSettings, createDefaultLayerVisibility } from '../..
 import type { ServiceReadModel } from '../../ops/readModelTypes';
 import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
 import type { ConsoleState } from '../../core/store';
+import { getClientRefreshPolicy, resolveClientGovernorState } from '../../governor/clientGovernor';
 
 function createReadModel(): ServiceReadModel {
   return createEmptyServiceReadModel({
@@ -53,6 +54,27 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
 }
 
 describe('layerControl bundle summaries', () => {
+  it('client governor disables high-frequency maritime polling in calm mode', () => {
+    expect(getClientRefreshPolicy('maritime', 'calm').refreshMs).toBe(60_000);
+    expect(getClientRefreshPolicy('maritime', 'incident').refreshMs).toBe(10_000);
+    expect(getClientRefreshPolicy('rail', 'calm').refreshMs).toBe(180_000);
+  });
+
+  it('client governor prefers worker truth and falls back to calm when unavailable', () => {
+    expect(resolveClientGovernorState(undefined)).toBe('calm');
+    expect(resolveClientGovernorState({
+      states: ['calm', 'watch', 'incident', 'recovery'],
+      sourceClasses: ['event-truth', 'fast-situational', 'slow-infrastructure'],
+      activation: {
+        state: 'watch',
+        sourceClasses: ['event-truth', 'fast-situational'],
+        regionScope: { kind: 'regional', regionIds: ['kanto'] },
+        activatedAt: '2026-03-07T00:00:00.000Z',
+        reason: 'moderate seismic activity activated watch mode',
+      },
+    })).toBe('watch');
+  });
+
   it('uses backend-owned maritime summary in calm mode', () => {
     const summary = buildBundleSummary('maritime', createState());
 

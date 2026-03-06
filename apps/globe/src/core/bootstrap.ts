@@ -46,6 +46,7 @@ import { createNotificationQueue } from '../panels/notificationQueue';
 import { mountTimelineRail } from '../panels/timelineRail';
 import { createSettingsPanel } from '../panels/settingsPanel';
 import { loadPreferences, type ConsolePreferences } from './preferences';
+import { buildClientRefreshPlan } from '../governor/clientGovernor';
 import { formatHospitalTooltip, type Hospital } from '../layers/hospitalLayer';
 import { formatRailTooltip, type RailRoute } from '../layers/railLayer';
 import { formatPowerTooltip, type PowerPlant } from '../layers/powerLayer';
@@ -112,6 +113,9 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   setLoadingProgress(10, 'Building console…');
   let lastFetchSource: RealtimeSource = 'server';
   let lastUpdatedAt = 0;
+  let refreshPlan = buildClientRefreshPlan(null);
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let pollingActive = false;
 
   // 0. Parse deep link BEFORE MapLibre init (hash:true overwrites the URL hash)
   const deepLink = parseDeepLink();
@@ -471,6 +475,8 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     const result = await fetchEventsWithMeta();
     lastFetchSource = result.source;
     lastUpdatedAt = result.updatedAt;
+    refreshPlan = buildClientRefreshPlan(result.governor);
+    aisManager.setRefreshMs(refreshPlan.maritime.refreshMs);
     consoleStore.set('events', result.events);
     syncOperationalTruth();
   }
@@ -504,6 +510,28 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       }));
     });
   });
+  aisManager.setRefreshMs(refreshPlan.maritime.refreshMs);
+
+  function clearEventPoll(): void {
+    if (!pollTimer) return;
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  function scheduleEventPoll(delayMs = refreshPlan.events.refreshMs): void {
+    clearEventPoll();
+    if (!pollingActive) return;
+    pollTimer = setTimeout(async () => {
+      try {
+        await fetchAndSync();
+      } catch (err) {
+        console.error('[console] Poll failed:', err);
+        syncRealtimeError(err);
+      } finally {
+        scheduleEventPoll(refreshPlan.events.refreshMs);
+      }
+    }, delayMs);
+  }
 
   // 14. Start on map load
   engine.map.once('load', async () => {
@@ -535,22 +563,15 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     setLoadingProgress(100, 'Ready');
     updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
     dismissLoading();
+    pollingActive = true;
+    scheduleEventPoll(refreshPlan.events.refreshMs);
   });
-
-  // 14. Poll
-  const pollTimer = setInterval(async () => {
-    try {
-      await fetchAndSync();
-    } catch (err) {
-      console.error('[console] Poll failed:', err);
-      syncRealtimeError(err);
-    }
-  }, 60_000);
 
   // 15. HMR cleanup
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
-      clearInterval(pollTimer);
+      pollingActive = false;
+      clearEventPoll();
       document.removeEventListener('keydown', handleKeydown);
       aisManager.stop();
       compositor.stop();
