@@ -19,7 +19,9 @@ jobs:
       - run: npm ci
       - run: npm run test:boundaries
       - run: npm run check:boundaries
+      - run: npm run check:deprecations
       - run: npm run typecheck -w @namazue/worker
       - run: npm test -w @namazue/worker
       - run: npm test -w @namazue/globe
       - run: npm run build -w @namazue/globe
+      - run: npm run check:bundle-budget

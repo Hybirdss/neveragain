@@ -17,9 +17,11 @@
     "build:data": "npx tsx tools/build-slab2-contours.ts && npx tsx tools/build-historical-catalog.ts",
     "test:boundaries": "node --test tools/tests/dependencyBoundaries.test.mjs",
     "check:boundaries": "node tools/check-dependency-boundaries.mjs",
+    "check:deprecations": "node tools/check-deprecations.mjs",
     "check:worker": "npm run typecheck -w @namazue/worker && npm test -w @namazue/worker",
     "check:globe": "npm test -w @namazue/globe && npm run build -w @namazue/globe",
-    "check": "npm run test:boundaries && npm run check:boundaries && npm run check:worker && npm run check:globe"
+    "check:bundle-budget": "node tools/check-bundle-budget.mjs",
+    "check": "npm run test:boundaries && npm run check:boundaries && npm run check:deprecations && npm run check:worker && npm run check:globe && npm run check:bundle-budget"
   },
   "devDependencies": {
     "dotenv": "^17.3.1",
