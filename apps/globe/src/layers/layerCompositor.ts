@@ -18,13 +18,18 @@
 
 import type { Layer } from '@deck.gl/core';
 import type { MapEngine } from '../core/mapEngine';
+import {
+  recordRuntimeGovernorFps,
+  syncRuntimeGovernorBundleSettings,
+  type RuntimeGovernorState,
+} from '../core/runtimeGovernor';
 import { consoleStore } from '../core/store';
-import { LAYER_FACTORIES } from './layerFactories';
+import { LAYER_FACTORIES, type LayerFactory } from './layerFactories';
 import { isLayerEffectivelyVisible, type BundleSettings } from './bundleRegistry';
 import { createAssetLayers } from './assetLayer';
 import { updateWaveData, createWaveLayers, type WaveSource } from './waveLayer';
 import { createIntensityLayer } from './intensityLayer';
-import type { LayerId } from './layerRegistry';
+import { getLayerDefinition, type LayerId } from './layerRegistry';
 import type { EarthquakeEvent } from '../types';
 
 // ── Wave Source Extraction ─────────────────────────────────────
@@ -52,6 +57,64 @@ export interface LayerCompositor {
   stop(): void;
 }
 
+function sameBundleList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function sameEffectiveDensity(
+  previous: RuntimeGovernorState,
+  next: RuntimeGovernorState,
+): boolean {
+  return (Object.keys(previous.effectiveDensity) as Array<keyof typeof previous.effectiveDensity>).every(
+    (bundleId) => previous.effectiveDensity[bundleId] === next.effectiveDensity[bundleId],
+  );
+}
+
+function hasGovernorEffectChange(
+  previous: RuntimeGovernorState,
+  next: RuntimeGovernorState,
+): boolean {
+  return previous.pressureStage !== next.pressureStage ||
+    !sameBundleList(previous.suppressedBundles, next.suppressedBundles) ||
+    !sameEffectiveDensity(previous, next);
+}
+
+export function getGovernorDirtyFactoryIds(
+  factories: LayerFactory[],
+  previous: RuntimeGovernorState,
+  next: RuntimeGovernorState,
+): LayerId[] {
+  if (!hasGovernorEffectChange(previous, next)) {
+    return [];
+  }
+
+  return factories
+    .filter((factory) => factory.densitySensitive)
+    .filter((factory) => {
+      const bundleId = getLayerDefinition(factory.id).bundle;
+      return previous.effectiveDensity[bundleId] !== next.effectiveDensity[bundleId] ||
+        previous.suppressedBundles.includes(bundleId) !== next.suppressedBundles.includes(bundleId);
+    })
+    .map((factory) => factory.id);
+}
+
+export function getVisibleFactoryIdsForGovernor(
+  factories: LayerFactory[],
+  layerVisibility: Record<LayerId, boolean>,
+  bundleSettings: BundleSettings,
+  governor: RuntimeGovernorState,
+): LayerId[] {
+  return factories
+    .filter((factory) =>
+      isLayerEffectivelyVisible(
+        factory.id,
+        layerVisibility[factory.id],
+        bundleSettings,
+        governor.suppressedBundles,
+      ))
+    .map((factory) => factory.id);
+}
+
 export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let running = false;
   let frameId: number | null = null;
@@ -66,6 +129,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let dirtyVisibility = true;
   let cachedVis: Record<LayerId, boolean> = {} as Record<LayerId, boolean>;
   let cachedBundleSettings: BundleSettings = consoleStore.get('bundleSettings');
+  let governorState = consoleStore.get('runtimeGovernor');
 
   // Zoom cache — viewport changes only dirty factories when zoom actually changes
   let cachedZoom = consoleStore.get('viewport').zoom;
@@ -86,6 +150,33 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let intensityAnimStart = 0;
   let intensityAnimEpicenter: { lat: number; lng: number } | null = null;
   let lastIntensityAnimUpdate = 0;
+  let lastFrameAt = 0;
+
+  function applyGovernorState(nextGovernor: RuntimeGovernorState, syncStore: boolean): void {
+    const dirtyFactoryIds = getGovernorDirtyFactoryIds(LAYER_FACTORIES, governorState, nextGovernor);
+    const suppressionChanged = !sameBundleList(
+      governorState.suppressedBundles,
+      nextGovernor.suppressedBundles,
+    );
+    const governorChanged = hasGovernorEffectChange(governorState, nextGovernor);
+
+    governorState = nextGovernor;
+
+    if (dirtyFactoryIds.length > 0) {
+      for (const factoryId of dirtyFactoryIds) {
+        dirty.set(factoryId, true);
+      }
+      anyFactoryDirty = true;
+    }
+
+    if (suppressionChanged) {
+      dirtyVisibility = true;
+    }
+
+    if (syncStore && governorChanged) {
+      consoleStore.set('runtimeGovernor', nextGovernor);
+    }
+  }
 
   // ── Animation state helpers ───────────────────────────────────
 
@@ -172,7 +263,19 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
   // Visibility/bundle changes: mark visibility dirty + request render
   unsubs.push(watch('layerVisibility', () => { dirtyVisibility = true; requestRender(); }));
-  unsubs.push(watch('bundleSettings', () => { dirtyVisibility = true; requestRender(); }));
+  unsubs.push(watch('bundleSettings', () => {
+    cachedBundleSettings = consoleStore.get('bundleSettings');
+    dirtyVisibility = true;
+    applyGovernorState(syncRuntimeGovernorBundleSettings(governorState, cachedBundleSettings), true);
+    requestRender();
+  }));
+  unsubs.push(
+    consoleStore.subscribe('runtimeGovernor', (nextGovernor) => {
+      if (nextGovernor === governorState) return;
+      applyGovernorState(nextGovernor, false);
+      requestRender();
+    }),
+  );
 
   // Special: wave sources derived from events
   unsubs.push(
@@ -227,6 +330,23 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     const now = Date.now();
     const layers: Layer[] = [];
 
+    if (lastFrameAt > 0) {
+      const frameDeltaMs = now - lastFrameAt;
+      if (frameDeltaMs > 0) {
+        const sampledGovernor = recordRuntimeGovernorFps(
+          governorState,
+          1000 / frameDeltaMs,
+          cachedBundleSettings,
+        );
+        if (hasGovernorEffectChange(governorState, sampledGovernor)) {
+          applyGovernorState(sampledGovernor, true);
+        } else {
+          governorState = sampledGovernor;
+        }
+      }
+    }
+    lastFrameAt = now;
+
     // Refresh visibility cache only when changed
     if (dirtyVisibility) {
       cachedVis = consoleStore.get('layerVisibility');
@@ -249,7 +369,14 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
     for (const factory of LAYER_FACTORIES) {
       if (factory.id === 'intensity' && intensityAnimActive) continue;
-      if (isLayerEffectivelyVisible(factory.id, cachedVis[factory.id], cachedBundleSettings)) {
+      if (
+        isLayerEffectivelyVisible(
+          factory.id,
+          cachedVis[factory.id],
+          cachedBundleSettings,
+          governorState.suppressedBundles,
+        )
+      ) {
         const cached = cache.get(factory.id);
         if (cached) layers.push(...cached);
       }
@@ -268,7 +395,14 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
             lastIntensityAnimUpdate = now;
           }
         }
-        if (isLayerEffectivelyVisible('intensity', cachedVis['intensity'], cachedBundleSettings)) {
+        if (
+          isLayerEffectivelyVisible(
+            'intensity',
+            cachedVis['intensity'],
+            cachedBundleSettings,
+            governorState.suppressedBundles,
+          )
+        ) {
           const cached = cache.get('intensity');
           if (cached) layers.push(...cached);
         }
@@ -280,7 +414,14 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
         lastIntensityAnimUpdate = 0;
         cache.set('intensity', LAYER_FACTORIES.find((f) => f.id === 'intensity')!.create(consoleStore.getState()));
         dirty.set('intensity', false);
-        if (isLayerEffectivelyVisible('intensity', cachedVis['intensity'], cachedBundleSettings)) {
+        if (
+          isLayerEffectivelyVisible(
+            'intensity',
+            cachedVis['intensity'],
+            cachedBundleSettings,
+            governorState.suppressedBundles,
+          )
+        ) {
           const cached = cache.get('intensity');
           if (cached) layers.push(...cached);
         }
@@ -330,6 +471,8 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       dirtyAssets = true;
       dirtyVisibility = true;
       lastWaveUpdate = 0;
+      governorState = consoleStore.get('runtimeGovernor');
+      lastFrameAt = 0;
 
       requestRender();
     },
@@ -340,6 +483,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
         cancelAnimationFrame(frameId);
         frameId = null;
       }
+      lastFrameAt = 0;
       for (const unsub of unsubs) unsub();
     },
   };

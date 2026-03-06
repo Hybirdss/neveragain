@@ -3,6 +3,7 @@ import {
   getAllBundleDefinitions,
   getAllOperatorViewPresets,
   getBundleDefinition,
+  getEffectiveBundleDensity,
   getOperatorViewPreset,
   isLayerEffectivelyVisible,
   type BundleDensity,
@@ -35,6 +36,9 @@ export interface LayerControlModel {
     id: BundleId;
     label: string;
     description: string;
+    requestedDensity: BundleDensity;
+    effectiveDensity: BundleDensity;
+    governorStatus: 'requested' | 'clamped';
   };
   activeView: {
     id: string;
@@ -139,12 +143,21 @@ function renderDomain(domain: OperatorBundleDomain): string {
 export function buildLayerControlModel(state: ConsoleState): LayerControlModel {
   const activeBundle = getBundleDefinition(state.activeBundleId);
   const activeView = getOperatorViewPreset(state.activeViewId);
+  const requestedDensity = state.bundleSettings[state.activeBundleId].density;
+  const effectiveDensity = getEffectiveBundleDensity(
+    state.activeBundleId,
+    state.bundleSettings,
+    state.runtimeGovernor.effectiveDensity,
+  );
 
   return {
     activeBundle: {
       id: activeBundle.id,
       label: activeBundle.label,
       description: activeBundle.description,
+      requestedDensity,
+      effectiveDensity,
+      governorStatus: requestedDensity === effectiveDensity ? 'requested' : 'clamped',
     },
     activeView: {
       id: activeView.id,
@@ -165,6 +178,7 @@ export function buildLayerControlModel(state: ConsoleState): LayerControlModel {
         layerId,
         state.layerVisibility[layerId],
         state.bundleSettings,
+        state.runtimeGovernor.suppressedBundles,
       ),
     })),
   };
@@ -232,7 +246,9 @@ function renderLegendEntries(layerRows: LayerControlRow[]): string {
 function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
   const activeBundleEnabled = state.bundleSettings[state.activeBundleId].enabled;
   const activeSummary = buildBundleSummary(state.activeBundleId, state);
-  const density = state.bundleSettings[state.activeBundleId].density;
+  const density = model.activeBundle.requestedDensity;
+  const effectiveDensity = model.activeBundle.effectiveDensity;
+  const densityStatus = model.activeBundle.governorStatus;
 
   return `
     <div class="nz-bundle-drawer${state.bundleDrawerOpen ? ' nz-bundle-drawer--open' : ''}">
@@ -242,11 +258,14 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
           <div class="nz-bundle-drawer__title">${model.activeBundle.label}</div>
           <div class="nz-bundle-drawer__detail">${model.activeBundle.description}</div>
           <div class="nz-bundle-drawer__density">
-            <span class="nz-bundle-drawer__density-label">Density</span>
+            <span class="nz-bundle-drawer__density-label">Requested Density</span>
             <div class="nz-bundle-drawer__density-group">
               <button class="nz-density-btn${density === 'minimal' ? ' nz-density-btn--active' : ''}" data-density="minimal">Minimal</button>
               <button class="nz-density-btn${density === 'standard' ? ' nz-density-btn--active' : ''}" data-density="standard">Standard</button>
               <button class="nz-density-btn${density === 'dense' ? ' nz-density-btn--active' : ''}" data-density="dense">Dense</button>
+            </div>
+            <div class="nz-bundle-drawer__density-detail">
+              Runtime Governor: ${densityStatus === 'clamped' ? `showing ${effectiveDensity}` : 'following requested density'}
             </div>
           </div>
         </div>
@@ -436,6 +455,7 @@ export function mountLayerControl(dock: HTMLElement, drawerHost: HTMLElement): (
     consoleStore.subscribe('activeBundleId', scheduleRender),
     consoleStore.subscribe('activeViewId', scheduleRender),
     consoleStore.subscribe('bundleSettings', scheduleRender),
+    consoleStore.subscribe('runtimeGovernor', scheduleRender),
     consoleStore.subscribe('bundleDrawerOpen', scheduleRender),
     consoleStore.subscribe('layerVisibility', scheduleRender),
     consoleStore.subscribe('vessels', scheduleRender),

@@ -35,6 +35,7 @@ export interface LayerFactory {
   deps: (keyof ConsoleState)[];
   /** 'zoom' (default): only rebuild on zoom change. 'full': rebuild on every viewport update. */
   viewportMode?: 'zoom' | 'full';
+  densitySensitive?: boolean;
   create(state: ConsoleState): Layer[];
 }
 
@@ -64,6 +65,7 @@ export const LAYER_FACTORIES: LayerFactory[] = [
     id: 'rail',
     order: 250,
     deps: ['selectedEvent', 'viewport'],
+    densitySensitive: true,
     create(state: ConsoleState) {
       return createRailLayers(state.selectedEvent, state.viewport.zoom);
     },
@@ -72,6 +74,7 @@ export const LAYER_FACTORIES: LayerFactory[] = [
     id: 'power',
     order: 260,
     deps: ['selectedEvent', 'viewport'],
+    densitySensitive: true,
     create(state: ConsoleState) {
       return createPowerLayers(state.selectedEvent, state.viewport.zoom);
     },
@@ -81,6 +84,7 @@ export const LAYER_FACTORIES: LayerFactory[] = [
     order: 300,
     deps: ['vessels', 'selectedEvent', 'viewport'],
     viewportMode: 'full',
+    densitySensitive: true,
     create(state: ConsoleState) {
       return createAisLayers(state.vessels, state.selectedEvent, state.viewport);
     },
@@ -89,6 +93,7 @@ export const LAYER_FACTORIES: LayerFactory[] = [
     id: 'hospitals',
     order: 350,
     deps: ['selectedEvent', 'viewport'],
+    densitySensitive: true,
     create(state: ConsoleState) {
       return createHospitalLayers(state.selectedEvent, state.viewport.zoom);
     },
