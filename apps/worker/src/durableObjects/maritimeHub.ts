@@ -45,6 +45,7 @@ export class MaritimeHub {
           upstream_phase: snapshot.provenance.diagnostics.upstreamPhase,
           messages_received: snapshot.provenance.diagnostics.messagesReceived,
           transport: snapshot.provenance.diagnostics.transport ?? null,
+          source_mix: snapshot.provenance.diagnostics.sourceMix ?? [],
           socket_opened: snapshot.provenance.diagnostics.socketOpened ?? null,
           subscription_sent: snapshot.provenance.diagnostics.subscriptionSent ?? null,
           close_code: snapshot.provenance.diagnostics.closeCode ?? null,

@@ -34,6 +34,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
                     upstream_phase: 'connect-timeout',
                     messages_received: 0,
                     transport: 'websocket-constructor',
+                    source_mix: ['synthetic'],
                     socket_opened: false,
                     subscription_sent: false,
                     close_code: null,
@@ -64,6 +65,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
         upstream_phase: string;
         messages_received: number;
         transport: string | null;
+        source_mix: string[];
         socket_opened: boolean | null;
         subscription_sent: boolean | null;
         close_code: number | null;
@@ -84,6 +86,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
   assert.equal(payload.provenance.diagnostics.upstream_phase, 'connect-timeout');
   assert.equal(payload.provenance.diagnostics.messages_received, 0);
   assert.equal(payload.provenance.diagnostics.transport, 'websocket-constructor');
+  assert.deepEqual(payload.provenance.diagnostics.source_mix, ['synthetic']);
   assert.equal(payload.provenance.diagnostics.socket_opened, false);
   assert.equal(payload.provenance.diagnostics.subscription_sent, false);
   assert.equal(payload.provenance.diagnostics.close_code, null);

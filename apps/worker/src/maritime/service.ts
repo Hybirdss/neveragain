@@ -29,7 +29,8 @@ export interface MaritimeProviderDiagnostics {
   attemptedLive: boolean;
   upstreamPhase: MaritimeUpstreamPhase;
   messagesReceived: number;
-  transport?: 'fetch-upgrade' | 'websocket-constructor';
+  transport?: 'fetch-upgrade' | 'websocket-constructor' | 'http-poll';
+  sourceMix?: Array<'aisstream' | 'aishub' | 'synthetic'>;
   socketOpened?: boolean;
   subscriptionSent?: boolean;
   closeCode?: number;
