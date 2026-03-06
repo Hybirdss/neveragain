@@ -24,17 +24,20 @@ interface IntensityPoint {
   radius: number;
 }
 
-// JMA intensity → RGBA color (dark theme, semi-transparent so map shows through)
+// JMA intensity → RGBA color
+// RGB channels: EXACT official JMA colors (気象庁震度階級関連解説表)
+// Alpha: reduced for dark-theme overlay — higher intensity = more opaque.
+// See docs/current/VISUALIZATION-STANDARDS.md §3 for rationale.
 function intensityToColor(jma: number): [number, number, number, number] {
-  if (jma >= 6.5) return [150, 0,   80,  90];  // 7: dark magenta
-  if (jma >= 6.0) return [200, 0,   0,   80];  // 6+: deep red
-  if (jma >= 5.5) return [239, 50,  0,   70];  // 6-: red
-  if (jma >= 5.0) return [255, 100, 0,   60];  // 5+: red-orange
-  if (jma >= 4.5) return [255, 160, 0,   50];  // 5-: orange
-  if (jma >= 3.5) return [255, 220, 0,   40];  // 4: yellow
-  if (jma >= 2.5) return [80,  200, 100, 30];  // 3: green
-  if (jma >= 1.5) return [60,  130, 200, 20];  // 2: blue
-  return                  [40,  80,  140, 12];  // 1: dim blue
+  if (jma >= 6.5) return [153, 0,   153, 100]; // 7:  #990099 — dark magenta
+  if (jma >= 6.0) return [204, 0,   0,   90];  // 6+: #cc0000 — dark red
+  if (jma >= 5.5) return [255, 51,  0,   80];  // 6-: #ff3300 — red
+  if (jma >= 5.0) return [255, 102, 0,   70];  // 5+: #ff6600 — red-orange
+  if (jma >= 4.5) return [255, 153, 0,   60];  // 5-: #ff9900 — orange
+  if (jma >= 3.5) return [255, 255, 0,   45];  // 4:  #ffff00 — yellow
+  if (jma >= 2.5) return [51,  204, 102, 30];  // 3:  #33cc66 — green
+  if (jma >= 1.5) return [51,  153, 204, 20];  // 2:  #3399cc — blue
+  return                  [102, 153, 204, 12];  // 1:  #6699cc — light blue
 }
 
 // ── Static (non-animated) cache ─────────────────────────────────

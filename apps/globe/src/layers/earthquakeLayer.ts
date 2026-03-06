@@ -8,9 +8,13 @@
  * - updateTriggers only fire on real data changes (selectedId, data swap)
  *
  * Visual rules:
- * - Size scales with magnitude (exponential)
- * - Color encodes depth: shallow=warm, deep=cool
+ * - Size scales with magnitude — AREA proportional to seismic energy
+ *   Energy: E ∝ 10^(1.5M)  →  radius ∝ 10^(0.75M)
+ *   Reference: Kanamori (1977), USGS map conventions
+ * - Color encodes depth: shallow=warm, deep=cool (USGS/IRIS convention)
  * - Selected event: bright ice blue highlight ring
+ *
+ * See docs/current/VISUALIZATION-STANDARDS.md §1 for full rationale.
  */
 
 import { ScatterplotLayer } from '@deck.gl/layers';
@@ -27,16 +31,39 @@ function depthColor(depth_km: number): RGBA {
   return [148, 163, 184, 140];                       // very deep: slate
 }
 
+// ── Magnitude → radius (cube-root-of-energy scaling) ────────
+//
+// Seismic energy: E ∝ 10^(1.5M)  (Kanamori 1977)
+// Full energy-proportional (radius ∝ 10^0.75M) is too extreme for
+// visualization — M5 would be 32× larger than M3, filling the screen.
+//
+// Standard cartographic compression (Bertin 1967): apply cube root
+// to the energy ratio, giving area ∝ E^(1/3) = 10^(0.5M).
+// This means: radius ∝ 10^(0.25M).
+//
+// Result: each magnitude step ≈ 1.78× radius increase (vs 5.6× raw).
+// Consistent with USGS/EMSC/JMA map circle conventions.
+//
+// See docs/current/VISUALIZATION-STANDARDS.md §1.
+const MAG_REF = 3;
+const MAG_BASE_PX = 3;
+const MAG_RADIUS_MIN = 3;
+const MAG_RADIUS_MAX = 55;
+
 function magToRadius(mag: number): number {
-  return Math.max(4, 3.5 * Math.pow(2, mag - 3));
+  const r = MAG_BASE_PX * Math.pow(10, 0.25 * (mag - MAG_REF));
+  return Math.max(MAG_RADIUS_MIN, Math.min(MAG_RADIUS_MAX, r));
 }
 
 /**
- * Ambient glow radius for recent events (< 24h).
- * Larger magnitude = larger glow. Fades with age.
+ * Ambient glow radius — 1.6× the dot radius, same scaling curve.
  */
+const GLOW_SCALE = 1.6;
+const GLOW_RADIUS_MIN = 6;
+
 function ambientGlowRadius(mag: number): number {
-  return Math.max(8, 5 * Math.pow(2, mag - 3));
+  const r = MAG_BASE_PX * GLOW_SCALE * Math.pow(10, 0.25 * (mag - MAG_REF));
+  return Math.max(GLOW_RADIUS_MIN, Math.min(MAG_RADIUS_MAX * GLOW_SCALE, r));
 }
 
 function ambientGlowAlpha(event: EarthquakeEvent): number {
@@ -62,7 +89,8 @@ export function createEarthquakeLayer(
     filled: true,
     radiusUnits: 'pixels',
     lineWidthUnits: 'pixels',
-    radiusMinPixels: 4,
+    radiusMinPixels: MAG_RADIUS_MIN,
+    radiusMaxPixels: MAG_RADIUS_MAX,
     // radiusScale animated by compositor for calm pulse — uniform prop, ~0 GPU cost
     radiusScale,
 
@@ -165,7 +193,8 @@ export function createEarthquakeGlowLayer(
     stroked: false,
     filled: true,
     radiusUnits: 'pixels',
-    radiusMinPixels: 6,
+    radiusMinPixels: GLOW_RADIUS_MIN,
+    radiusMaxPixels: Math.round(MAG_RADIUS_MAX * GLOW_SCALE),
     getPosition: (d) => [d.lng, d.lat],
     getRadius: (d) => ambientGlowRadius(d.magnitude),
     getFillColor: (d) => {

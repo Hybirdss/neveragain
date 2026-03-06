@@ -23,6 +23,17 @@ import { impactRadiusKm } from './impactZone';
 
 type RGBA = [number, number, number, number];
 
+// ── Magnitude-proportional glow sizing ────────────────────────
+// Same cube-root-of-energy curve as earthquake dots (§1 of VISUALIZATION-STANDARDS.md).
+// Glow rings scale with the dot: inner ~1.6×, outer ~2.5× the dot radius.
+const MAG_REF = 3;
+const MAG_BASE_PX = 3;
+
+function glowRadius(mag: number, scale: number, min: number, max: number): number {
+  const dotR = MAG_BASE_PX * Math.pow(10, 0.25 * (mag - MAG_REF));
+  return Math.max(min, Math.min(max, dotR * scale));
+}
+
 // ── Severity Arc Colors ───────────────────────────────────────
 
 const ARC_COLORS: Record<OpsSeverity, RGBA> = {
@@ -82,18 +93,21 @@ export function createImpactVisualizationLayers(
   const pos: [number, number] = [event.lng, event.lat];
 
   // ── 1. Glow Ring — Pulsing selection highlight ────────────────
-  // Two concentric rings: inner (brighter) + outer (dimmer, larger)
+  // Magnitude-proportional: inner = 1.6× dot, outer = 2.5× dot.
+  // Pulse ±12% radius, ~2s cycle.
   const pulse = Math.sin(now * 0.003) * 0.5 + 0.5; // 0..1, ~2s cycle
 
-  // Inner glow
-  const innerRadius = 28 + pulse * 6;
+  // Inner glow (1.6× dot radius, 8–40px)
+  const innerBase = glowRadius(event.magnitude, 1.6, 8, 40);
+  const innerRadius = innerBase * (1 + pulse * 0.12);
   const innerAlpha = Math.round(60 + pulse * 30);
   glowPool[0].position = pos;
   glowPool[0].radius = innerRadius;
   glowPool[0].color = [125, 211, 252, innerAlpha];
 
-  // Outer glow
-  const outerRadius = 48 + pulse * 10;
+  // Outer glow (2.5× dot radius, 14–55px)
+  const outerBase = glowRadius(event.magnitude, 2.5, 14, 55);
+  const outerRadius = outerBase * (1 + pulse * 0.12);
   const outerAlpha = Math.round(20 + pulse * 15);
   glowPool[1].position = pos;
   glowPool[1].radius = outerRadius;
