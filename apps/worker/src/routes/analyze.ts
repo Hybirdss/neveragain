@@ -409,10 +409,6 @@ analyzeRoute.post('/', async (c) => {
   }
 
   // No cached analysis — check if event qualifies for real-time generation (M4+ Japan)
-  if (!c.env.XAI_API_KEY) {
-    return c.json({ status: 'pending', event_id, message: 'Analysis is being prepared on the server.' }, 202);
-  }
-
   const events = await db.select({
     magnitude: earthquakes.magnitude,
     lat: earthquakes.lat,
