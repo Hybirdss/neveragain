@@ -2420,6 +2420,13 @@
   background: rgba(110, 231, 183, 0.08);
 }
 
+.nz-settings__hint {
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  opacity: 0.6;
+  padding: 2px 0 0 0;
+}
+
 .nz-settings__select {
   font-family: var(--nz-font-mono);
   font-size: 10px;
@@ -3031,6 +3038,115 @@
 .nz-intel__infra-label {
   color: var(--nz-text-secondary);
 }
+
+/* ── Population Exposure ──────────────────────────────────── */
+
+.nz-intel__population {
+  padding: 8px 0;
+  border-top: 1px solid var(--nz-panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nz-intel__pop-header {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.nz-intel__pop-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.nz-intel__pop-hero-value {
+  font-family: var(--nz-font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nz-intel__pop-hero-label {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+}
+
+.nz-intel__pop-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.nz-intel__pop-class {
+  font-family: var(--nz-font-mono);
+  font-weight: 600;
+  min-width: 20px;
+  text-align: right;
+  font-size: 10px;
+}
+
+.nz-intel__pop-bar {
+  height: 6px;
+  border-radius: 3px;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.nz-intel__pop-value {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-secondary);
+  min-width: 40px;
+  text-align: right;
+}
+
+.nz-intel__pop-cities {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nz-intel__pop-city {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.nz-intel__pop-city-class {
+  font-family: var(--nz-font-mono);
+  font-weight: 700;
+  min-width: 18px;
+  text-align: right;
+  font-size: 10px;
+}
+
+.nz-intel__pop-city-name {
+  color: var(--nz-text-primary);
+  flex: 1;
+}
+
+.nz-intel__pop-city-pop {
+  font-family: var(--nz-font-mono);
+  color: var(--nz-text-muted);
+  font-size: 9px;
+}
+
+.nz-intel__pop-source {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  opacity: 0.7;
+}
+
+/* ── Intensity Area Coverage ─────────────────────────────── */
 
 .nz-intel__area {
   padding: 8px 0;

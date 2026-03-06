@@ -15,6 +15,7 @@ import type { JmaClass, EarthquakeEvent } from '../types';
 import type {
   ImpactIntelligence,
   PeakIntensity,
+  PopulationExposure,
   IntensityAreaStats,
   InfraImpactSummary,
   TsunamiETA,
@@ -114,6 +115,83 @@ function renderInfraSection(infra: InfraImpactSummary): string {
   `).join('');
 
   return `<div class="nz-intel__infra">${html}</div>`;
+}
+
+// ── Population Exposure Section ──────────────────────────────
+
+function formatPopulation(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+function formatPopulationJa(n: number): string {
+  if (n >= 10_000) return `約${(n / 10_000).toFixed(1)}万人`;
+  return `${n.toLocaleString()}人`;
+}
+
+interface PopEntry {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function renderPopulationSection(pop: PopulationExposure): string {
+  // Build cumulative entries (each is "X or higher")
+  const entries: PopEntry[] = [
+    { label: '7', value: pop.jma7, color: JMA_COLORS['7'] },
+    { label: '6+', value: pop.jma6plus, color: JMA_COLORS['6+'] },
+    { label: '6-', value: pop.jma6minus, color: JMA_COLORS['6-'] },
+    { label: '5+', value: pop.jma5plus, color: JMA_COLORS['5+'] },
+    { label: '5-', value: pop.jma5minus, color: JMA_COLORS['5-'] },
+    { label: '4+', value: pop.jma4plus, color: JMA_COLORS['4'] },
+  ];
+
+  const nonZero = entries.filter((e) => e.value > 0);
+  if (nonZero.length === 0) return '';
+
+  const maxVal = Math.max(...nonZero.map((e) => e.value));
+
+  // Hero number: highest severity with affected population
+  const heroEntry = nonZero[0];
+  const heroLabel = `震度${heroEntry.label}以上`;
+
+  // Bar chart
+  const bars = nonZero.map((e) => {
+    const pct = maxVal > 0 ? Math.max(2, (e.value / maxVal) * 100) : 2;
+    return `
+      <div class="nz-intel__pop-row">
+        <span class="nz-intel__pop-class">${e.label}</span>
+        <span class="nz-intel__pop-bar" style="width:${pct}%;background:${e.color}"></span>
+        <span class="nz-intel__pop-value">${formatPopulation(e.value)}</span>
+      </div>
+    `;
+  }).join('');
+
+  // Top affected cities
+  const cityRows = pop.topAffected.slice(0, 5).map((c) => {
+    const color = JMA_COLORS[c.jmaClass] || '#94a3b8';
+    return `
+      <div class="nz-intel__pop-city">
+        <span class="nz-intel__pop-city-class" style="color:${color}">${c.jmaClass}</span>
+        <span class="nz-intel__pop-city-name">${c.name}</span>
+        <span class="nz-intel__pop-city-pop">${formatPopulationJa(c.population)}</span>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="nz-intel__population">
+      <div class="nz-intel__pop-header">Population Exposure</div>
+      <div class="nz-intel__pop-hero">
+        <span class="nz-intel__pop-hero-value" style="color:${heroEntry.color}">${formatPopulationJa(heroEntry.value)}</span>
+        <span class="nz-intel__pop-hero-label">${heroLabel}</span>
+      </div>
+      ${bars}
+      ${cityRows ? `<div class="nz-intel__pop-cities">${cityRows}</div>` : ''}
+      <div class="nz-intel__pop-source">令和2年国勢調査 · 主要${pop.topAffected.length > 0 ? pop.topAffected.length + '+' : ''}都市集計</div>
+    </div>
+  `;
 }
 
 // ── Intensity Area Coverage Section ──────────────────────────
@@ -258,12 +336,17 @@ function renderPanel(intel: ImpactIntelligence, event: EarthquakeEvent): string 
     sections.push(renderPeakIntensity(intel.peakIntensity));
   }
 
-  // Section 2: Infrastructure impact
+  // Section 2: Population exposure
+  if (intel.populationExposure && intel.populationExposure.jma4plus > 0) {
+    sections.push(renderPopulationSection(intel.populationExposure));
+  }
+
+  // Section 3: Infrastructure impact
   if (intel.infraSummary) {
     sections.push(renderInfraSection(intel.infraSummary));
   }
 
-  // Section 3: Intensity area coverage
+  // Section 4: Intensity area coverage
   if (intel.areaStats) {
     sections.push(renderAreaSection(intel.areaStats));
   }

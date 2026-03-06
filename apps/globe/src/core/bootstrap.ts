@@ -212,7 +212,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   // 5c. Notification Queue
   const notifications = createNotificationQueue(
     (event) => selectEvent(event),
-    { enabled: prefs.notifications.enabled, minMagnitude: prefs.notifications.minMagnitude },
+    { enabled: prefs.notifications.enabled, minMagnitude: prefs.notifications.minMagnitude, soundEnabled: prefs.notifications.soundEnabled },
   );
 
   // 6a. Tooltip — hover details for all pickable layers
@@ -321,7 +321,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   // 7a. Settings panel
   const settings = createSettingsPanel((newPrefs: ConsolePreferences) => {
     prefs = newPrefs;
-    notifications.configure({ enabled: newPrefs.notifications.enabled, minMagnitude: newPrefs.notifications.minMagnitude });
+    notifications.configure({ enabled: newPrefs.notifications.enabled, minMagnitude: newPrefs.notifications.minMagnitude, soundEnabled: newPrefs.notifications.soundEnabled });
     consoleStore.set('showCoordinates', newPrefs.display.showCoordinates);
   });
   shell.settingsBtn.addEventListener('click', () => settings.toggle());

@@ -8,6 +8,7 @@
  */
 
 import { consoleStore } from '../core/store';
+import { playEarthquakeAlert } from '../core/alertSound';
 import type { EarthquakeEvent } from '../types';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ function eventSeverity(mag: number): NotificationSeverity {
 export interface NotificationConfig {
   enabled: boolean;
   minMagnitude: number;
+  soundEnabled: boolean;
 }
 
 export interface NotificationManager {
@@ -57,7 +59,7 @@ export function createNotificationQueue(
   const queue: Notification[] = [];
   let knownEventIds = new Set<string>();
   let initialized = false;
-  let config: NotificationConfig = initialConfig ?? { enabled: true, minMagnitude: 3.0 };
+  let config: NotificationConfig = initialConfig ?? { enabled: true, minMagnitude: 3.0, soundEnabled: false };
 
   // Container
   const container = document.createElement('div');
@@ -168,6 +170,11 @@ export function createNotificationQueue(
         timestamp: Date.now(),
         event,
       });
+
+      // Play alert sound if enabled
+      if (config.soundEnabled) {
+        playEarthquakeAlert(event.magnitude);
+      }
     }
   });
 

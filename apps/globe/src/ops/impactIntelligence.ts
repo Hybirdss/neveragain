@@ -15,6 +15,7 @@ import type {
   JmaClass,
 } from '../types';
 import { computeGmpe, haversine, toJmaClass } from '../engine/gmpe';
+import { MUNICIPALITIES, JAPAN_TOTAL_POPULATION, CATALOGED_POPULATION } from '../data/municipalities';
 import { HOSPITALS, type HospitalPosture } from '../layers/hospitalLayer';
 import {
   POWER_PLANTS,
@@ -159,7 +160,124 @@ export function computeIntensityAreaStats(grid: IntensityGrid): IntensityAreaSta
 }
 
 // ============================================================
-// 3. Infrastructure Impact Summary
+// 3. Population Exposure
+// ============================================================
+
+export interface PopulationExposure {
+  /** Population in areas with JMA 7 (intensity >= 6.5) */
+  jma7: number;
+  /** Population in areas with JMA 6+ or higher (intensity >= 6.0) */
+  jma6plus: number;
+  /** Population in areas with JMA 6- or higher (intensity >= 5.5) */
+  jma6minus: number;
+  /** Population in areas with JMA 5+ or higher (intensity >= 5.0) */
+  jma5plus: number;
+  /** Population in areas with JMA 5- or higher (intensity >= 4.5) */
+  jma5minus: number;
+  /** Population in areas with JMA 4 or higher (intensity >= 3.5) */
+  jma4plus: number;
+  /** Total cataloged population assessed */
+  catalogedPopulation: number;
+  /** Japan total population (2020 census) */
+  totalPopulation: number;
+  /** Top affected municipalities with their intensity */
+  topAffected: {
+    name: string;
+    nameEn: string;
+    population: number;
+    intensity: number;
+    jmaClass: JmaClass;
+  }[];
+}
+
+/**
+ * Compute population exposure by JMA intensity class.
+ *
+ * For each municipality in the catalog, compute GMPE intensity at the
+ * city hall coordinates and assign the entire municipality population
+ * to that intensity class.
+ *
+ * This is accurate for cities <20km across (intensity variation ~0.5 JMA,
+ * within GMPE's own ±1 JMA error margin). Source: Si & Midorikawa (1999).
+ *
+ * Population data: 令和2年国勢調査 (2020 Census), exact counts.
+ */
+export function computePopulationExposure(event: EarthquakeEvent): PopulationExposure {
+  let jma7 = 0;
+  let jma6plus = 0;
+  let jma6minus = 0;
+  let jma5plus = 0;
+  let jma5minus = 0;
+  let jma4plus = 0;
+
+  const affected: PopulationExposure['topAffected'] = [];
+
+  for (const city of MUNICIPALITIES) {
+    const intensity = computeSiteIntensity(city.lat, city.lng, event);
+    if (intensity < 3.5) continue; // Below JMA 4 — not significantly affected
+
+    const pop = city.population;
+    const jmaClass = toJmaClass(intensity);
+
+    if (intensity >= 6.5) {
+      jma7 += pop;
+      jma6plus += pop;
+      jma6minus += pop;
+      jma5plus += pop;
+      jma5minus += pop;
+      jma4plus += pop;
+    } else if (intensity >= 6.0) {
+      jma6plus += pop;
+      jma6minus += pop;
+      jma5plus += pop;
+      jma5minus += pop;
+      jma4plus += pop;
+    } else if (intensity >= 5.5) {
+      jma6minus += pop;
+      jma5plus += pop;
+      jma5minus += pop;
+      jma4plus += pop;
+    } else if (intensity >= 5.0) {
+      jma5plus += pop;
+      jma5minus += pop;
+      jma4plus += pop;
+    } else if (intensity >= 4.5) {
+      jma5minus += pop;
+      jma4plus += pop;
+    } else {
+      jma4plus += pop;
+    }
+
+    // Track affected municipalities for detail display
+    if (intensity >= 4.5) {
+      affected.push({
+        name: city.name,
+        nameEn: city.nameEn,
+        population: pop,
+        intensity,
+        jmaClass,
+      });
+    }
+  }
+
+  // Sort by intensity descending, then population descending
+  affected.sort((a, b) => b.intensity - a.intensity || b.population - a.population);
+
+  return {
+    jma7,
+    jma6plus,
+    jma6minus,
+    jma5plus,
+    jma5minus,
+    jma4plus,
+    catalogedPopulation: CATALOGED_POPULATION,
+    totalPopulation: JAPAN_TOTAL_POPULATION,
+    topAffected: affected.slice(0, 10), // Top 10 most affected
+  };
+}
+
+// ============================================================
+// 4. Infrastructure Impact Summary
 // ============================================================
 
 export interface InfraImpactSummary {
@@ -576,6 +694,7 @@ export function computeResponseTimeline(event: EarthquakeEvent): ResponseMilesto
 
 export interface ImpactIntelligence {
   peakIntensity: PeakIntensity | null;
+  populationExposure: PopulationExposure | null;
   areaStats: IntensityAreaStats | null;
   infraSummary: InfraImpactSummary | null;
   tsunamiETAs: TsunamiETA[];
@@ -600,6 +719,7 @@ export function computeImpactIntelligence(input: {
   if (!event) {
     return {
       peakIntensity: null,
+      populationExposure: null,
       areaStats: null,
       infraSummary: null,
       tsunamiETAs: [],
@@ -610,6 +730,9 @@ export function computeImpactIntelligence(input: {
   // Peak intensity and area stats require an intensity grid
   const peakIntensity = grid ? computePeakIntensity(grid) : null;
   const areaStats = grid ? computeIntensityAreaStats(grid) : null;
+
+  // Population exposure — computed from GMPE at each municipality
+  const populationExposure = computePopulationExposure(event);
 
   // Infrastructure impact is computed directly from the event + catalogs
   const infraSummary = computeInfraImpact(event, vessels);
@@ -622,6 +745,7 @@ export function computeImpactIntelligence(input: {
 
   return {
     peakIntensity,
+    populationExposure,
     areaStats,
     infraSummary,
     tsunamiETAs,

@@ -12,6 +12,7 @@ export interface ConsolePreferences {
   notifications: {
     enabled: boolean;
     minMagnitude: number;
+    soundEnabled: boolean;
   };
   keyboard: {
     enabled: boolean;
@@ -30,6 +31,7 @@ const DEFAULT_PREFERENCES: ConsolePreferences = {
   notifications: {
     enabled: true,
     minMagnitude: 3.0,
+    soundEnabled: false,
   },
   keyboard: {
     enabled: true,

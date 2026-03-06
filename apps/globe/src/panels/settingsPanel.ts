@@ -80,6 +80,7 @@ function renderSettings(prefs: ConsolePreferences): string {
   const range7dActive = prefs.timeline.defaultRange === '7d' ? ' nz-settings__toggle-btn--active' : '';
 
   const notifOn = prefs.notifications.enabled;
+  const soundOn = prefs.notifications.soundEnabled;
   const coordsOn = prefs.display.showCoordinates;
   const kbOn = prefs.keyboard.enabled;
 
@@ -122,6 +123,13 @@ function renderSettings(prefs: ConsolePreferences): string {
               ${magOptions}
             </select>
           </div>
+          <div class="nz-settings__row">
+            <span class="nz-settings__label">Alert Sound</span>
+            <button class="nz-settings__switch${soundOn ? ' nz-settings__switch--on' : ''}" data-setting="notifications-sound">
+              ${soundOn ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          <div class="nz-settings__hint">M4.5+ watch tone / M5.5+ attention / M6.5+ urgent</div>
         </div>
 
         <div class="nz-settings__divider"></div>
@@ -212,6 +220,13 @@ export function createSettingsPanel(
     overlay.querySelector<HTMLSelectElement>('[data-setting="notifications-mag"]')?.addEventListener('change', (e) => {
       prefs.notifications.minMagnitude = Number((e.target as HTMLSelectElement).value);
       save();
+    });
+
+    // Sound toggle
+    overlay.querySelector('[data-setting="notifications-sound"]')?.addEventListener('click', () => {
+      prefs.notifications.soundEnabled = !prefs.notifications.soundEnabled;
+      save();
+      render();
     });
 
     // Keyboard toggle

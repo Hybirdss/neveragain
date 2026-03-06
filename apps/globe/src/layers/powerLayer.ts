@@ -163,8 +163,9 @@ export const POWER_PLANTS: PowerPlant[] = [
   { id: 'npp-ikata', name: '伊方発電所', nameEn: 'Ikata', lat: 33.4908, lng: 132.3128, type: 'nuclear', status: 'operating', capacityMw: 890, units: 1, region: 'shikoku' },
   { id: 'npp-genkai', name: '玄海原子力発電所', nameEn: 'Genkai', lat: 33.5153, lng: 129.8364, type: 'nuclear', status: 'operating', capacityMw: 2319, units: 2, region: 'kyushu' },
   { id: 'npp-sendai', name: '川内原子力発電所', nameEn: 'Sendai', lat: 31.8333, lng: 130.1903, type: 'nuclear', status: 'operating', capacityMw: 1780, units: 2, region: 'kyushu' },
+  { id: 'npp-ohma', name: '大間原子力発電所', nameEn: 'Ohma', lat: 41.5089, lng: 140.9092, type: 'nuclear', status: 'shutdown', capacityMw: 1383, units: 1, region: 'tohoku' },
 
-  // Major Thermal Plants (top capacity)
+  // Major Thermal Plants (>1GW capacity)
   { id: 'tpp-kashima', name: '鹿島火力発電所', nameEn: 'Kashima Thermal', lat: 35.9617, lng: 140.7003, type: 'thermal', status: 'operating', capacityMw: 4400, units: 6, region: 'kanto' },
   { id: 'tpp-hekinan', name: '碧南火力発電所', nameEn: 'Hekinan Thermal', lat: 34.8333, lng: 136.9833, type: 'thermal', status: 'operating', capacityMw: 4100, units: 5, region: 'chubu' },
   { id: 'tpp-chita', name: '知多火力発電所', nameEn: 'Chita Thermal', lat: 34.9750, lng: 136.8500, type: 'thermal', status: 'operating', capacityMw: 3966, units: 6, region: 'chubu' },
@@ -233,7 +234,7 @@ export function createPowerLayers(
   const minZoom = 4;
   if (zoom < minZoom) return [];
 
-  const showThermal = zoom >= 6;
+  const showThermal = zoom >= 5;
   const filtered = showThermal
     ? POWER_PLANTS
     : POWER_PLANTS.filter((p) => p.type === 'nuclear');

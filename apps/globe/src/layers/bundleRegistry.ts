@@ -104,8 +104,8 @@ export function createDefaultBundleSettings(): BundleSettings {
   return {
     seismic: { enabled: true, density: 'standard' },
     maritime: { enabled: true, density: 'standard' },
-    lifelines: { enabled: false, density: 'standard' },
-    medical: { enabled: false, density: 'standard' },
+    lifelines: { enabled: true, density: 'standard' },
+    medical: { enabled: true, density: 'standard' },
     'built-environment': { enabled: false, density: 'minimal' },
   };
 }
