@@ -12,12 +12,25 @@ import { setActiveFaultsVisible } from '../globe/features/activeFaults';
 import { computeImpact } from '../engine/impactAssessment';
 import { buildAssetExposures } from '../ops/exposure';
 import { buildOpsPriorities } from '../ops/priorities';
+import { buildServiceReadModel } from '../ops/serviceReadModel';
 
 export function initLayerOrchestrator(
   globe: GlobeInstance,
   dataGrids: DataGrids,
 ): () => void {
   const unsubs: Array<() => void> = [];
+
+  function syncServiceReadModel(): void {
+    const ops = store.get('ops');
+    store.set('serviceReadModel', buildServiceReadModel({
+      selectedEvent: store.get('selectedEvent'),
+      tsunamiAssessment: store.get('tsunamiAssessment'),
+      impactResults: store.get('impactResults'),
+      exposures: ops.exposures,
+      priorities: ops.priorities,
+      freshnessStatus: store.get('realtimeStatus'),
+    }));
+  }
 
   // intensityGrid → contours + impact
   unsubs.push(store.subscribe('intensityGrid', (grid: IntensityGrid | null) => {
@@ -26,6 +39,7 @@ export function initLayerOrchestrator(
       store.set('impactResults', null);
       const ops = store.get('ops');
       store.set('ops', { ...ops, exposures: [], priorities: [] });
+      syncServiceReadModel();
       return;
     }
 
@@ -44,6 +58,7 @@ export function initLayerOrchestrator(
 
     if (!selectedEvent) {
       store.set('ops', { ...ops, exposures: [], priorities: [] });
+      syncServiceReadModel();
       return;
     }
 
@@ -58,6 +73,15 @@ export function initLayerOrchestrator(
       metro: ops.metro,
     });
     store.set('ops', { ...ops, exposures, priorities });
+    syncServiceReadModel();
+  }));
+
+  unsubs.push(store.subscribe('selectedEvent', () => {
+    syncServiceReadModel();
+  }));
+
+  unsubs.push(store.subscribe('tsunamiAssessment', () => {
+    syncServiceReadModel();
   }));
 
   // Layer visibility → toggle features (diff-based)

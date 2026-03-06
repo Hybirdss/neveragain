@@ -5,6 +5,7 @@
  * Fallback source: USGS feed (only when API is unavailable).
  */
 
+import type { RealtimeSource } from '../ops/readModelTypes';
 import type { EarthquakeEvent } from '../types';
 import { classifyFaultType, toEarthquakeEvent } from './usgsApi';
 import { store } from '../store/appState';
@@ -74,6 +75,11 @@ interface ServerEvent {
 interface ServerEventsResponse {
   events: ServerEvent[];
   count: number;
+}
+
+interface FetchResult {
+  events: EarthquakeEvent[];
+  source: RealtimeSource;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -186,20 +192,29 @@ function isTimeoutError(error: unknown): boolean {
   return /aborted|timeout|timed out/i.test(error.message);
 }
 
-async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
+async function fetchPrimaryWithFallback(): Promise<FetchResult> {
   if (!SERVER_EVENTS_URL) {
     // Local preview/dev without API proxy: go straight to USGS.
-    return await fetchFromUSGS();
+    return {
+      events: await fetchFromUSGS(),
+      source: 'usgs',
+    };
   }
 
   // Hedged fetch: start server API immediately; after HEDGE_DELAY_MS,
   // also start USGS in parallel. Promise.any() uses first to succeed.
   const HEDGE_DELAY_MS = 3_000;
-  const serverPromise = fetchFromServer();
+  const serverPromise = fetchFromServer().then((events) => ({
+    events,
+    source: 'server' as const,
+  }));
 
-  const hedgedUsgs = new Promise<EarthquakeEvent[]>((resolve, reject) => {
+  const hedgedUsgs = new Promise<FetchResult>((resolve, reject) => {
     const timer = setTimeout(() => {
-      fetchFromUSGS().then(resolve, reject);
+      fetchFromUSGS().then((events) => resolve({
+        events,
+        source: 'fallback',
+      }), reject);
     }, HEDGE_DELAY_MS);
     // Only cancel hedge if server SUCCEEDS — on rejection, let USGS still fire
     serverPromise.then(() => clearTimeout(timer));
@@ -214,7 +229,10 @@ async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
       console.warn('[usgsRealtime] Hedged fetch failed, final USGS attempt');
       lastFallbackWarnAt = now;
     }
-    return await fetchFromUSGS();
+    return {
+      events: await fetchFromUSGS(),
+      source: 'fallback',
+    };
   }
 }
 
@@ -222,9 +240,14 @@ async function fetchPrimaryWithFallback(): Promise<EarthquakeEvent[]> {
 
 /** Timestamp of the last successful fetch (0 = never). */
 let lastUpdatedAt = 0;
+let lastSuccessSource: RealtimeSource = 'server';
 
 export function getLastUpdatedAt(): number {
   return lastUpdatedAt;
+}
+
+export function getLastSuccessSource(): RealtimeSource {
+  return lastSuccessSource;
 }
 
 export interface RealtimePollerHandle {
@@ -236,6 +259,11 @@ export interface RealtimePollerHandle {
   pollNow: () => Promise<void>;
   /** Promise that resolves when the first poll completes (success or failure). */
   firstPollDone: Promise<void>;
+}
+
+export interface RealtimePollMeta {
+  source: RealtimeSource;
+  updatedAt: number;
 }
 
 /**
@@ -251,7 +279,7 @@ export interface RealtimePollerHandle {
  * @returns A RealtimePollerHandle.
  */
 export function startRealtimePolling(
-  callback: (events: EarthquakeEvent[]) => void,
+  callback: (events: EarthquakeEvent[], meta: RealtimePollMeta) => void,
   intervalMs: number = 60_000,
 ): RealtimePollerHandle {
   const seen = new Set<string>();
@@ -265,7 +293,8 @@ export function startRealtimePolling(
 
     try {
       // Primary: backend API fed by server-side ingestion.
-      const events = await fetchPrimaryWithFallback();
+      const result = await fetchPrimaryWithFallback();
+      const events = result.events;
 
       const newEvents: EarthquakeEvent[] = [];
       for (const event of events) {
@@ -277,10 +306,12 @@ export function startRealtimePolling(
       // Clear any previous network error on successful fetch
       store.set('networkError', null);
       lastUpdatedAt = Date.now();
+      lastSuccessSource = result.source;
 
-      if (newEvents.length > 0) {
-        callback(newEvents);
-      }
+      callback(newEvents, {
+        source: result.source,
+        updatedAt: lastUpdatedAt,
+      });
     } catch (error: unknown) {
       if (isTimeoutError(error)) {
         console.error(

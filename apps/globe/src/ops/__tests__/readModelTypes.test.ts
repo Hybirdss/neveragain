@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest';
+
+import type {
+  RealtimeStatus,
+  ReplayMilestone,
+  ScenarioDelta,
+  ServiceReadModel,
+} from '../readModelTypes';
+
+describe('read model backend contracts', () => {
+  it('supports a minimal service read model shape', () => {
+    const model: ServiceReadModel = {
+      currentEvent: null,
+      opsSnapshot: null,
+      assetExposureSummary: [],
+      priorityQueue: [],
+      freshnessStatus: {
+        source: 'server',
+        state: 'fresh',
+        updatedAt: 0,
+        staleAfterMs: 60_000,
+      },
+    };
+
+    expect(model.freshnessStatus.state).toBe('fresh');
+  });
+
+  it('supports replay and scenario state contracts', () => {
+    const milestone: ReplayMilestone = { kind: 'event_locked', at: 0, label: 'Event locked' };
+    const delta: ScenarioDelta = {
+      changeSummary: [],
+      exposureChanges: [],
+      priorityChanges: [],
+      reasons: [],
+    };
+    const status: RealtimeStatus = {
+      source: 'server',
+      state: 'fresh',
+      updatedAt: 0,
+      staleAfterMs: 60_000,
+    };
+
+    expect(milestone.kind).toBe('event_locked');
+    expect(delta.reasons).toHaveLength(0);
+    expect(status.source).toBe('server');
+  });
+});

@@ -1,4 +1,10 @@
 import type { OpsState } from './ops/types';
+import type {
+  RealtimeStatus,
+  ReplayMilestone,
+  ScenarioDelta,
+  ServiceReadModel,
+} from './ops/readModelTypes';
 
 /**
  * Namazue — Shared Type Contracts
@@ -313,6 +319,10 @@ export interface AppState {
   activePanel: PanelTab;
   selectedEvent: EarthquakeEvent | null;
   ops: OpsState;
+  serviceReadModel: ServiceReadModel | null;
+  realtimeStatus: RealtimeStatus;
+  replayMilestones: ReplayMilestone[];
+  scenarioDelta: ScenarioDelta | null;
   tsunamiAssessment: TsunamiAssessment | null;
   intensityGrid: IntensityGrid | null;
   intensitySource: IntensitySource;

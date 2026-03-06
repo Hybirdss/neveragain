@@ -4,7 +4,13 @@
 
 import { store } from '../store/appState';
 import type { EarthquakeEvent } from '../types';
-import { startRealtimePolling, type RealtimePollerHandle } from '../data/usgsRealtime';
+import { buildServiceReadModel } from '../ops/serviceReadModel';
+import type { RealtimeStatus } from '../ops/readModelTypes';
+import {
+  startRealtimePolling,
+  type RealtimePollMeta,
+  type RealtimePollerHandle,
+} from '../data/usgsRealtime';
 import { earthquakeStore } from '../data/earthquakeStore';
 
 export interface RealtimeOrchestratorHandle {
@@ -12,7 +18,56 @@ export interface RealtimeOrchestratorHandle {
   dispose: () => void;
 }
 
-function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
+const STALE_AFTER_MS = 60_000;
+
+interface DeriveRealtimeStatusInput {
+  source: RealtimeStatus['source'];
+  updatedAt: number;
+  now: number;
+  staleAfterMs: number;
+  fallbackActive: boolean;
+}
+
+export function deriveRealtimeStatus(input: DeriveRealtimeStatusInput): RealtimeStatus {
+  if (input.fallbackActive || input.source !== 'server') {
+    return {
+      source: input.source,
+      state: 'degraded',
+      updatedAt: input.updatedAt,
+      staleAfterMs: input.staleAfterMs,
+    };
+  }
+
+  return {
+    source: input.source,
+    state: input.now - input.updatedAt > input.staleAfterMs ? 'stale' : 'fresh',
+    updatedAt: input.updatedAt,
+    staleAfterMs: input.staleAfterMs,
+  };
+}
+
+function syncServiceReadModel(): void {
+  const ops = store.get('ops');
+  store.set('serviceReadModel', buildServiceReadModel({
+    selectedEvent: store.get('selectedEvent'),
+    tsunamiAssessment: store.get('tsunamiAssessment'),
+    impactResults: store.get('impactResults'),
+    exposures: ops.exposures,
+    priorities: ops.priorities,
+    freshnessStatus: store.get('realtimeStatus'),
+  }));
+}
+
+function onNewRealtimeEvents(newEvents: EarthquakeEvent[], meta: RealtimePollMeta): void {
+  const realtimeStatus = deriveRealtimeStatus({
+    source: meta.source,
+    updatedAt: meta.updatedAt,
+    now: Date.now(),
+    staleAfterMs: STALE_AFTER_MS,
+    fallbackActive: meta.source !== 'server',
+  });
+  store.set('realtimeStatus', realtimeStatus);
+
   if (store.get('mode') !== 'realtime') return;
 
   // Delegate dedup + storage to earthquakeStore
@@ -42,6 +97,8 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[]): void {
     currentTime: now,
     timeRange: [cutoff, now],
   });
+
+  syncServiceReadModel();
 }
 
 export function initRealtimeOrchestrator(): RealtimeOrchestratorHandle {
@@ -56,6 +113,8 @@ export function initRealtimeOrchestrator(): RealtimeOrchestratorHandle {
       // Keep existing data visible while re-polling (no earthquakeStore.clear())
       pollerHandle.pollNow(); // Immediate fetch — no 60s wait
     }
+
+    syncServiceReadModel();
   });
 
   return {
