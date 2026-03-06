@@ -2,6 +2,7 @@ import type { EarthquakeEvent } from '../types';
 import type {
   OperatorBundleDomainOverview,
   OperatorBundleDomainOverviews,
+  OperatorBundleId,
   OperationalOverview,
   OperatorBundleCounter,
   OperatorBundleSignal,
@@ -10,6 +11,7 @@ import type {
   OperatorBundleTrust,
 } from './readModelTypes';
 import type { OpsAsset, OpsAssetClass, OpsAssetExposure, OpsSeverity } from './types';
+import { getBundleAssetClasses } from './assetClassRegistry';
 
 export interface MaritimeTelemetryOverview {
   totalTracked: number;
@@ -69,6 +71,39 @@ function summarizeClassExposure(
     if (entry.severity === 'clear') continue;
     const asset = assetById.get(entry.assetId);
     if (!asset || asset.class !== assetClass) continue;
+    matching.push({ entry, asset });
+  }
+
+  matching
+    .sort((left, right) =>
+      severityRank(right.entry.severity) - severityRank(left.entry.severity) ||
+      right.entry.score - left.entry.score,
+    );
+
+  return {
+    count: matching.length,
+    topSeverity: matching[0]?.entry.severity ?? 'clear',
+    topAssets: matching.slice(0, 2).map((entry) => entry.asset),
+  };
+}
+
+function summarizeBundleExposure(
+  bundleId: Extract<OperatorBundleId, 'lifelines' | 'medical' | 'built-environment'>,
+  assets: OpsAsset[],
+  exposures: OpsAssetExposure[],
+): {
+  count: number;
+  topSeverity: OpsSeverity;
+  topAssets: OpsAsset[];
+} {
+  const classes = new Set(getBundleAssetClasses(bundleId));
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const matching: Array<{ entry: OpsAssetExposure; asset: OpsAsset }> = [];
+
+  for (const entry of exposures) {
+    if (entry.severity === 'clear') continue;
+    const asset = assetById.get(entry.assetId);
+    if (!asset || !classes.has(asset.class)) continue;
     matching.push({ entry, asset });
   }
 
@@ -162,8 +197,9 @@ export function buildOperatorBundleSummaries(
   input: BuildOperatorBundleSummariesInput,
 ): OperatorBundleSummaries {
   const ports = summarizeClassExposure('port', input.assets, input.exposures);
-  const rail = summarizeClassExposure('rail_hub', input.assets, input.exposures);
-  const medical = summarizeClassExposure('hospital', input.assets, input.exposures);
+  const lifelines = summarizeBundleExposure('lifelines', input.assets, input.exposures);
+  const medical = summarizeBundleExposure('medical', input.assets, input.exposures);
+  const builtEnvironment = summarizeBundleExposure('built-environment', input.assets, input.exposures);
   const topAssets = summarizeTopAssets(input.exposures, input.assets, 2);
   const topRegion = formatRegion(input.operationalOverview.topRegion);
   const hasEvent = input.selectedEvent !== null;
@@ -248,20 +284,20 @@ export function buildOperatorBundleSummaries(
     lifelines: applyDomainOverview({
       bundleId: 'lifelines',
       title: 'Lifelines',
-      metric: rail.count > 0
-        ? `${rail.count} rail hub${rail.count === 1 ? '' : 's'} in elevated posture`
+      metric: lifelines.count > 0
+        ? `${lifelines.count} lifeline site${lifelines.count === 1 ? '' : 's'} in elevated posture`
         : 'No lifeline corridors in elevated posture',
-      detail: rail.count > 0
-        ? `${rail.topAssets.map((asset) => asset.name).join(' and ')} require corridor verification.`
+      detail: lifelines.count > 0
+        ? `${lifelines.topAssets.map((asset) => asset.name).join(' and ')} require corridor verification.`
         : 'Rail, power, water, and telecom views are standing by for corridor stress.',
-      severity: rail.topSeverity,
-      availability: rail.count > 0 ? 'live' : 'planned',
-      trust: rail.count > 0 ? liveTrust : plannedTrust,
-      counters: rail.count > 0
-        ? [buildCounter('rail-hubs', 'Rail Hubs', rail.count, rail.topSeverity)]
+      severity: lifelines.topSeverity,
+      availability: lifelines.count > 0 ? 'live' : 'planned',
+      trust: lifelines.count > 0 ? liveTrust : plannedTrust,
+      counters: lifelines.count > 0
+        ? [buildCounter('lifeline-sites', 'Lifeline Sites', lifelines.count, lifelines.topSeverity)]
         : [],
-      signals: rail.count > 0
-        ? [buildSignal('corridor-focus', 'Corridor Focus', joinAssetNames(rail.topAssets), rail.topSeverity)]
+      signals: lifelines.count > 0
+        ? [buildSignal('corridor-focus', 'Corridor Focus', joinAssetNames(lifelines.topAssets), lifelines.topSeverity)]
         : [],
     }, input.domainOverviews?.lifelines),
     medical: applyDomainOverview({
@@ -286,19 +322,27 @@ export function buildOperatorBundleSummaries(
     'built-environment': applyDomainOverview({
       bundleId: 'built-environment',
       title: 'Built Environment',
-      metric: hasEvent
-        ? `${topRegion} urban context aligned to current event`
-        : 'Urban structural context on standby',
-      detail: hasEvent
-        ? 'Built-environment overlays will intensify at city-tier as structural layers come online.'
-        : 'City-tier built-environment overlays will activate once an operator focus event is selected.',
-      severity: input.operationalOverview.topSeverity,
-      availability: 'planned',
-      trust: plannedTrust,
-      counters: [],
-      signals: hasEvent
-        ? [buildSignal('activation-tier', 'Activation Tier', 'City-tier on operator focus', 'watch')]
+      metric: builtEnvironment.count > 0
+        ? `${builtEnvironment.count} building cluster${builtEnvironment.count === 1 ? '' : 's'} in elevated posture`
+        : hasEvent
+          ? `${topRegion} urban context aligned to current event`
+          : 'Urban structural context on standby',
+      detail: builtEnvironment.count > 0
+        ? `${builtEnvironment.topAssets.map((asset) => asset.name).join(' and ')} require urban integrity review.`
+        : hasEvent
+          ? 'Built-environment overlays will intensify at city-tier as structural layers come online.'
+          : 'City-tier built-environment overlays will activate once an operator focus event is selected.',
+      severity: builtEnvironment.count > 0 ? builtEnvironment.topSeverity : input.operationalOverview.topSeverity,
+      availability: builtEnvironment.count > 0 ? 'live' : 'planned',
+      trust: builtEnvironment.count > 0 ? liveTrust : plannedTrust,
+      counters: builtEnvironment.count > 0
+        ? [buildCounter('building-clusters', 'Building Clusters', builtEnvironment.count, builtEnvironment.topSeverity)]
         : [],
+      signals: builtEnvironment.count > 0
+        ? [buildSignal('urban-focus', 'Urban Focus', joinAssetNames(builtEnvironment.topAssets), builtEnvironment.topSeverity)]
+        : hasEvent
+          ? [buildSignal('activation-tier', 'Activation Tier', 'City-tier on operator focus', 'watch')]
+          : [],
     }, input.domainOverviews?.['built-environment']),
   };
 }

@@ -1,5 +1,6 @@
 import type { IntensityGrid, TsunamiAssessment } from '../types';
 import type { OpsAsset, OpsAssetExposure, OpsSeverity } from './types';
+import { getOpsAssetClassDefinition } from './assetClassRegistry';
 
 function sampleGrid(grid: IntensityGrid, lat: number, lng: number): number {
   const latMin = grid.center.lat - grid.radiusDeg;
@@ -21,7 +22,8 @@ function sampleGrid(grid: IntensityGrid, lat: number, lng: number): number {
 function tsunamiBonus(asset: OpsAsset, tsunamiAssessment: TsunamiAssessment | null): number {
   if (!tsunamiAssessment) return 0;
 
-  const isCoastalAsset = asset.class === 'port' || asset.tags.includes('coastal');
+  const definition = getOpsAssetClassDefinition(asset.class);
+  const isCoastalAsset = definition.tsunamiSensitive === true || asset.tags.includes('coastal');
   if (!isCoastalAsset) return 0;
 
   switch (tsunamiAssessment.risk) {
@@ -37,14 +39,13 @@ function tsunamiBonus(asset: OpsAsset, tsunamiAssessment: TsunamiAssessment | nu
 }
 
 function classWeight(asset: OpsAsset, intensity: number): number {
-  switch (asset.class) {
-    case 'port':
-      return intensity * 14;
-    case 'rail_hub':
-      return intensity * 12 + (intensity >= 4.5 ? 10 : 0);
-    case 'hospital':
-      return intensity * 11 + (intensity >= 4 ? 6 : 0);
-  }
+  const definition = getOpsAssetClassDefinition(asset.class);
+
+  return intensity * definition.exposureWeight
+    + definition.thresholdRules.reduce(
+      (bonus, rule) => bonus + (intensity >= rule.minIntensity ? rule.bonus : 0),
+      0,
+    );
 }
 
 function toSeverity(score: number): OpsSeverity {
@@ -60,6 +61,7 @@ function buildReasons(
   tsunamiAssessment: TsunamiAssessment | null,
 ): string[] {
   const reasons: string[] = [];
+  const definition = getOpsAssetClassDefinition(asset.class);
 
   if (intensity >= 5) {
     reasons.push('strong shaking overlap');
@@ -69,16 +71,14 @@ function buildReasons(
     reasons.push('limited shaking overlap');
   }
 
-  if ((asset.class === 'port' || asset.tags.includes('coastal')) && tsunamiAssessment && tsunamiAssessment.risk !== 'none') {
+  if ((definition.tsunamiSensitive === true || asset.tags.includes('coastal')) && tsunamiAssessment && tsunamiAssessment.risk !== 'none') {
     reasons.push(`tsunami posture ${tsunamiAssessment.risk}`);
   }
 
-  if (asset.class === 'rail_hub' && intensity >= 4.5) {
-    reasons.push('hub inspection priority');
-  }
-
-  if (asset.class === 'hospital' && intensity >= 4) {
-    reasons.push('access route sensitivity');
+  for (const rule of definition.thresholdRules) {
+    if (intensity >= rule.minIntensity) {
+      reasons.push(rule.reason);
+    }
   }
 
   return reasons;

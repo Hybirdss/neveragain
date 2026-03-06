@@ -10,12 +10,7 @@ import { consoleStore } from '../core/store';
 import type { ServiceReadModel } from '../ops/readModelTypes';
 import type { OpsAssetExposure } from '../ops/types';
 import { OPS_ASSETS } from '../ops/assetCatalog';
-
-const CLASS_ICONS: Record<string, string> = {
-  port: '\u2693',      // anchor
-  rail_hub: '\u{1F689}', // monorail (safe fallback)
-  hospital: '\u271A',  // heavy greek cross
-};
+import { getOpsAssetClassDefinition } from '../ops/assetClassRegistry';
 
 function severityBadge(sev: string): string {
   return `<span class="nz-expo__sev nz-expo__sev--${sev}">${sev.toUpperCase()}</span>`;
@@ -45,7 +40,7 @@ function renderExposures(exposures: OpsAssetExposure[]): string {
   const items = affected.map((exp) => {
     const asset = assetMap.get(exp.assetId);
     if (!asset) return '';
-    const icon = CLASS_ICONS[asset.class] ?? '';
+    const icon = getOpsAssetClassDefinition(asset.class).icon;
 
     return `
       <div class="nz-expo__item">

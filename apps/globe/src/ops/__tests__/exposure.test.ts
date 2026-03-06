@@ -127,4 +127,66 @@ describe('buildAssetExposures', () => {
     expect(exposures[0]?.assetId).toBe('tokyo-port');
     expect(exposures[1]?.assetId).toBe('tokyo-hospital');
   });
+
+  it('scores future lifeline and built-environment asset classes through shared class metadata', () => {
+    const assets = [
+      {
+        id: 'tokyo-east-substation',
+        region: 'kanto',
+        class: 'power_substation',
+        name: 'Tokyo East Substation',
+        lat: 35.617,
+        lng: 139.794,
+        tags: ['power', 'grid'],
+        minZoomTier: 'regional',
+      },
+      {
+        id: 'toyosu-water',
+        region: 'kanto',
+        class: 'water_facility',
+        name: 'Toyosu Water Purification Center',
+        lat: 35.617,
+        lng: 139.794,
+        tags: ['water', 'lifeline'],
+        minZoomTier: 'regional',
+      },
+      {
+        id: 'marunouchi-core',
+        region: 'kanto',
+        class: 'building_cluster',
+        name: 'Marunouchi Core',
+        lat: 35.617,
+        lng: 139.794,
+        tags: ['urban', 'buildings'],
+        minZoomTier: 'city',
+      },
+    ] as unknown as OpsAsset[];
+
+    const exposures = buildAssetExposures({
+      grid: makeUniformGrid(4.9),
+      assets,
+      tsunamiAssessment: NO_TSUNAMI,
+    });
+
+    expect(exposures.map((entry) => entry.assetId)).toEqual([
+      'tokyo-east-substation',
+      'toyosu-water',
+      'marunouchi-core',
+    ]);
+    expect(exposures[0]).toMatchObject({
+      assetId: 'tokyo-east-substation',
+      severity: 'priority',
+    });
+    expect(exposures[0]?.reasons).toContain('grid stability risk');
+    expect(exposures[1]).toMatchObject({
+      assetId: 'toyosu-water',
+      severity: 'priority',
+    });
+    expect(exposures[1]?.reasons).toContain('service continuity risk');
+    expect(exposures[2]).toMatchObject({
+      assetId: 'marunouchi-core',
+      severity: 'watch',
+    });
+    expect(exposures[2]?.reasons).toContain('urban structure inspection');
+  });
 });

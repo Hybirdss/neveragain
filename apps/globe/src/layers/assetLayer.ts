@@ -1,7 +1,7 @@
 /**
  * Asset Layer — Infrastructure markers on the map.
  *
- * Shows ports, rail hubs, and hospitals from the ops asset catalog.
+ * Shows operator assets from the ops asset catalog.
  * Markers are colored by current severity (clear/watch/priority/critical).
  * Visibility controlled by zoom tier (minZoomTier per asset).
  */
@@ -24,6 +24,10 @@ const CLASS_RADIUS: Record<OpsAsset['class'], number> = {
   port: 8,
   rail_hub: 6,
   hospital: 5,
+  power_substation: 5,
+  water_facility: 5,
+  telecom_hub: 5,
+  building_cluster: 7,
 };
 
 const ZOOM_TIER_ORDER: ZoomTier[] = ['national', 'regional', 'city', 'district'];

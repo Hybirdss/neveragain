@@ -117,7 +117,7 @@ describe('buildOperatorBundleSummaries', () => {
       { id: 'exposed-ports', label: 'Exposed Ports', value: 'Port of Tokyo', tone: 'priority' },
       { id: 'traffic-posture', label: 'Traffic Posture', value: '34 priority / 98 underway', tone: 'watch' },
     ]);
-    expect(summaries.lifelines!.metric).toContain('1 rail hub');
+    expect(summaries.lifelines!.metric).toContain('1 lifeline site');
     expect(summaries.lifelines!.signals).toEqual([
       { id: 'corridor-focus', label: 'Corridor Focus', value: 'Tokyo Station', tone: 'watch' },
     ]);

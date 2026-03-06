@@ -1,4 +1,5 @@
 import type { OpsAsset, OpsAssetExposure, OpsPriority } from './types';
+import { getOpsAssetClassDefinition } from './assetClassRegistry';
 
 function formatRegionLabel(region: OpsAsset['region']): string {
   switch (region) {
@@ -14,18 +15,12 @@ function formatRegionLabel(region: OpsAsset['region']): string {
 }
 
 function titleForAsset(asset: OpsAsset): string {
-  switch (asset.class) {
-    case 'port':
-      return `Verify ${asset.name} access`;
-    case 'rail_hub':
-      return `Inspect ${asset.name.replace(' Station', '')} rail hub`;
-    case 'hospital':
-      return `Confirm ${asset.name} access posture`;
-  }
+  return getOpsAssetClassDefinition(asset.class).priorityTitle(asset);
 }
 
 function rationaleFor(asset: OpsAsset, exposure: OpsAssetExposure): string {
-  return `${formatRegionLabel(asset.region)} ${asset.class.replace('_', ' ')} posture is ${exposure.severity} because ${exposure.reasons.join(', ')}.`;
+  const definition = getOpsAssetClassDefinition(asset.class);
+  return `${formatRegionLabel(asset.region)} ${definition.label} posture is ${exposure.severity} because ${exposure.reasons.join(', ')}.`;
 }
 
 export function buildOpsPriorities(input: {

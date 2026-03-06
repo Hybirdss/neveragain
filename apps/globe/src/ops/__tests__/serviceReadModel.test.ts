@@ -337,7 +337,7 @@ describe('buildServiceReadModel', () => {
     });
     expect(model.bundleSummaries.lifelines?.counters).toEqual([
       { id: 'checks', label: 'Checks', value: 1, tone: 'priority' },
-      { id: 'rail-hubs', label: 'Rail Hubs', value: 1, tone: 'priority' },
+      { id: 'lifeline-sites', label: 'Lifeline Sites', value: 1, tone: 'priority' },
     ]);
     expect(model.bundleSummaries.lifelines?.signals).toEqual([
       { id: 'next-check', label: 'Next Check', value: 'Inspect Tokyo Station rail hub', tone: 'priority' },

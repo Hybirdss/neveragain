@@ -8,7 +8,14 @@ export type OpsRegion =
   | 'chugoku'
   | 'shikoku'
   | 'kyushu';
-export type OpsAssetClass = 'port' | 'rail_hub' | 'hospital';
+export type OpsAssetClass =
+  | 'port'
+  | 'rail_hub'
+  | 'hospital'
+  | 'power_substation'
+  | 'water_facility'
+  | 'telecom_hub'
+  | 'building_cluster';
 export type OpsSeverity = 'clear' | 'watch' | 'priority' | 'critical';
 export type ZoomTier = 'national' | 'regional' | 'city' | 'district';
 
