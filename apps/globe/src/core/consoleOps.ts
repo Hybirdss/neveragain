@@ -13,7 +13,6 @@ import type { ViewportState as OpsViewportState } from '../ops/types';
 import { buildOpsPriorities } from '../ops/priorities';
 import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
 import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '../types';
-import { deriveRealtimeStatus } from '../orchestration/realtimeOrchestrator';
 import type { ViewportState as ConsoleViewportState } from './viewportManager';
 
 export interface DeriveConsoleOperationalStateInput {
@@ -97,6 +96,44 @@ export function refreshConsoleBundleTruth(input: {
 }
 
 const STALE_AFTER_MS = 60_000;
+
+function deriveRealtimeStatus(input: {
+  source: RealtimeSource;
+  updatedAt: number;
+  now: number;
+  staleAfterMs: number;
+  fallbackActive: boolean;
+  networkError: string | null;
+}): RealtimeStatus {
+  if (input.networkError) {
+    return {
+      source: input.source,
+      state: 'degraded',
+      updatedAt: input.updatedAt,
+      staleAfterMs: input.staleAfterMs,
+      message: input.networkError,
+    };
+  }
+
+  if (input.fallbackActive || input.source !== 'server') {
+    return {
+      source: input.source,
+      state: 'degraded',
+      updatedAt: input.updatedAt,
+      staleAfterMs: input.staleAfterMs,
+      message: 'Running on fallback realtime feed',
+    };
+  }
+
+  const isStale = input.now - input.updatedAt > input.staleAfterMs;
+  return {
+    source: input.source,
+    state: isStale ? 'stale' : 'fresh',
+    updatedAt: input.updatedAt,
+    staleAfterMs: input.staleAfterMs,
+    message: isStale ? 'Realtime updates are delayed' : undefined,
+  };
+}
 
 function classifyRegion(lat: number, lng: number): OpsViewportState['activeRegion'] {
   if (lat >= 42) return 'hokkaido';

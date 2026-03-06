@@ -6,6 +6,7 @@ import { reportsRoute } from './routes/reports.ts';
 import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
 import { handleCron } from './routes/cron.ts';
+import { opsRoute } from './routes/ops.ts';
 
 export interface Env {
   DATABASE_URL: string;
@@ -74,6 +75,7 @@ app.route('/api/search', searchRoute);
 app.route('/api/reports', reportsRoute);
 app.route('/api/ask', askRoute);
 app.route('/api/chat', chatRoute);
+app.route('/api/ops', opsRoute);
 
 export default {
   fetch: app.fetch,

@@ -1,12 +1,6 @@
 import { defineConfig } from 'vite';
-import cesium from 'vite-plugin-cesium';
-import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [cesium({
-    rebuildCesium: true,
-    cesiumBuildPath: resolve(__dirname, '../../node_modules/cesium/Build/Cesium'),
-  })],
   optimizeDeps: {
     esbuildOptions: {
       sourcemap: 'inline',

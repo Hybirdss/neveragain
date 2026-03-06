@@ -36,8 +36,8 @@ import { mountAssetExposure } from '../panels/assetExposure';
 import { mountFaultCatalog } from '../panels/faultCatalog';
 import { mountLayerControl } from '../panels/layerControl';
 import { mountMaritimeExposure } from '../panels/maritimeExposure';
-import { fetchEventsWithMeta } from '../namazue/serviceEngine';
 import { createAisManager } from '../data/aisManager';
+import { fetchConsoleSnapshot } from '../data/opsApi';
 import { formatVesselTooltip } from '../layers/aisLayer';
 import { formatFaultTooltip } from '../layers/faultLayer';
 import { createCommandPalette } from '../panels/commandPalette';
@@ -51,6 +51,7 @@ import { formatRailTooltip, type RailRoute } from '../layers/railLayer';
 import { formatPowerTooltip, type PowerPlant } from '../layers/powerLayer';
 import type { Vessel } from '../data/aisManager';
 import type { RealtimeSource } from '../ops/readModelTypes';
+import type { ViewportState as OpsViewportState } from '../ops/types';
 import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
 
 // ── Loading Progress ────────────────────────────────────────
@@ -112,6 +113,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   setLoadingProgress(10, 'Building console…');
   let lastFetchSource: RealtimeSource = 'server';
   let lastUpdatedAt = 0;
+  let syncRequestToken = 0;
 
   // 0. Parse deep link BEFORE MapLibre init (hash:true overwrites the URL hash)
   const deepLink = parseDeepLink();
@@ -128,7 +130,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   viewport.subscribe((state) => {
     consoleStore.set('viewport', state);
     if (consoleStore.get('events').length > 0) {
-      syncOperationalTruth();
+      void syncOperationalTruth();
       return;
     }
     updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
@@ -234,7 +236,32 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     }
   });
 
-  function syncOperationalTruth(selectedOverride?: EarthquakeEvent | null): void {
+  function toOpsViewportState(): OpsViewportState {
+    const viewportState = consoleStore.get('viewport');
+    return {
+      center: viewportState.center,
+      zoom: viewportState.zoom,
+      bounds: viewportState.bounds,
+      tier: viewportState.tier,
+      activeRegion: consoleStore.get('readModel').viewport?.activeRegion ?? null,
+    };
+  }
+
+  function applySnapshot(input: Awaited<ReturnType<typeof fetchConsoleSnapshot>>): void {
+    lastFetchSource = input.sourceMeta.source;
+    lastUpdatedAt = input.sourceMeta.updatedAt;
+    consoleStore.set('events', input.events);
+    consoleStore.set('mode', input.mode);
+    consoleStore.set('selectedEvent', input.selectedEvent);
+    consoleStore.set('intensityGrid', input.intensityGrid);
+    consoleStore.set('exposures', input.exposures);
+    consoleStore.set('priorities', input.priorities);
+    consoleStore.set('readModel', input.readModel);
+    consoleStore.set('realtimeStatus', input.realtimeStatus);
+    updateSystemBar(input.mode, input.events.length);
+  }
+
+  function syncLocalOperationalTruth(selectedOverride?: EarthquakeEvent | null): void {
     const baseEvents = consoleStore.get('events');
     const events = selectedOverride && !baseEvents.some((entry) => entry.id === selectedOverride.id)
       ? [selectedOverride, ...baseEvents]
@@ -259,9 +286,29 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     updateSystemBar(result.mode, consoleStore.get('events').length);
   }
 
+  async function syncOperationalTruth(selectedOverride?: EarthquakeEvent | null): Promise<void> {
+    const selectedEvent = selectedOverride ?? consoleStore.get('selectedEvent');
+    if (selectedEvent?.id.startsWith('scenario-')) {
+      syncLocalOperationalTruth(selectedEvent);
+      return;
+    }
+
+    const requestToken = ++syncRequestToken;
+    const snapshot = await fetchConsoleSnapshot({
+      viewport: toOpsViewportState(),
+      selectedEventId: selectedEvent?.id ?? null,
+    });
+
+    if (requestToken !== syncRequestToken) {
+      return;
+    }
+
+    applySnapshot(snapshot);
+  }
+
   function selectEvent(event: EarthquakeEvent): void {
     consoleStore.set('selectedEvent', event);
-    syncOperationalTruth(event);
+    void syncOperationalTruth(event);
     engine.map.flyTo({
       center: [event.lng, event.lat],
       zoom: Math.max(engine.map.getZoom(), 7),
@@ -460,11 +507,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
 
   // 12. Fetch + ops helper
   async function fetchAndSync(): Promise<void> {
-    const result = await fetchEventsWithMeta();
-    lastFetchSource = result.source;
-    lastUpdatedAt = result.updatedAt;
-    consoleStore.set('events', result.events);
-    syncOperationalTruth();
+    await syncOperationalTruth();
   }
 
   function syncRealtimeError(error: unknown): void {

@@ -72,7 +72,7 @@ CesiumJS was the previous renderer. The switch to MapLibre + Deck.gl is driven b
 - Combined bundle is lighter than CesiumJS alone
 - Better layer composition model for 10+ stacked data layers
 
-CesiumJS code moves to `/legacy` route only.
+CesiumJS is removed from the active application runtime. Historical context remains in `docs/legacy/`.
 
 ---
 
@@ -306,7 +306,6 @@ namazue.dev                      Japan (default)
 namazue.dev/#35.68,139.76,12z    Deep link to position/zoom
 namazue.dev/event/us7000xyz      Focus specific earthquake
 namazue.dev/lab                  Design workbench
-namazue.dev/legacy               CesiumJS legacy app
 ```
 
 ---

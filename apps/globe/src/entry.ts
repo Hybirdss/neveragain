@@ -5,7 +5,7 @@ async function start(): Promise<void> {
 
   if (route === 'lab') {
     const { bootstrapNamazueApp } = await import('./namazue/app');
-    bootstrapNamazueApp(route);
+    bootstrapNamazueApp();
     return;
   }
 

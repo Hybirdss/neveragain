@@ -1,19 +1,9 @@
 import './styles.css';
 
 import type { ConsoleStateId } from './content';
-import type { AppRoute, LabTabId } from './routeModel';
+import type { LabTabId } from './routeModel';
 import { resolveLabTab } from './routeModel';
-import { renderLabView, renderLiveServiceView } from './templates';
-import {
-  computeServiceState,
-  createInitialState,
-  fetchEvents,
-  type ServiceState,
-} from './serviceEngine';
-
-type NamazueRoute = Exclude<AppRoute, 'legacy'>;
-
-const POLL_INTERVAL_MS = 60_000;
+import { renderLabView } from './templates';
 
 function removeLegacyLoadingScreen(): void {
   const loadingScreen = document.getElementById('loading-screen');
@@ -21,64 +11,6 @@ function removeLegacyLoadingScreen(): void {
     loadingScreen.remove();
   }
 }
-
-function titleForRoute(route: NamazueRoute): string {
-  return route === 'service'
-    ? 'namazue.dev — Earthquake Operations Console'
-    : 'namazue.dev / lab — Console Workbench';
-}
-
-// ── Service Route Bootstrap ─────────────────────────────────────
-
-function bootstrapServiceRoute(root: HTMLElement): void {
-  let state: ServiceState = createInitialState();
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-  function render(): void {
-    root.className = 'namazue-app';
-    root.innerHTML = renderLiveServiceView(state);
-  }
-
-  async function refresh(): Promise<void> {
-    try {
-      const events = await fetchEvents();
-      const computed = computeServiceState(events);
-      state = {
-        ...computed,
-        status: 'ready',
-        lastUpdated: Date.now(),
-        error: null,
-      };
-    } catch (err) {
-      console.error('[namazue] Fetch failed:', err);
-      if (state.status === 'loading') {
-        state = {
-          ...state,
-          status: 'error',
-          error: 'Failed to connect to earthquake data feeds.',
-        };
-      }
-    }
-    render();
-  }
-
-  // Initial render (loading state)
-  render();
-
-  // Fetch data immediately
-  refresh();
-
-  // Poll every 60 seconds
-  pollTimer = setInterval(refresh, POLL_INTERVAL_MS);
-
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => {
-      if (pollTimer) clearInterval(pollTimer);
-    });
-  }
-}
-
-// ── Lab Route Bootstrap ─────────────────────────────────────────
 
 function bootstrapLabRoute(root: HTMLElement): void {
   const state: {
@@ -137,19 +69,14 @@ function bootstrapLabRoute(root: HTMLElement): void {
 
 // ── Entry ───────────────────────────────────────────────────────
 
-export function bootstrapNamazueApp(route: NamazueRoute): void {
+export function bootstrapNamazueApp(): void {
   const app = document.getElementById('app');
   if (!app) {
     throw new Error('Missing #app root element');
   }
 
   removeLegacyLoadingScreen();
-  document.title = titleForRoute(route);
+  document.title = 'namazue.dev / lab — Console Workbench';
   document.body.classList.add('namazue-body');
-
-  if (route === 'service') {
-    bootstrapServiceRoute(app);
-  } else {
-    bootstrapLabRoute(app);
-  }
+  bootstrapLabRoute(app);
 }

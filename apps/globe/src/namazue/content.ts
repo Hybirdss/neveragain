@@ -278,13 +278,13 @@ export const COMPONENT_SPECS: ComponentSpec[] = [
 export const ARCHITECTURE_CARDS: ArchitectureCard[] = [
   {
     title: 'Route Contract',
-    body: 'The route split is explicit so product work and legacy work stop contaminating each other.',
-    items: ['`/` -> service shell', '`/lab` -> workbench tabs', '`/legacy` -> old globe bootstrap'],
+    body: 'The route split is explicit so product work and workbench review stay separate without reviving dead runtime branches.',
+    items: ['`/` -> live console', '`/lab` -> workbench tabs'],
   },
   {
     title: 'Bootstrap Boundary',
-    body: 'Entry resolution stays thin. Legacy bootstrap remains isolated and only loads when the route asks for it.',
-    items: ['`src/entry.ts` resolves pathname', '`src/main.ts` exports legacy bootstrap only', '`src/namazue/app.ts` owns new shell startup'],
+    body: 'Entry resolution stays thin. The live console and the workbench boot from separate, explicit surfaces.',
+    items: ['`src/entry.ts` resolves pathname', '`src/core/bootstrap.ts` owns live console startup', '`src/namazue/app.ts` owns workbench startup'],
   },
   {
     title: 'Folder Ownership',
@@ -303,7 +303,7 @@ export const ARCHITECTURE_CARDS: ArchitectureCard[] = [
   },
   {
     title: 'Deployment Rule',
-    body: 'Cloudflare Pages must resolve nested routes directly so `/lab` and `/legacy` can be checked on the live domain.',
+    body: 'Cloudflare Pages must resolve nested routes directly so `/lab` can be checked on the live domain.',
     items: ['SPA fallback via `_redirects`', 'Keep route links absolute', 'Preserve direct reload behavior on live URLs'],
   },
 ];

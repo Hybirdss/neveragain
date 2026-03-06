@@ -512,7 +512,6 @@ export function renderServiceView(consoleState: ConsoleStateId): string {
         <nav class="route-nav" aria-label="Primary routes">
           ${routeLink('/', 'Service', true)}
           ${routeLink('/lab', 'Lab', false)}
-          ${routeLink('/legacy', 'Legacy', false)}
         </nav>
       </header>
 
@@ -522,171 +521,6 @@ export function renderServiceView(consoleState: ConsoleStateId): string {
         <section class="support-grid" aria-label="Service support cards">
           ${renderServiceCards()}
         </section>
-      </main>
-    </div>
-  `;
-}
-
-// ================================================================
-// LIVE SERVICE VIEW
-// ================================================================
-
-import type { ServiceState } from './serviceEngine';
-import { formatTimeAgo, formatUtcTime } from './serviceEngine';
-
-function assetClassIcon(assetId: string): string {
-  if (assetId.includes('port')) return 'anchor';
-  if (assetId.includes('shinagawa') || assetId.includes('osaka')) return 'train';
-  return 'cross';
-}
-
-function assetClassLabel(assetId: string): string {
-  if (assetId.includes('port')) return 'Port';
-  if (assetId.includes('shinagawa') || assetId.includes('osaka')) return 'Rail Hub';
-  return 'Hospital';
-}
-
-export function renderLiveServiceView(state: ServiceState): string {
-  const isCalm = state.snapshot.mode === 'calm';
-  const isLoading = state.status === 'loading';
-
-  const statusLabel = isLoading ? 'Connecting' : isCalm ? 'System calm' : 'Operational impact elevated';
-  const statusClass = isLoading ? 'loading' : isCalm ? 'calm' : 'live';
-
-  const metaChips = state.snapshot.meta
-    .map((m) => `<span class="meta-chip">${m}</span>`)
-    .join('');
-
-  // Asset exposure cards
-  const assetCards = state.exposures.map((exp) => {
-    const icon = assetClassIcon(exp.assetId);
-    const classLabel = assetClassLabel(exp.assetId);
-    const reasons = exp.reasons.map((r) => `<span class="live-asset-reason">${r}</span>`).join('');
-    return `
-      <article class="live-asset-card live-asset-card--${exp.severity}">
-        <div class="live-asset-card__head">
-          <div class="live-asset-card__icon live-asset-card__icon--${icon}"></div>
-          <span class="severity-badge severity-${exp.severity}">${exp.severity}</span>
-        </div>
-        <p class="live-asset-card__class">${classLabel}</p>
-        <h4>${exp.summary.replace(` is in ${exp.severity} posture.`, '')}</h4>
-        <p class="live-asset-card__detail">${exp.summary}</p>
-        <div class="live-asset-card__reasons">${reasons}</div>
-      </article>
-    `;
-  }).join('');
-
-  // Priorities / checks
-  const checksContent = state.priorities.length > 0
-    ? state.priorities.map((p) => `
-        <li class="stack-item">
-          <div class="stack-item__top">
-            <strong>${p.title}</strong>
-            <span class="severity-badge severity-${p.severity}">${p.severity}</span>
-          </div>
-          <p>${p.rationale}</p>
-        </li>
-      `).join('')
-    : `
-        <li class="stack-item">
-          <div class="stack-item__top"><strong>Review latest replay</strong><span class="severity-badge severity-clear">clear</span></div>
-          <p>Inspect a representative coastal event from the archive.</p>
-        </li>
-        <li class="stack-item">
-          <div class="stack-item__top"><strong>Run scenario shift</strong><span class="severity-badge severity-clear">clear</span></div>
-          <p>Stress-test a shallower or stronger quake without breaking calm mode.</p>
-        </li>
-        <li class="stack-item">
-          <div class="stack-item__top"><strong>Inspect launch assets</strong><span class="severity-badge severity-clear">clear</span></div>
-          <p>Baseline Tokyo launch assets and review system geography.</p>
-        </li>
-      `;
-
-  // Recent events feed
-  const feedItems = state.events.slice(0, 8).map((e) => `
-    <div class="live-feed-item">
-      <span class="live-feed-item__mag ${e.magnitude >= 5 ? 'live-feed-item__mag--strong' : ''}">M${e.magnitude.toFixed(1)}</span>
-      <span class="live-feed-item__place">${e.place.text}</span>
-      <span class="live-feed-item__time">${formatTimeAgo(e.time)}</span>
-      <span class="live-feed-item__depth">${Math.round(e.depth_km)} km</span>
-    </div>
-  `).join('');
-
-  // Analyst note
-  const analystTitle = isCalm
-    ? 'Tokyo metro in nominal operating posture'
-    : `Monitoring ${state.focusEvent ? state.focusEvent.place.text : 'active event'}`;
-  const analystBody = isCalm
-    ? 'No earthquake in the last 24 hours has exceeded the operational significance threshold (M4.5+). Asset monitoring continues in passive mode.'
-    : state.focusEvent
-      ? `A M${state.focusEvent.magnitude.toFixed(1)} event at ${Math.round(state.focusEvent.depth_km)} km depth is generating an operational impact field across the Tokyo metro coast. ${state.priorities.length} asset${state.priorities.length !== 1 ? 's' : ''} require${state.priorities.length === 1 ? 's' : ''} inspection.`
-      : 'Evaluating operational consequences.';
-
-  const lastUpdatedStr = state.lastUpdated > 0
-    ? `Updated ${formatUtcTime(state.lastUpdated)}`
-    : '';
-
-  return `
-    <div class="namazue-shell">
-      <header class="shell-header">
-        <div class="shell-header__brand">
-          <p class="eyebrow">Earthquake Operations Console</p>
-          <h1>namazue.dev</h1>
-        </div>
-        <nav class="route-nav" aria-label="Primary routes">
-          ${routeLink('/', 'Service', true)}
-          ${routeLink('/lab', 'Lab', false)}
-          ${routeLink('/legacy', 'Legacy Globe', false)}
-        </nav>
-      </header>
-
-      <main class="live-console">
-        <div class="console-system-bar live-system-bar--${statusClass}">
-          <div class="console-system-bar__brand">
-            <span class="brand-dot brand-dot--${statusClass}"></span>
-            <div>
-              <strong>namazue.dev</strong>
-              <span>Tokyo Metro Operations Console</span>
-            </div>
-          </div>
-          <div class="live-system-bar__right">
-            ${lastUpdatedStr ? `<span class="live-updated">${lastUpdatedStr}</span>` : ''}
-            <span class="status-pill live-status-pill--${statusClass}">${statusLabel}</span>
-          </div>
-        </div>
-
-        <div class="live-main-grid">
-          <article class="panel-card live-snapshot">
-            <p class="panel-label">Event Snapshot</p>
-            <h3>${state.snapshot.headline}</h3>
-            <p>${state.snapshot.summary}</p>
-            <div class="meta-row">${metaChips}</div>
-          </article>
-
-          <article class="panel-card live-checks">
-            <p class="panel-label">Check These Now</p>
-            <ul class="stack-list">${checksContent}</ul>
-          </article>
-        </div>
-
-        <section class="live-asset-section">
-          <p class="panel-label">Asset Exposure</p>
-          <div class="live-asset-grid">${assetCards}</div>
-        </section>
-
-        <article class="panel-card live-feed-card">
-          <div class="live-feed-header">
-            <p class="panel-label">Recent Events</p>
-            <span class="live-feed-count">${state.events.length} events / 7 days</span>
-          </div>
-          <div class="live-feed-list">${feedItems || '<p class="live-feed-empty">Fetching earthquake data...</p>'}</div>
-        </article>
-
-        <article class="panel-card analyst-card live-analyst">
-          <p class="panel-label">Analyst Note</p>
-          <h3>${analystTitle}</h3>
-          <p>${analystBody}</p>
-        </article>
       </main>
     </div>
   `;
@@ -704,7 +538,6 @@ export function renderLabView(consoleState: ConsoleStateId, activeTab: LabTabId)
         <nav class="route-nav" aria-label="Primary routes">
           ${routeLink('/', 'Service', false)}
           ${routeLink('/lab', 'Lab', true)}
-          ${routeLink('/legacy', 'Legacy', false)}
         </nav>
       </header>
 

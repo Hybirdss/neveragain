@@ -44,35 +44,37 @@
 | 실시간 데이터/폴링 | `docs/technical/DATA_SOURCES.md` | `docs/PRD.md`(realtime 요구) | `src/data/usgsApi.ts`, `src/data/usgsRealtime.ts` |
 | 파동/등진도선 | `docs/technical/WAVE_PROPAGATION.md` | `docs/design/GLOBE_LAYERS.md` | `src/engine/wavePropagation.ts`, `src/utils/contourProjection.ts` |
 | 난카이 시나리오 | `docs/technical/NANKAI_SCENARIO.md` | `docs/technical/PERFORMANCE.md` | `src/engine/nankai.ts`, `src/engine/nankaiWorker.ts` |
-| 글로브/카메라 | `docs/design/GLOBE_LAYERS.md` | `docs/design/CAMERA_CHOREOGRAPHY.md`, `docs/design/VISUAL_DESIGN.md` | `src/globe/*` |
-| UI/대시보드 | `docs/design/UI_LAYOUT.md` | `docs/design/VISUAL_DESIGN.md` | `src/ui/*`, `src/style.css` |
-| 통합/상태관리 | `docs/ARCHITECTURE.md` | `docs/PRD.md`, `docs/technical/PERFORMANCE.md` | `src/store/appState.ts`, `src/main.ts` |
+| 지도/레이어 | `docs/current/DESIGN.md` | `docs/current/IMPLEMENTATION_PLAN.md` | `apps/globe/src/core/*`, `apps/globe/src/layers/*` |
+| UI/대시보드 | `docs/current/DESIGN.md` | `docs/current/IMPLEMENTATION_PLAN.md` | `apps/globe/src/panels/*`, `apps/globe/src/core/console.css` |
+| 통합/상태관리 | `docs/current/BACKEND.md` | `docs/current/IMPLEMENTATION_PLAN.md` | `apps/globe/src/core/bootstrap.ts`, `apps/worker/src/routes/*` |
 
 문서 전체 인덱스: `docs/INDEX.md`
 
 ## 6. 실제 코드 구조 (현재 기준)
 
 ```
-src/
-  engine/   # GMPE, wave, nankai + workers
-  data/     # USGS API, realtime polling, timeline loader
-  globe/    # globe instance, camera, visual layers
-  ui/       # sidebar, timeline, picker, alert, HUD, toggles
-  store/    # pub/sub app state
-  utils/    # coordinates, color, contour projection
-  i18n/     # en/ko/ja locale strings + locale module
-  types.ts  # shared contracts
-  main.ts   # bootstrap + wiring
+apps/globe/src/
+  core/     # console bootstrap, map engine, viewport, system bar
+  layers/   # deck.gl operational layers
+  panels/   # operator panels and controls
+  data/     # console API clients, realtime support
+  ops/      # shared operational truth contracts used by the frontend
+  engine/   # GMPE and seismic computation
+  utils/    # contours, coordinates, geo helpers
+  types.ts  # shared app contracts
+
+apps/worker/src/
+  routes/   # Hono API routes
+  lib/      # DB access, validation, backend console ops assembly
 ```
 
 ## 7. 데이터 흐름 (요약)
 
-1. USGS 이벤트 수집(`data/*`)
-2. 상태 반영(`store/appState.ts`)
-3. 선택 이벤트를 GMPE worker에 전달
-4. intensity grid 생성
-5. contour 변환(`utils/contourProjection.ts`)
-6. globe layers/UI 업데이트
+1. Worker가 이벤트를 조회/정규화한다
+2. Worker가 viewport 기준 console truth를 계산한다
+3. Frontend가 `/api/ops/console`을 호출한다
+4. `readModel`, exposures, priorities, intensity grid를 hydrate한다
+5. 레이어와 패널이 backend truth를 렌더링한다
 
 ## 8. 구현 범위/비목표 요약
 
@@ -109,7 +111,7 @@ npm run preview
 
 - 제품 의도/수용 기준: `docs/PRD.md`, `docs/plans/VALIDATION_PLAN.md`
 - 기술 수식/성능 예산: `docs/technical/*`
-- 현재 동작/배선 사실관계: `src/main.ts`, `src/types.ts`, 실제 구현 코드
+- 현재 동작/배선 사실관계: `apps/globe/src/core/bootstrap.ts`, `apps/worker/src/routes/ops.ts`, 실제 구현 코드
 
 즉, **의도는 문서를 따르고, 현재 동작은 코드를 기준으로 확인**한다.
 
