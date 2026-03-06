@@ -1,4 +1,4 @@
-import type { OpsState } from './ops/types';
+import type { OpsState, ViewportState } from './ops/types';
 import type {
   RealtimeStatus,
   ReplayMilestone,
@@ -319,6 +319,7 @@ export interface AppState {
   activePanel: PanelTab;
   selectedEvent: EarthquakeEvent | null;
   ops: OpsState;
+  viewportState: ViewportState | null;
   serviceReadModel: ServiceReadModel | null;
   realtimeStatus: RealtimeStatus;
   replayMilestones: ReplayMilestone[];

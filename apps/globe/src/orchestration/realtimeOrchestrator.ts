@@ -67,6 +67,8 @@ function syncServiceReadModel(): void {
     selectedEvent: store.get('selectedEvent'),
     tsunamiAssessment: store.get('tsunamiAssessment'),
     impactResults: store.get('impactResults'),
+    assets: ops.assets,
+    viewport: store.get('viewportState'),
     exposures: ops.exposures,
     priorities: ops.priorities,
     freshnessStatus: store.get('realtimeStatus'),

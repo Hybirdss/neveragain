@@ -25,6 +25,28 @@ describe('buildServiceReadModel', () => {
         faultType: 'interface',
       },
       impactResults: null,
+      assets: [
+        {
+          id: 'tokyo-port',
+          region: 'kanto',
+          class: 'port',
+          name: 'Port of Tokyo',
+          lat: 35.62,
+          lng: 139.79,
+          tags: ['coastal'],
+          minZoomTier: 'regional',
+        },
+        {
+          id: 'sendai-port',
+          region: 'tohoku',
+          class: 'port',
+          name: 'Port of Sendai',
+          lat: 38.25,
+          lng: 141.02,
+          tags: ['coastal'],
+          minZoomTier: 'regional',
+        },
+      ],
       viewport: {
         center: { lat: 35.6, lng: 139.7 },
         zoom: 9.5,
@@ -64,7 +86,6 @@ describe('buildServiceReadModel', () => {
           rationale: 'Regional watch posture elevated',
         },
       ],
-      visibleAssetIds: ['tokyo-port'],
       freshnessStatus: {
         source: 'server',
         state: 'fresh',
@@ -87,6 +108,18 @@ describe('buildServiceReadModel', () => {
       selectedEvent: null,
       tsunamiAssessment: null,
       impactResults: null,
+      assets: [
+        {
+          id: 'tokyo-port',
+          region: 'kanto',
+          class: 'port',
+          name: 'Port of Tokyo',
+          lat: 35.62,
+          lng: 139.79,
+          tags: ['coastal'],
+          minZoomTier: 'regional',
+        },
+      ],
       viewport: null,
       exposures: [
         {

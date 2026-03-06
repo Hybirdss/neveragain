@@ -17,6 +17,7 @@ function createState(): AppState {
       priorities: [],
       scenarioShift: null,
     },
+    viewportState: null,
     serviceReadModel: {
       currentEvent: null,
       viewport: null,

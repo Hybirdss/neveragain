@@ -134,6 +134,7 @@ const initialState: AppState = {
     priorities: [],
     scenarioShift: null,
   },
+  viewportState: null,
   serviceReadModel: null,
   realtimeStatus: {
     source: 'server',

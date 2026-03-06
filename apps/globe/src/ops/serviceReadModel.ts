@@ -4,16 +4,17 @@ import type {
   TsunamiAssessment,
 } from '../types';
 import type { OpsSnapshot, RealtimeStatus, ServiceReadModel } from './readModelTypes';
-import type { OpsAssetExposure, OpsPriority, ViewportState } from './types';
+import type { OpsAsset, OpsAssetExposure, OpsPriority, ViewportState } from './types';
+import { filterVisibleOpsAssets } from './viewport';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
   tsunamiAssessment: TsunamiAssessment | null;
   impactResults: PrefectureImpact[] | null;
+  assets: OpsAsset[];
   viewport?: ViewportState | null;
   exposures: OpsAssetExposure[];
   priorities: OpsPriority[];
-  visibleAssetIds?: string[];
   freshnessStatus: RealtimeStatus;
 }
 
@@ -36,9 +37,20 @@ function buildOpsSnapshot(input: BuildServiceReadModelInput): OpsSnapshot | null
   };
 }
 
+function deriveVisibleAssetIds(
+  assets: OpsAsset[],
+  viewport: ViewportState | null | undefined,
+): string[] | null {
+  if (!viewport) {
+    return null;
+  }
+
+  return filterVisibleOpsAssets(assets, viewport).map((asset) => asset.id);
+}
+
 function filterVisibleExposures(
   exposures: OpsAssetExposure[],
-  visibleAssetIds?: string[],
+  visibleAssetIds: string[] | null,
 ): OpsAssetExposure[] {
   if (!visibleAssetIds) {
     return exposures;
@@ -50,7 +62,7 @@ function filterVisibleExposures(
 
 function filterVisiblePriorities(
   priorities: OpsPriority[],
-  visibleAssetIds?: string[],
+  visibleAssetIds: string[] | null,
 ): OpsPriority[] {
   if (!visibleAssetIds) {
     return priorities;
@@ -63,15 +75,16 @@ function filterVisiblePriorities(
 export function buildServiceReadModel(input: BuildServiceReadModelInput): ServiceReadModel {
   const nationalExposureSummary = input.exposures;
   const nationalPriorityQueue = input.priorities;
+  const visibleAssetIds = deriveVisibleAssetIds(input.assets, input.viewport);
 
   return {
     currentEvent: input.selectedEvent,
     viewport: input.viewport ?? null,
     nationalSnapshot: buildOpsSnapshot(input),
     nationalExposureSummary,
-    visibleExposureSummary: filterVisibleExposures(input.exposures, input.visibleAssetIds),
+    visibleExposureSummary: filterVisibleExposures(input.exposures, visibleAssetIds),
     nationalPriorityQueue,
-    visiblePriorityQueue: filterVisiblePriorities(input.priorities, input.visibleAssetIds),
+    visiblePriorityQueue: filterVisiblePriorities(input.priorities, visibleAssetIds),
     freshnessStatus: input.freshnessStatus,
   };
 }
