@@ -18,6 +18,7 @@ export interface Env {
   INTERNAL_API_TOKEN?: string;
   AISSTREAM_API_KEY?: string;
   AIS_SNAPSHOT_TTL_MS?: number;
+  AISSTREAM_COLLECTION_WINDOW_MS?: number;
 }
 
 const app = new Hono<{ Bindings: Env }>();

@@ -13,6 +13,7 @@ mode = "smart"
 [vars]
 ALLOWED_ORIGINS = "https://namazue.dev,https://www.namazue.dev"
 AIS_SNAPSHOT_TTL_MS = 5000
+AISSTREAM_COLLECTION_WINDOW_MS = 1500
 
 # KV namespace for rate limiting
 [[kv_namespaces]]

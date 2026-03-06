@@ -13,7 +13,7 @@ export class MaritimeHub {
     env: Env,
   ) {
     this.service = new MaritimeSnapshotService({
-      provider: createMaritimeSnapshotProvider(),
+      provider: createMaritimeSnapshotProvider(env),
       store: new DurableObjectSnapshotStore(state),
       ttlMs: env.AIS_SNAPSHOT_TTL_MS,
     });

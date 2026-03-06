@@ -1,11 +1,205 @@
-import { buildSyntheticMaritimeSnapshot, type AisCoverageProfileId } from '@namazue/db';
+import { buildSyntheticMaritimeSnapshot, getAisCoverageProfile, type AisCoverageProfileId, type Vessel, type VesselType } from '@namazue/db';
+import type { Env } from '../index.ts';
 import type { MaritimeSnapshotProvider } from './service.ts';
 
-export function createMaritimeSnapshotProvider(): MaritimeSnapshotProvider {
+const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
+const DEFAULT_COLLECTION_WINDOW_MS = 1_500;
+const MAX_TRAIL = 15;
+
+interface CreateMaritimeSnapshotProviderDependencies {
+  webSocketFactory?: (url: string) => WebSocket;
+}
+
+interface AisStreamMessage {
+  MessageType?: string;
+  MetaData?: {
+    MMSI?: number;
+    ShipName?: string;
+    time_utc?: string;
+  };
+  Message?: {
+    PositionReport?: {
+      Latitude?: number;
+      Longitude?: number;
+      Cog?: number;
+      Sog?: number;
+      NavigationalStatus?: number;
+    };
+  };
+}
+
+type MaritimeProviderEnv = Pick<Env, 'AISSTREAM_API_KEY' | 'AISSTREAM_COLLECTION_WINDOW_MS'>;
+
+export function createMaritimeSnapshotProvider(
+  env: Partial<MaritimeProviderEnv>,
+  dependencies: CreateMaritimeSnapshotProviderDependencies = {},
+): MaritimeSnapshotProvider {
+  const apiKey = env.AISSTREAM_API_KEY?.trim();
+  if (!apiKey) {
+    return createSyntheticProvider();
+  }
+
+  const collectionWindowMs = normalizeCollectionWindowMs(env.AISSTREAM_COLLECTION_WINDOW_MS);
+  const webSocketFactory = dependencies.webSocketFactory ?? ((url: string) => new WebSocket(url));
+
+  return {
+    provider: 'live',
+    async loadProfileSnapshot(profileId: AisCoverageProfileId, now: number) {
+      try {
+        const snapshot = await collectAisstreamSnapshot({
+          apiKey,
+          profileId,
+          now,
+          collectionWindowMs,
+          webSocketFactory,
+        });
+        if (snapshot.totalTracked > 0) {
+          return snapshot;
+        }
+      } catch (error) {
+        console.warn('[maritime] AISstream provider failed, falling back to synthetic snapshot:', error);
+      }
+
+      return buildSyntheticMaritimeSnapshot({ profileId, now });
+    },
+  };
+}
+
+function createSyntheticProvider(): MaritimeSnapshotProvider {
   return {
     provider: 'synthetic',
     async loadProfileSnapshot(profileId: AisCoverageProfileId, now: number) {
       return buildSyntheticMaritimeSnapshot({ profileId, now });
     },
   };
+}
+
+async function collectAisstreamSnapshot(input: {
+  apiKey: string;
+  profileId: AisCoverageProfileId;
+  now: number;
+  collectionWindowMs: number;
+  webSocketFactory: (url: string) => WebSocket;
+}): Promise<{
+  source: 'live';
+  profile: ReturnType<typeof getAisCoverageProfile>;
+  generatedAt: number;
+  totalTracked: number;
+  vessels: Vessel[];
+}> {
+  const profile = getAisCoverageProfile(input.profileId);
+  const vessels = new Map<string, Vessel>();
+
+  await new Promise<void>((resolve, reject) => {
+    const socket = input.webSocketFactory(AISSTREAM_URL);
+    let settled = false;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      try {
+        socket.close();
+      } catch {
+        // ignore socket close errors
+      }
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({
+        APIKey: input.apiKey,
+        BoundingBoxes: profile.boundingBoxes,
+        FilterMessageTypes: ['PositionReport'],
+      }));
+      setTimeout(() => finish(), input.collectionWindowMs);
+    });
+
+    socket.addEventListener('message', (event) => {
+      const vessel = parseAisstreamMessage(event, input.now, vessels.get.bind(vessels));
+      if (!vessel) return;
+      vessels.set(vessel.mmsi, vessel);
+    });
+
+    socket.addEventListener('error', () => {
+      finish(new Error('AISstream websocket error'));
+    });
+
+    socket.addEventListener('close', () => {
+      finish();
+    });
+  });
+
+  return {
+    source: 'live',
+    profile,
+    generatedAt: input.now,
+    totalTracked: vessels.size,
+    vessels: [...vessels.values()],
+  };
+}
+
+function parseAisstreamMessage(
+  event: unknown,
+  now: number,
+  getExisting: (mmsi: string) => Vessel | undefined,
+): Vessel | null {
+  const data = typeof event === 'object' && event !== null && 'data' in event
+    ? (event as { data?: unknown }).data
+    : undefined;
+  if (typeof data !== 'string') return null;
+
+  let message: AisStreamMessage;
+  try {
+    message = JSON.parse(data) as AisStreamMessage;
+  } catch {
+    return null;
+  }
+
+  if (message.MessageType !== 'PositionReport') return null;
+  const meta = message.MetaData;
+  const report = message.Message?.PositionReport;
+  if (!meta?.MMSI || !report) return null;
+  if (!Number.isFinite(report.Latitude) || !Number.isFinite(report.Longitude)) return null;
+
+  const mmsi = String(meta.MMSI);
+  const existing = getExisting(mmsi);
+  const trail: [number, number][] = existing
+    ? [[existing.lng, existing.lat] as [number, number], ...existing.trail].slice(0, MAX_TRAIL)
+    : [[report.Longitude!, report.Latitude!]];
+
+  return {
+    mmsi,
+    name: meta.ShipName?.trim() || `VESSEL ${mmsi}`,
+    lat: report.Latitude!,
+    lng: report.Longitude!,
+    cog: report.Cog ?? existing?.cog ?? 0,
+    sog: report.Sog ?? existing?.sog ?? 0,
+    type: classifyShipType(report.NavigationalStatus, meta.ShipName ?? ''),
+    lastUpdate: parseTimestamp(meta.time_utc) ?? now,
+    trail,
+  };
+}
+
+function classifyShipType(navigationalStatus: number | undefined, name: string): VesselType {
+  const normalized = name.toUpperCase();
+  if (normalized.includes('TANKER') || normalized.includes('OIL')) return 'tanker';
+  if (normalized.includes('FERRY') || normalized.includes('PASSENGER')) return 'passenger';
+  if (navigationalStatus === 7) return 'fishing';
+  if (normalized.includes('FISH')) return 'fishing';
+  return 'cargo';
+}
+
+function parseTimestamp(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeCollectionWindowMs(value: number | undefined): number {
+  if (!Number.isFinite(value)) return DEFAULT_COLLECTION_WINDOW_MS;
+  return Math.max(200, Math.min(10_000, Math.floor(value!)));
 }

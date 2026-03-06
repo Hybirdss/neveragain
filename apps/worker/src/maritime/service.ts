@@ -107,7 +107,7 @@ export class MaritimeSnapshotService {
       provenance: {
         cacheStatus,
         snapshotAgeMs: Math.max(0, now - record.generatedAt),
-        provider: this.provider.provider,
+        provider: record.source,
       },
     };
   }
