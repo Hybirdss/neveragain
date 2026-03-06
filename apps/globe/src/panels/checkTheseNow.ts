@@ -30,8 +30,8 @@ function renderEmpty(message: string): string {
   `;
 }
 
-export function buildPriorityEmptyMessage(readModel: ServiceReadModel | null): string {
-  return readModel?.operationalOverview.impactSummary ?? 'All assets in clear posture';
+export function buildPriorityEmptyMessage(readModel: ServiceReadModel): string {
+  return readModel.operationalOverview.impactSummary;
 }
 
 function renderPriorities(priorities: OpsPriority[]): string {
@@ -60,11 +60,7 @@ function renderPriorities(priorities: OpsPriority[]): string {
   `;
 }
 
-export function selectPriorityQueue(readModel: ServiceReadModel | null): OpsPriority[] {
-  if (!readModel) {
-    return [];
-  }
-
+export function selectPriorityQueue(readModel: ServiceReadModel): OpsPriority[] {
   if (readModel.visiblePriorityQueue.length > 0) {
     return readModel.visiblePriorityQueue;
   }
@@ -76,7 +72,7 @@ export function mountCheckTheseNow(container: HTMLElement): () => void {
   function render(): void {
     const readModel = consoleStore.get('readModel');
     const priorities = selectPriorityQueue(readModel);
-    if (!priorities || priorities.length === 0) {
+    if (priorities.length === 0) {
       container.innerHTML = renderEmpty(buildPriorityEmptyMessage(readModel));
     } else {
       container.innerHTML = renderPriorities(priorities);

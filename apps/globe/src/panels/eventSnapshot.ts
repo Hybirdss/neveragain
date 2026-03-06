@@ -32,15 +32,15 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function formatTruthLabel(readModel: ServiceReadModel | null): string | null {
-  if (!readModel?.eventTruth) {
+function formatTruthLabel(readModel: ServiceReadModel): string | null {
+  if (!readModel.eventTruth) {
     return null;
   }
   return `${capitalize(readModel.eventTruth.source)} truth · ${capitalize(readModel.eventTruth.confidence)} confidence`;
 }
 
-function formatRevisionLabel(readModel: ServiceReadModel | null): string | null {
-  if (!readModel?.eventTruth) {
+function formatRevisionLabel(readModel: ServiceReadModel): string | null {
+  if (!readModel.eventTruth) {
     return null;
   }
 
@@ -52,17 +52,17 @@ function formatRevisionLabel(readModel: ServiceReadModel | null): string | null 
   return `${readModel.eventTruth.revisionCount} revisions${conflictLabel}`;
 }
 
-function formatFreshnessLabel(readModel: ServiceReadModel | null, now: number): string {
-  const freshness = readModel?.freshnessStatus;
-  if (!freshness || freshness.updatedAt <= 0) {
+function formatFreshnessLabel(readModel: ServiceReadModel, now: number): string {
+  const freshness = readModel.freshnessStatus;
+  if (freshness.updatedAt <= 0) {
     return 'Data pending';
   }
   const age = formatTimeAgo(Math.min(freshness.updatedAt, now));
   return `Data ${freshness.state}${age ? ` · ${age}` : ''}`;
 }
 
-function getHealthTone(readModel: ServiceReadModel | null): 'calm' | 'watch' | 'critical' {
-  switch (readModel?.systemHealth.level) {
+function getHealthTone(readModel: ServiceReadModel): 'calm' | 'watch' | 'critical' {
+  switch (readModel.systemHealth.level) {
     case 'degraded':
       return 'critical';
     case 'watch':
@@ -72,8 +72,8 @@ function getHealthTone(readModel: ServiceReadModel | null): 'calm' | 'watch' | '
   }
 }
 
-function getHealthLabel(readModel: ServiceReadModel | null): string {
-  switch (readModel?.systemHealth.level) {
+function getHealthLabel(readModel: ServiceReadModel): string {
+  switch (readModel.systemHealth.level) {
     case 'degraded':
       return 'DEGRADED';
     case 'watch':
@@ -83,11 +83,7 @@ function getHealthLabel(readModel: ServiceReadModel | null): string {
   }
 }
 
-function renderHealthBlock(readModel: ServiceReadModel | null): string {
-  if (!readModel) {
-    return '';
-  }
-
+function renderHealthBlock(readModel: ServiceReadModel): string {
   const level = readModel.systemHealth.level;
   const headline = readModel.systemHealth.headline;
   const detail = readModel.systemHealth.detail;
@@ -105,9 +101,9 @@ function renderHealthBlock(readModel: ServiceReadModel | null): string {
   `;
 }
 
-function renderCalmState(readModel: ServiceReadModel | null, now: number): string {
+function renderCalmState(readModel: ServiceReadModel, now: number): string {
   const freshness = formatFreshnessLabel(readModel, now);
-  const summary = readModel?.operationalOverview.selectionSummary ?? 'No significant seismic activity';
+  const summary = readModel.operationalOverview.selectionSummary;
   const healthMarkup = renderHealthBlock(readModel);
   return `
     <div class="nz-panel" id="nz-event-snapshot">
@@ -127,12 +123,12 @@ function renderCalmState(readModel: ServiceReadModel | null, now: number): strin
 
 function renderEventState(
   event: EarthquakeEvent,
-  readModel: ServiceReadModel | null,
+  readModel: ServiceReadModel,
   now: number,
 ): string {
   const sev = severityClass(event.magnitude);
   const sevLabel = sev.toUpperCase();
-  const headline = readModel?.nationalSnapshot?.headline;
+  const headline = readModel.nationalSnapshot?.headline;
   const truthLabel = formatTruthLabel(readModel);
   const revisionLabel = formatRevisionLabel(readModel);
   const freshnessLabel = formatFreshnessLabel(readModel, now);
@@ -174,10 +170,10 @@ function renderEventState(
 export function renderEventSnapshotMarkup(input: {
   mode: 'calm' | 'event';
   selectedEvent: EarthquakeEvent | null;
-  readModel: ServiceReadModel | null;
+  readModel: ServiceReadModel;
   now?: number;
 }): string {
-  const event = input.readModel?.currentEvent ?? input.selectedEvent;
+  const event = input.readModel.currentEvent ?? input.selectedEvent;
   const now = input.now ?? Date.now();
 
   if (input.mode === 'event' && event) {

@@ -116,6 +116,20 @@ describe('layerControl bundle summaries', () => {
     expect(summary.trust).toBe('confirmed');
   });
 
+  it('falls back to empty backend truth instead of pending copy when a bundle summary is missing', () => {
+    const summary = buildBundleSummary('medical', createState({
+      readModel: {
+        ...createReadModel(),
+        bundleSummaries: {},
+      },
+    }));
+
+    expect(summary.title).toBe('Medical');
+    expect(summary.metric).toContain('No medical access posture shift');
+    expect(summary.detail).toContain('standing by');
+    expect(summary.trust).toBe('pending');
+  });
+
   it('builds a drawer model with presets, bundles, and effective layer state', () => {
     const state = createState({
       activeBundleId: 'maritime',

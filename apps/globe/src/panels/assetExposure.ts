@@ -32,8 +32,8 @@ function renderEmpty(message: string): string {
   `;
 }
 
-export function buildExposureEmptyMessage(readModel: ServiceReadModel | null): string {
-  return readModel?.operationalOverview.impactSummary ?? 'All assets clear';
+export function buildExposureEmptyMessage(readModel: ServiceReadModel): string {
+  return readModel.operationalOverview.impactSummary;
 }
 
 function renderExposures(exposures: OpsAssetExposure[]): string {
@@ -69,11 +69,7 @@ function renderExposures(exposures: OpsAssetExposure[]): string {
   `;
 }
 
-export function selectExposureSummary(readModel: ServiceReadModel | null): OpsAssetExposure[] {
-  if (!readModel) {
-    return [];
-  }
-
+export function selectExposureSummary(readModel: ServiceReadModel): OpsAssetExposure[] {
   if (readModel.visibleExposureSummary.length > 0) {
     return readModel.visibleExposureSummary;
   }

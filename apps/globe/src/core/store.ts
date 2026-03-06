@@ -30,7 +30,7 @@ export interface ConsoleState {
   events: EarthquakeEvent[];
   exposures: OpsAssetExposure[];
   priorities: OpsPriority[];
-  readModel: ServiceReadModel | null;
+  readModel: ServiceReadModel;
   realtimeStatus: RealtimeStatus;
   intensityGrid: IntensityGrid | null;
   vessels: Vessel[];

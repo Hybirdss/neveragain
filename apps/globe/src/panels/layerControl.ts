@@ -9,6 +9,7 @@ import {
 import { getLayerDefinition, type BundleId, type LayerId } from '../layers/layerRegistry';
 import { consoleStore, type ConsoleState } from '../core/store';
 import type { OperatorBundleCounter, OperatorBundleSummary } from '../ops/readModelTypes';
+import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 
 export type BundleSummary = Pick<
   OperatorBundleSummary,
@@ -43,9 +44,9 @@ export interface LayerControlModel {
 }
 
 export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): BundleSummary {
-  const definition = getBundleDefinition(bundleId);
   const readModel = state.readModel;
-  const backendSummary = readModel?.bundleSummaries?.[bundleId];
+  const backendSummary = readModel.bundleSummaries[bundleId]
+    ?? createEmptyServiceReadModel(state.realtimeStatus).bundleSummaries[bundleId];
 
   if (backendSummary) {
     return {
@@ -57,6 +58,7 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
     };
   }
 
+  const definition = getBundleDefinition(bundleId);
   return {
     title: definition.label,
     metric: 'Bundle truth syncing',

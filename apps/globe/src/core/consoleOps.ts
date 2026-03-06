@@ -7,7 +7,7 @@ import { selectOperationalFocusEvent } from '../ops/eventSelection';
 import { buildAssetExposures } from '../ops/exposure';
 import type { OpsAsset, OpsAssetExposure } from '../ops/types';
 import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
-import { buildServiceReadModel, createEmptyServiceReadModel } from '../ops/serviceReadModel';
+import { buildServiceReadModel } from '../ops/serviceReadModel';
 import type { ViewportState as OpsViewportState } from '../ops/types';
 import { buildOpsPriorities } from '../ops/priorities';
 import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
@@ -39,7 +39,7 @@ export function applyConsoleRealtimeError(input: {
   source: RealtimeSource;
   updatedAt: number;
   message: string;
-  readModel: ServiceReadModel | null;
+  readModel: ServiceReadModel;
 }): Pick<ConsoleOperationalState, 'readModel' | 'realtimeStatus'> {
   const realtimeStatus = deriveRealtimeStatus({
     source: input.source,
@@ -52,24 +52,22 @@ export function applyConsoleRealtimeError(input: {
 
   return {
     realtimeStatus,
-    readModel: input.readModel
-      ? {
-          ...input.readModel,
-          freshnessStatus: realtimeStatus,
-        }
-      : createEmptyServiceReadModel(realtimeStatus),
+    readModel: {
+      ...input.readModel,
+      freshnessStatus: realtimeStatus,
+    },
   };
 }
 
 export function refreshConsoleBundleTruth(input: {
-  readModel: ServiceReadModel | null;
+  readModel: ServiceReadModel;
   realtimeStatus: RealtimeStatus;
   selectedEvent: EarthquakeEvent | null;
   exposures: OpsAssetExposure[];
   vessels: Vessel[];
   assets: OpsAsset[];
 }): ServiceReadModel {
-  const baseReadModel = input.readModel ?? createEmptyServiceReadModel(input.realtimeStatus);
+  const baseReadModel = input.readModel;
   const currentEvent = input.selectedEvent ?? baseReadModel.currentEvent;
 
   return {

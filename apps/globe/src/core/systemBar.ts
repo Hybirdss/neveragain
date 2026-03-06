@@ -21,11 +21,11 @@ function formatRegionLabel(region: OpsRegion | null | undefined): string {
 export function buildSystemBarState(input: {
   mode: 'calm' | 'event';
   eventCount: number;
-  readModel: ServiceReadModel | null;
+  readModel: ServiceReadModel;
   realtimeStatus: RealtimeStatus;
 }): SystemBarState {
   const parts = [input.mode === 'event' ? 'Event active' : 'System calm'];
-  const healthLevel = input.readModel?.systemHealth.level;
+  const healthLevel = input.readModel.systemHealth.level;
 
   if (input.eventCount > 0) {
     parts.push(`${input.eventCount} events`);
@@ -37,16 +37,16 @@ export function buildSystemBarState(input: {
     parts.push(`health ${healthLevel}`);
   }
 
-  if (input.readModel?.eventTruth?.divergenceSeverity === 'material') {
+  if (input.readModel.eventTruth?.divergenceSeverity === 'material') {
     parts.push('divergence');
-  } else if (input.readModel?.eventTruth?.hasConflictingRevision) {
+  } else if (input.readModel.eventTruth?.hasConflictingRevision) {
     parts.push('conflict');
   }
 
   const region =
-    input.readModel?.viewport?.tier === 'national'
+    input.readModel.viewport?.tier === 'national'
       ? null
-      : input.readModel?.viewport?.activeRegion;
+      : input.readModel.viewport?.activeRegion;
 
   return {
     regionLabel: formatRegionLabel(region),

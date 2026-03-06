@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RealtimeStatus, ServiceReadModel } from '../../ops/readModelTypes';
+import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
 import { buildSystemBarState } from '../systemBar';
 
 const realtimeStatus: RealtimeStatus = {
@@ -115,7 +116,13 @@ describe('buildSystemBarState', () => {
     const state = buildSystemBarState({
       mode: 'calm',
       eventCount: 0,
-      readModel: null,
+      readModel: createEmptyServiceReadModel({
+        source: 'usgs',
+        state: 'degraded',
+        updatedAt: 0,
+        staleAfterMs: 60_000,
+        message: 'fallback active',
+      }),
       realtimeStatus: {
         source: 'usgs',
         state: 'degraded',
