@@ -1,5 +1,7 @@
 import type { EarthquakeEvent } from '../types';
 import type {
+  ConsequenceMetadata,
+  ConsequenceTruthSource,
   OperatorBundleDomain,
   OperatorBundleDomainOverview,
   OperatorBundleDomainOverviews,
@@ -7,6 +9,7 @@ import type {
   OperationalOverview,
   OperatorBundleCounter,
   OperatorBundleSignal,
+  RealtimeStatus,
   OperatorBundleSummary,
   OperatorBundleSummaries,
   OperatorBundleTrust,
@@ -29,6 +32,9 @@ interface BuildOperatorBundleSummariesInput {
   operationalOverview: OperationalOverview;
   maritimeOverview?: MaritimeTelemetryOverview | null;
   domainOverviews?: OperatorBundleDomainOverviews;
+  freshnessStatus?: RealtimeStatus;
+  consequenceConfidence?: ConsequenceMetadata['confidence'];
+  consequenceSource?: ConsequenceTruthSource;
   trustLevel?: Exclude<OperatorBundleTrust, 'pending'>;
 }
 
@@ -185,6 +191,24 @@ function buildSignal(
   return { id, label, value, tone };
 }
 
+function buildConsequenceMetadata(
+  reason: string,
+  freshnessStatus: RealtimeStatus | undefined,
+  confidence: ConsequenceMetadata['confidence'] | undefined,
+  source: ConsequenceTruthSource | undefined,
+): ConsequenceMetadata | undefined {
+  if (!freshnessStatus) {
+    return undefined;
+  }
+
+  return {
+    source: source ?? 'backend-truth',
+    confidence: confidence ?? 'medium',
+    freshness: freshnessStatus,
+    reason,
+  };
+}
+
 function buildBundleFamilyCounters(
   families: Array<{ assetClass: OpsAssetClass; count: number; tone: OpsSeverity }>,
 ): OperatorBundleCounter[] {
@@ -228,15 +252,19 @@ function pluralize(count: number, singular: string): string {
 function buildBundleDomains(
   families: Array<{ assetClass: OpsAssetClass; count: number; tone: OpsSeverity; topAssets: OpsAsset[] }>,
   trust: OperatorBundleTrust,
+  freshnessStatus?: RealtimeStatus,
+  consequenceConfidence?: ConsequenceMetadata['confidence'],
+  consequenceSource?: ConsequenceTruthSource,
 ): OperatorBundleDomain[] {
   return families.map((family) => {
     const definition = getOpsAssetClassDefinition(family.assetClass);
     const focusAssets = joinAssetNames(family.topAssets);
+    const detail = `${focusAssets} requires operator verification.`;
     return {
       id: definition.domainId,
       label: definition.familyLabel,
       metric: `${family.count} ${pluralize(family.count, definition.exposureMetricLabel)} exposed`,
-      detail: `${focusAssets} requires operator verification.`,
+      detail,
       severity: family.tone,
       availability: 'live',
       trust,
@@ -251,6 +279,12 @@ function buildBundleDomains(
       signals: [
         buildSignal('focus-assets', 'Focus Assets', focusAssets, family.tone),
       ],
+      consequence: buildConsequenceMetadata(
+        detail,
+        freshnessStatus,
+        consequenceConfidence,
+        consequenceSource,
+      ),
     };
   });
 }
@@ -297,6 +331,25 @@ function applyDomainOverview(
     counters: override.counters,
     signals: override.signals,
     domains: override.domains ?? summary.domains,
+    consequence: override.consequence ?? summary.consequence,
+  };
+}
+
+function withSummaryConsequence(
+  summary: OperatorBundleSummary,
+  input: Pick<
+    BuildOperatorBundleSummariesInput,
+    'freshnessStatus' | 'consequenceConfidence' | 'consequenceSource'
+  >,
+): OperatorBundleSummary {
+  return {
+    ...summary,
+    consequence: summary.consequence ?? buildConsequenceMetadata(
+      summary.detail,
+      input.freshnessStatus,
+      input.consequenceConfidence,
+      input.consequenceSource,
+    ),
   };
 }
 
@@ -314,11 +367,23 @@ export function buildOperatorBundleSummaries(
   const hasEvent = input.selectedEvent !== null;
   const liveTrust = resolveBundleTrust('live', input.trustLevel);
   const plannedTrust = resolveBundleTrust('planned', input.trustLevel);
-  const lifelineDomains = buildBundleDomains(lifelineFamilies, liveTrust);
-  const builtEnvironmentDomains = buildBundleDomains(builtEnvironmentFamilies, liveTrust);
+  const lifelineDomains = buildBundleDomains(
+    lifelineFamilies,
+    liveTrust,
+    input.freshnessStatus,
+    input.consequenceConfidence,
+    input.consequenceSource,
+  );
+  const builtEnvironmentDomains = buildBundleDomains(
+    builtEnvironmentFamilies,
+    liveTrust,
+    input.freshnessStatus,
+    input.consequenceConfidence,
+    input.consequenceSource,
+  );
 
   return {
-    seismic: applyDomainOverview({
+    seismic: applyDomainOverview(withSummaryConsequence({
       bundleId: 'seismic',
       title: 'Seismic',
       metric: input.operationalOverview.nationalAffectedAssetCount > 0
@@ -353,8 +418,8 @@ export function buildOperatorBundleSummaries(
           ]
         : [],
       domains: [],
-    }, input.domainOverviews?.seismic),
-    maritime: applyDomainOverview({
+    }, input), input.domainOverviews?.seismic),
+    maritime: applyDomainOverview(withSummaryConsequence({
       bundleId: 'maritime',
       title: 'Maritime',
       metric: input.maritimeOverview
@@ -393,8 +458,8 @@ export function buildOperatorBundleSummaries(
           : []),
       ],
       domains: [],
-    }, input.domainOverviews?.maritime),
-    lifelines: applyDomainOverview({
+    }, input), input.domainOverviews?.maritime),
+    lifelines: applyDomainOverview(withSummaryConsequence({
       bundleId: 'lifelines',
       title: 'Lifelines',
       metric: lifelines.count > 0
@@ -419,8 +484,8 @@ export function buildOperatorBundleSummaries(
           ]
         : [],
       domains: lifelineDomains,
-    }, input.domainOverviews?.lifelines),
-    medical: applyDomainOverview({
+    }, input), input.domainOverviews?.lifelines),
+    medical: applyDomainOverview(withSummaryConsequence({
       bundleId: 'medical',
       title: 'Medical',
       metric: medical.count > 0
@@ -442,10 +507,13 @@ export function buildOperatorBundleSummaries(
         ? buildBundleDomains(
             summarizeBundleFamilies('medical', input.assets, input.exposures),
             liveTrust,
+            input.freshnessStatus,
+            input.consequenceConfidence,
+            input.consequenceSource,
           )
         : [],
-    }, input.domainOverviews?.medical),
-    'built-environment': applyDomainOverview({
+    }, input), input.domainOverviews?.medical),
+    'built-environment': applyDomainOverview(withSummaryConsequence({
       bundleId: 'built-environment',
       title: 'Built Environment',
       metric: builtEnvironment.count > 0
@@ -476,6 +544,6 @@ export function buildOperatorBundleSummaries(
           ? [buildSignal('activation-tier', 'Activation Tier', 'City-tier on operator focus', 'watch')]
           : [],
       domains: builtEnvironmentDomains,
-    }, input.domainOverviews?.['built-environment']),
+    }, input), input.domainOverviews?.['built-environment']),
   };
 }

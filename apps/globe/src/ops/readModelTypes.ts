@@ -70,6 +70,14 @@ export type OperatorBundleId =
   | 'built-environment';
 
 export type OperatorBundleTrust = 'confirmed' | 'review' | 'degraded' | 'pending';
+export type ConsequenceTruthSource = 'backend-truth' | 'visual-heuristic';
+
+export interface ConsequenceMetadata {
+  source: ConsequenceTruthSource;
+  confidence: CanonicalEventConfidence | 'pending';
+  freshness: RealtimeStatus;
+  reason: string;
+}
 
 export interface OperatorBundleCounter {
   id: string;
@@ -95,6 +103,7 @@ export interface OperatorBundleDomain {
   trust: OperatorBundleTrust;
   counters: OperatorBundleCounter[];
   signals: OperatorBundleSignal[];
+  consequence?: ConsequenceMetadata;
 }
 
 export interface OperatorBundleSummary {
@@ -108,6 +117,7 @@ export interface OperatorBundleSummary {
   counters: OperatorBundleCounter[];
   signals: OperatorBundleSignal[];
   domains: OperatorBundleDomain[];
+  consequence?: ConsequenceMetadata;
 }
 
 export interface OperatorBundleDomainOverview {
@@ -119,11 +129,16 @@ export interface OperatorBundleDomainOverview {
   counters: OperatorBundleCounter[];
   signals: OperatorBundleSignal[];
   domains?: OperatorBundleDomain[];
+  consequence?: ConsequenceMetadata;
 }
 
 export type OperatorBundleDomainOverviews = Partial<Record<OperatorBundleId, OperatorBundleDomainOverview>>;
 
 export type OperatorBundleSummaries = Partial<Record<OperatorBundleId, OperatorBundleSummary>>;
+
+export interface OperatorPriority extends OpsPriority {
+  consequence?: ConsequenceMetadata;
+}
 
 export interface ServiceReadModel {
   currentEvent: EarthquakeEvent | null;
@@ -135,8 +150,8 @@ export interface ServiceReadModel {
   bundleSummaries: OperatorBundleSummaries;
   nationalExposureSummary: OpsAssetExposure[];
   visibleExposureSummary: OpsAssetExposure[];
-  nationalPriorityQueue: OpsPriority[];
-  visiblePriorityQueue: OpsPriority[];
+  nationalPriorityQueue: OperatorPriority[];
+  visiblePriorityQueue: OperatorPriority[];
   freshnessStatus: RealtimeStatus;
 }
 

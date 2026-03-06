@@ -1,11 +1,38 @@
 /**
- * Impact Zone Utilities — Shared geographic calculations for layer modules.
+ * Impact Zone Visual Heuristics — Shared geographic calculations for layer modules.
+ *
+ * These helpers are visual-only heuristics.
+ * They are useful for map emphasis, but they are not the final source of
+ * operator queue text or backend-owned consequence truth.
  */
 
 import type { EarthquakeEvent } from '../types';
 
+export interface VisualImpactHeuristic {
+  source: 'visual-heuristic';
+  algorithm: 'magnitude-radius';
+  radiusKm: number;
+  reason: string;
+}
+
 export function impactRadiusKm(magnitude: number): number {
   return 30 * Math.pow(2, magnitude - 4);
+}
+
+export function buildVisualImpactHeuristic(
+  event: EarthquakeEvent | null,
+): VisualImpactHeuristic | null {
+  if (!event) {
+    return null;
+  }
+
+  const radiusKm = impactRadiusKm(event.magnitude);
+  return {
+    source: 'visual-heuristic',
+    algorithm: 'magnitude-radius',
+    radiusKm,
+    reason: `Magnitude-radius heuristic for ${event.place.text}`,
+  };
 }
 
 export function haversineKm(

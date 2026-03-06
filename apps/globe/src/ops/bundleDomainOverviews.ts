@@ -1,9 +1,12 @@
 import type {
+  ConsequenceMetadata,
+  ConsequenceTruthSource,
   OperatorBundleCounter,
   OperatorBundleDomainOverview,
   OperatorBundleDomainOverviews,
   OperatorBundleId,
   OperatorBundleSignal,
+  RealtimeStatus,
   OperatorBundleTrust,
 } from './readModelTypes';
 import type { OpsAsset, OpsAssetClass, OpsAssetExposure, OpsPriority, OpsRegion, OpsSeverity } from './types';
@@ -140,6 +143,24 @@ function buildFamilyCounters(
   });
 }
 
+function buildConsequenceMetadata(
+  reason: string,
+  freshnessStatus: RealtimeStatus | undefined,
+  confidence: ConsequenceMetadata['confidence'] | undefined,
+  source: ConsequenceTruthSource | undefined,
+): ConsequenceMetadata | undefined {
+  if (!freshnessStatus) {
+    return undefined;
+  }
+
+  return {
+    source: source ?? 'backend-truth',
+    confidence: confidence ?? 'medium',
+    freshness: freshnessStatus,
+    reason,
+  };
+}
+
 const BUNDLE_OVERVIEW_DEFINITIONS: BundleOverviewDefinition[] = [
   {
     bundleId: 'lifelines',
@@ -173,6 +194,9 @@ function buildOverview(input: {
   defaultMetricLabel: string;
   counterLabel: string;
   regionSignalId: string;
+  freshnessStatus?: RealtimeStatus;
+  consequenceConfidence?: ConsequenceMetadata['confidence'];
+  consequenceSource?: ConsequenceTruthSource;
   trust: Exclude<OperatorBundleTrust, 'pending'>;
 }): OperatorBundleDomainOverview | undefined {
   const assetMap = getAssetMap(input.assets);
@@ -230,6 +254,12 @@ function buildOverview(input: {
       ...buildFamilyCounters(classCounts),
     ],
     signals,
+    consequence: buildConsequenceMetadata(
+      topPriority.rationale,
+      input.freshnessStatus,
+      input.consequenceConfidence,
+      input.consequenceSource,
+    ),
   };
 }
 
@@ -238,6 +268,9 @@ export function buildDefaultBundleDomainOverviews(input: {
   exposures: OpsAssetExposure[];
   assets: OpsAsset[];
   trustLevel: Exclude<OperatorBundleTrust, 'pending'>;
+  freshnessStatus?: RealtimeStatus;
+  consequenceConfidence?: ConsequenceMetadata['confidence'];
+  consequenceSource?: ConsequenceTruthSource;
 }): OperatorBundleDomainOverviews {
   return BUNDLE_OVERVIEW_DEFINITIONS.reduce<OperatorBundleDomainOverviews>((acc, definition) => {
     acc[definition.bundleId] = buildOverview({
@@ -249,6 +282,9 @@ export function buildDefaultBundleDomainOverviews(input: {
       defaultMetricLabel: definition.defaultMetricLabel,
       counterLabel: definition.counterLabel,
       regionSignalId: definition.regionSignalId,
+      freshnessStatus: input.freshnessStatus,
+      consequenceConfidence: input.consequenceConfidence,
+      consequenceSource: input.consequenceSource,
       trust: input.trustLevel,
     });
     return acc;
