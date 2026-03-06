@@ -17,6 +17,18 @@ interface BucketArgs {
   now?: number;
 }
 
+export function getLiveFeedSelectionAnchor(
+  clusters: Map<string, ClusteredEvent>,
+  selectedId: string | null,
+): string | null {
+  if (!selectedId) return null;
+  const cluster = clusters.get(selectedId);
+  if (cluster?.role === 'aftershock' && cluster.mainshockId) {
+    return cluster.mainshockId;
+  }
+  return selectedId;
+}
+
 function isClusterMainshock(cluster: ClusteredEvent | undefined): boolean {
   return cluster?.role === 'mainshock' && cluster.aftershockCount > 0;
 }
@@ -35,6 +47,7 @@ export function bucketLiveFeedEvents({
   selectedId,
   now = Date.now(),
 }: BucketArgs): LiveFeedBuckets {
+  const selectionAnchorId = getLiveFeedSelectionAnchor(clusters, selectedId);
   const primary: EarthquakeEvent[] = [];
   const background: EarthquakeEvent[] = [];
   const promoted = new Set<string>();
@@ -42,7 +55,7 @@ export function bucketLiveFeedEvents({
   for (const event of events) {
     const cluster = clusters.get(event.id);
     const ageMs = now - event.time;
-    const shouldPromote = event.id === selectedId
+    const shouldPromote = event.id === selectionAnchorId
       || isHighSignal(event, cluster, now)
       || (ageMs <= RECENT_WINDOW_MS && primary.length < PRIMARY_LIMIT);
 
@@ -55,11 +68,11 @@ export function bucketLiveFeedEvents({
     background.push(event);
   }
 
-  if (selectedId && !promoted.has(selectedId)) {
-    const selected = events.find((event) => event.id === selectedId);
+  if (selectionAnchorId && !promoted.has(selectionAnchorId)) {
+    const selected = events.find((event) => event.id === selectionAnchorId);
     if (selected) {
       primary.push(selected);
-      const index = background.findIndex((event) => event.id === selectedId);
+      const index = background.findIndex((event) => event.id === selectionAnchorId);
       if (index >= 0) background.splice(index, 1);
     }
   }

@@ -282,6 +282,15 @@ function buildBackgroundSection(events: EarthquakeEvent[], selectedId: string | 
 
   return section;
 }
+
+function syncExpandedClustersForSelection(selectedId: string | null): void {
+  if (!selectedId) return;
+  const cluster = currentClusters.get(selectedId);
+  if (cluster?.role === 'aftershock' && cluster.mainshockId) {
+    expandedClusters.add(cluster.mainshockId);
+  }
+}
+
 function renderEvents(events: EarthquakeEvent[], selectedId: string | null): void {
   eventListEl.innerHTML = '';
 
@@ -334,6 +343,7 @@ export function initLiveFeed(container?: HTMLElement): void {
   // Subscribe to selected event changes for active state highlight
   unsubSelected = store.subscribe('selectedEvent', () => {
     const selected = store.get('selectedEvent');
+    syncExpandedClustersForSelection(selected?.id ?? null);
     const displayEvents = getDisplayEvents(currentEvents, currentClusters);
     renderEvents(displayEvents, selected?.id ?? null);
   });
@@ -394,6 +404,7 @@ export function updateLiveFeed(
   refreshStatusBar();
 
   const displayEvents = getDisplayEvents(events, currentClusters);
+  syncExpandedClustersForSelection(selectedEvent?.id ?? null);
   renderEvents(displayEvents, selectedEvent?.id ?? null);
 }
 

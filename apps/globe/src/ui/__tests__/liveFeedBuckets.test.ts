@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { EarthquakeEvent } from '../../types';
 import { clusterEvents, getDisplayEvents } from '../../utils/aftershockCluster';
-import { bucketLiveFeedEvents } from '../liveFeedBuckets';
+import { bucketLiveFeedEvents, getLiveFeedSelectionAnchor } from '../liveFeedBuckets';
 
 const NOW = Date.UTC(2026, 2, 6, 0, 0, 0);
 
@@ -106,5 +106,27 @@ describe('bucketLiveFeedEvents', () => {
 
     expect(result.primary.map((event) => event.id)).toEqual(['stale-newest']);
     expect(result.background.map((event) => event.id)).toEqual(['stale-older']);
+  });
+});
+
+describe('getLiveFeedSelectionAnchor', () => {
+  it('returns the mainshock id when an aftershock is selected', () => {
+    const mainshock = buildEvent({
+      id: 'mainshock',
+      lat: 36,
+      lng: 141,
+      magnitude: 4.4,
+      time: NOW - (30 * 60 * 60 * 1000),
+    });
+    const aftershock = buildEvent({
+      id: 'aftershock',
+      lat: 36.05,
+      lng: 141.04,
+      magnitude: 3.1,
+      time: NOW - (20 * 60 * 60 * 1000),
+    });
+    const clusters = clusterEvents([mainshock, aftershock]);
+
+    expect(getLiveFeedSelectionAnchor(clusters, 'aftershock')).toBe('mainshock');
   });
 });
