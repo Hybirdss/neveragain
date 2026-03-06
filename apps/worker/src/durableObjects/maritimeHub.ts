@@ -4,12 +4,13 @@ import type { Env } from '../index.ts';
 import { createMaritimeSnapshotProvider } from '../maritime/provider.ts';
 import { MaritimeSnapshotService, type MaritimeRuntimeGovernorPolicy, type MaritimeSnapshotQuery, type MaritimeSnapshotRecord, type MaritimeSnapshotStore } from '../maritime/service.ts';
 import { buildGovernorPolicyEnvelopeFromEvents } from '../governor/runtimeGovernor.ts';
-import { getSourcePolicy } from '../governor/policies.ts';
+import { GOVERNED_SOURCES, getSourcePolicy, type GovernedSource, type GovernorSourcePolicy } from '../governor/policies.ts';
 import type { GovernorActivation } from '../governor/types.ts';
 import { createDb } from '../lib/db.ts';
 import { earthquakes } from '@namazue/db';
 
 const HUB_PATH = '/snapshot';
+const RUNTIME_PATH = '/runtime';
 const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 const GOVERNOR_RESOLUTION_TTL_MS = 60_000;
 
@@ -19,18 +20,24 @@ export class MaritimeHub {
 
   constructor(
     private readonly state: DurableObjectState,
-    env: Env,
+    private readonly env: Env,
   ) {
     this.service = new MaritimeSnapshotService({
-      provider: createMaritimeSnapshotProvider(env),
+      provider: createMaritimeSnapshotProvider(this.env),
       store: new DurableObjectSnapshotStore(state),
-      ttlMs: env.AIS_SNAPSHOT_TTL_MS,
-      resolveRuntimeGovernor: (query, now) => this.resolveRuntimeGovernor(env, query, now),
+      ttlMs: this.env.AIS_SNAPSHOT_TTL_MS,
+      resolveRuntimeGovernor: (query, now) => this.resolveRuntimeGovernor(this.env, query, now),
     });
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === RUNTIME_PATH) {
+      const query = parseSnapshotQuery(url);
+      const runtime = await this.buildRuntimePayload(query, Date.now());
+      return Response.json(runtime);
+    }
+
     if (url.pathname !== HUB_PATH) {
       return Response.json({ error: 'Not found' }, { status: 404 });
     }
@@ -67,6 +74,29 @@ export class MaritimeHub {
         },
       },
     });
+  }
+
+  private async buildRuntimePayload(query: MaritimeSnapshotQuery, now: number) {
+    const governor = await this.resolveRuntimeGovernor(this.env, query, now);
+    const policyTable = buildGovernorPolicyTable(governor.activation.state);
+    const maritimePolicy = policyTable.maritime;
+
+    return {
+      governor: {
+        state: governor.activation.state,
+        activated_at: governor.activation.activatedAt,
+        reason: governor.activation.reason,
+        region_scope: serializeRegionScope(governor.activation.regionScope),
+      },
+      policies: policyTable,
+      fanout: {
+        mode: governor.activation.state === 'watch' || governor.activation.state === 'incident'
+          ? 'incident-scoped'
+          : 'snapshot-poll',
+        push_available: false,
+        viewer_refresh_ms: maritimePolicy.cadenceMode === 'poll' ? maritimePolicy.refreshMs : null,
+      },
+    };
   }
 
   private async resolveRuntimeGovernor(
@@ -130,6 +160,15 @@ export class MaritimeHub {
 
     return activation;
   }
+}
+
+function buildGovernorPolicyTable(
+  state: GovernorActivation['state'],
+): Record<GovernedSource, GovernorSourcePolicy> {
+  return GOVERNED_SOURCES.reduce<Record<GovernedSource, GovernorSourcePolicy>>((table, source) => {
+    table[source] = getSourcePolicy(source, state);
+    return table;
+  }, {} as Record<GovernedSource, GovernorSourcePolicy>);
 }
 
 class DurableObjectSnapshotStore implements MaritimeSnapshotStore {
