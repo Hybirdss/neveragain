@@ -1,0 +1,26 @@
+:root {
+  --nz-bg-base: #0a0e14;
+  --nz-bg-map: #0d1520;
+  --nz-panel-bg: rgba(12, 17, 24, 0.85);
+  --nz-panel-border: rgba(30, 37, 48, 0.6);
+  --nz-panel-blur: 16px;
+
+  --nz-separator: #1e2530;
+
+  --nz-info: #7dd3fc;
+  --nz-calm: #6ee7b7;
+  --nz-watch: #60a5fa;
+  --nz-priority: #fbbf24;
+  --nz-critical: #ef4444;
+
+  --nz-text-primary: #e2e8f0;
+  --nz-text-secondary: #94a3b8;
+  --nz-text-muted: #475569;
+
+  --nz-font-ui: 'Noto Sans JP', system-ui, sans-serif;
+  --nz-font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
+
+  --nz-rail-width: 320px;
+  --nz-system-bar-height: 36px;
+  --nz-bottom-bar-height: 48px;
+}

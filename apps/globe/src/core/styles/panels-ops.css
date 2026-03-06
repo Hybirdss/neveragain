@@ -1,0 +1,340 @@
+.nz-check__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-priority);
+  font-weight: 600;
+}
+
+.nz-check__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-check__item {
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.nz-check__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nz-check__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.nz-check__rank {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--nz-text-muted);
+  width: 14px;
+}
+
+.nz-check__severity {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.nz-check__severity--watch {
+  color: var(--nz-watch);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.nz-check__severity--priority {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-check__severity--critical {
+  color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.nz-check__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  margin-bottom: 2px;
+}
+
+.nz-check__rationale {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  line-height: 1.4;
+}
+
+.nz-check__empty {
+  font-size: 11px;
+  color: var(--nz-calm);
+  padding: 4px 0;
+  font-family: var(--nz-font-mono);
+  font-weight: 500;
+}
+
+.nz-expo__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-expo__clear {
+  font-size: 11px;
+  color: var(--nz-calm);
+  font-family: var(--nz-font-mono);
+  font-weight: 500;
+}
+
+.nz-expo__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-expo__item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.nz-expo__icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.nz-expo__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.nz-expo__name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nz-expo__sev {
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.nz-expo__sev--watch {
+  color: var(--nz-watch);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.nz-expo__sev--priority {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-expo__sev--critical {
+  color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.nz-expo__summary {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  line-height: 1.35;
+  margin-top: 1px;
+}
+
+.nz-maritime__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-maritime__count--alert {
+  color: var(--nz-critical);
+  font-weight: 600;
+}
+
+.nz-maritime__summary {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+  margin-bottom: 8px;
+}
+
+.nz-maritime__breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nz-maritime__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.nz-maritime__type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nz-maritime__type-label {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+  flex: 1;
+}
+
+.nz-maritime__type-count {
+  font-family: var(--nz-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  min-width: 20px;
+  text-align: right;
+}
+
+.nz-maritime__type-sev {
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.nz-maritime__row--critical .nz-maritime__type-sev {
+  color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.nz-maritime__row--priority .nz-maritime__type-sev {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-maritime__total {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--nz-panel-border);
+}
+
+.nz-fault__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-fault__empty {
+  font-size: 11px;
+  color: var(--nz-text-muted);
+  padding: 4px 0;
+}
+
+.nz-fault__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.nz-fault__item {
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-left: 2px solid transparent;
+}
+
+.nz-fault__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nz-fault__item--active {
+  background: rgba(239, 68, 68, 0.08);
+  border-left-color: var(--nz-critical);
+}
+
+.nz-fault__item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.nz-fault__mw {
+  font-family: var(--nz-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 36px;
+  flex-shrink: 0;
+}
+
+.nz-fault__mw--info { color: var(--nz-info); }
+.nz-fault__mw--watch { color: var(--nz-watch); }
+.nz-fault__mw--priority { color: var(--nz-priority); }
+.nz-fault__mw--critical { color: var(--nz-critical); }
+
+.nz-fault__name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nz-fault__item-meta {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  color: var(--nz-text-muted);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-left: 44px;
+}
+
+.nz-fault__item--clickable {
+  cursor: pointer;
+}
+
+.nz-fault__item--clickable:hover {
+  background: rgba(251, 191, 36, 0.06);
+  border-left-color: var(--nz-priority);
+}
+
+.nz-fault__mode {
+  color: var(--nz-priority);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.nz-fault__sep {
+  opacity: 0.4;
+}

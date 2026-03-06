@@ -1,0 +1,144 @@
+.nz-snap__status {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nz-snap__status--calm { color: var(--nz-calm); }
+.nz-snap__status--info { color: var(--nz-info); }
+.nz-snap__status--watch { color: var(--nz-watch); }
+.nz-snap__status--priority { color: var(--nz-priority); }
+.nz-snap__status--critical { color: var(--nz-critical); }
+
+.nz-snap__headline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.nz-snap__metrics {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.nz-snap__metric-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nz-snap__metric-value {
+  font-family: var(--nz-font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.nz-snap__metric-label {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--nz-text-muted);
+}
+
+.nz-snap__metric {
+  font-size: 12px;
+  color: var(--nz-text-secondary);
+}
+
+.nz-snap__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.nz-snap__coords {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.nz-feed__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nz-feed__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.nz-feed__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nz-feed__item--active {
+  background: rgba(125, 211, 252, 0.08);
+}
+
+.nz-feed__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nz-feed__dot--info { background: var(--nz-info); }
+.nz-feed__dot--watch { background: var(--nz-watch); }
+.nz-feed__dot--priority { background: var(--nz-priority); }
+.nz-feed__dot--critical { background: var(--nz-critical); }
+
+.nz-feed__mag {
+  font-family: var(--nz-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.nz-feed__place {
+  font-size: 11px;
+  color: var(--nz-text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nz-feed__time {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  flex-shrink: 0;
+}
+
+.nz-feed__empty {
+  font-size: 11px;
+  color: var(--nz-text-muted);
+  padding: 8px 0;
+}

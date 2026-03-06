@@ -1,0 +1,20 @@
+@media (max-width: 1024px) {
+  :root {
+    --nz-rail-width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .nz-rail--right {
+    display: none;
+  }
+
+  .nz-rail--left {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: auto;
+    bottom: calc(var(--nz-bottom-bar-height) + 8px);
+    max-height: 40vh;
+  }
+}
