@@ -121,6 +121,8 @@ const ko: Record<string, string> = {
   'sidebar.justNow': '방금',
   'sidebar.agoMin': '분 전',
   'sidebar.offline': '연결 끊김 — 재시도 중',
+  'sidebar.section.primary': '지금 봐야 할 것',
+  'sidebar.section.background': '배경 모니터링',
 
   // Relative time
   'time.justNow': '방금',

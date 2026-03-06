@@ -121,6 +121,8 @@ const en: Record<string, string> = {
   'sidebar.justNow': 'just now',
   'sidebar.agoMin': 'min ago',
   'sidebar.offline': 'Connection lost — retrying',
+  'sidebar.section.primary': 'What matters now',
+  'sidebar.section.background': 'Background monitoring',
 
   // Relative time
   'time.justNow': 'just now',

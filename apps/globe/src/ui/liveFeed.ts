@@ -14,6 +14,7 @@ import { clusterEvents, getDisplayEvents, type ClusteredEvent } from '../utils/a
 import { getTabPane } from './leftPanel';
 import { getLastUpdatedAt } from '../data/usgsRealtime';
 import { buildLiveFeedSummary, deriveTsunamiAssessmentFromEvent, formatRelativeTime as formatPresentationRelativeTime } from './presentation';
+import { bucketLiveFeedEvents } from './liveFeedBuckets';
 
 // ── DOM refs ──
 
@@ -32,6 +33,7 @@ let currentEvents: EarthquakeEvent[] = [];
 let currentClusters: Map<string, ClusteredEvent> = new Map();
 let expandedClusters: Set<string> = new Set();
 let hasReceivedData = false;
+let backgroundExpanded = false;
 
 const ALERT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -223,26 +225,64 @@ function renderEventItem(event: EarthquakeEvent, isActive: boolean, cluster?: Cl
   return item;
 }
 
+function buildSectionHeader(label: string, count: number): HTMLElement {
+  const header = el('div', 'feed__section-header');
+  header.appendChild(el('div', 'feed__section-label', label));
+  header.appendChild(el('div', 'feed__section-count', String(count)));
+  return header;
+}
 
-/** Toggle active class on existing items without full re-render. */
-function updateActiveState(selectedId: string | null): void {
-  const items = eventListEl.querySelectorAll('.feed-item');
-  for (const item of items) {
-    const el = item as HTMLElement;
-    const id = el.dataset.eventId;
-    const isActive = id === selectedId;
-    el.classList.toggle('feed-item--active', isActive);
-    if (isActive && id) {
-      const ev = currentEvents.find(e => e.id === id);
-      if (ev) el.style.borderLeftColor = depthToColor(ev.depth_km);
-    } else {
-      el.style.borderLeftColor = 'transparent';
+function appendEventRows(
+  container: HTMLElement | DocumentFragment,
+  events: EarthquakeEvent[],
+  selectedId: string | null,
+): void {
+  for (const ev of events) {
+    const cluster = currentClusters.get(ev.id);
+    const isActive = ev.id === selectedId;
+    const item = renderEventItem(ev, isActive, cluster);
+    container.appendChild(item);
+
+    if (cluster && cluster.role === 'mainshock' && expandedClusters.has(ev.id)) {
+      for (const as of cluster.aftershocks) {
+        const asCluster = currentClusters.get(as.id);
+        const asActive = as.id === selectedId;
+        const asItem = renderEventItem(as, asActive, asCluster);
+        container.appendChild(asItem);
+      }
     }
   }
 }
 
+function buildPrimarySection(events: EarthquakeEvent[], selectedId: string | null): HTMLElement {
+  const section = el('section', 'feed__section feed__section--primary');
+  section.appendChild(buildSectionHeader(t('sidebar.section.primary'), events.length));
+  const body = el('div', 'feed__section-body');
+  appendEventRows(body, events, selectedId);
+  section.appendChild(body);
+  return section;
+}
+
+function buildBackgroundSection(events: EarthquakeEvent[], selectedId: string | null): HTMLElement {
+  const section = document.createElement('details');
+  section.className = 'feed__section feed__section--background';
+  section.open = backgroundExpanded;
+  section.addEventListener('toggle', () => {
+    backgroundExpanded = section.open;
+  });
+
+  const summary = el('summary', 'feed__section-summary');
+  summary.appendChild(el('div', 'feed__section-label', t('sidebar.section.background')));
+  summary.appendChild(el('div', 'feed__section-count', String(events.length)));
+  section.appendChild(summary);
+
+  const body = el('div', 'feed__section-body');
+  appendEventRows(body, events, selectedId);
+  section.appendChild(body);
+
+  return section;
+}
 function renderEvents(events: EarthquakeEvent[], selectedId: string | null): void {
-  // Full re-render for simplicity with clustering
   eventListEl.innerHTML = '';
 
   if (events.length === 0) {
@@ -251,21 +291,19 @@ function renderEvents(events: EarthquakeEvent[], selectedId: string | null): voi
     return;
   }
 
-  for (const ev of events) {
-    const cluster = currentClusters.get(ev.id);
-    const isActive = ev.id === selectedId;
-    const item = renderEventItem(ev, isActive, cluster);
-    eventListEl.appendChild(item);
+  const buckets = bucketLiveFeedEvents({
+    events,
+    clusters: currentClusters,
+    selectedId,
+    now: Date.now(),
+  });
 
-    // If this is a mainshock and expanded, show aftershocks
-    if (cluster && cluster.role === 'mainshock' && expandedClusters.has(ev.id)) {
-      for (const as of cluster.aftershocks) {
-        const asCluster = currentClusters.get(as.id);
-        const asActive = as.id === selectedId;
-        const asItem = renderEventItem(as, asActive, asCluster);
-        eventListEl.appendChild(asItem);
-      }
-    }
+  if (buckets.primary.length > 0) {
+    eventListEl.appendChild(buildPrimarySection(buckets.primary, selectedId));
+  }
+
+  if (buckets.background.length > 0) {
+    eventListEl.appendChild(buildBackgroundSection(buckets.background, selectedId));
   }
 }
 
@@ -296,7 +334,8 @@ export function initLiveFeed(container?: HTMLElement): void {
   // Subscribe to selected event changes for active state highlight
   unsubSelected = store.subscribe('selectedEvent', () => {
     const selected = store.get('selectedEvent');
-    updateActiveState(selected?.id ?? null);
+    const displayEvents = getDisplayEvents(currentEvents, currentClusters);
+    renderEvents(displayEvents, selected?.id ?? null);
   });
 
   unsubLocale = onLocaleChange(() => {
@@ -378,4 +417,5 @@ export function disposeLiveFeed(): void {
   currentClusters = new Map();
   expandedClusters = new Set();
   hasReceivedData = false;
+  backgroundExpanded = false;
 }

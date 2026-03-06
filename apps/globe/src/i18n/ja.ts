@@ -121,6 +121,8 @@ const ja: Record<string, string> = {
   'sidebar.justNow': 'たった今',
   'sidebar.agoMin': '分前',
   'sidebar.offline': '接続が切れました — 再試行中',
+  'sidebar.section.primary': '今見るべきもの',
+  'sidebar.section.background': 'バックグラウンド監視',
 
   // Relative time
   'time.justNow': 'たった今',
