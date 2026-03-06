@@ -150,12 +150,24 @@ function renderEventState(
   const sevLabel = sev.toUpperCase();
   const scenario = isScenarioEvent(event);
   const headline = readModel.nationalSnapshot?.headline;
-  const truthLabel = formatTruthLabel(readModel);
-  const revisionLabel = formatRevisionLabel(readModel);
-  const freshnessLabel = formatFreshnessLabel(readModel, now);
-  const metaLines = [truthLabel, revisionLabel, freshnessLabel].filter((value): value is string => Boolean(value));
-  const metaMarkup = metaLines.map((line) => `<div class="nz-snap__metric">${line}</div>`).join('');
   const healthMarkup = renderHealthBlock(readModel);
+
+  // Scenario: disclaimer instead of truth/revision/freshness metadata
+  let metaMarkup: string;
+  if (scenario) {
+    metaMarkup = `<div class="nz-snap__meta nz-snap__meta--scenario">
+      <div class="nz-snap__metric">仮想シナリオ · 実際の地震ではありません</div>
+      <div class="nz-snap__metric">防災判断には使用しないでください</div>
+    </div>`;
+  } else {
+    const truthLabel = formatTruthLabel(readModel);
+    const revisionLabel = formatRevisionLabel(readModel);
+    const freshnessLabel = formatFreshnessLabel(readModel, now);
+    const metaLines = [truthLabel, revisionLabel, freshnessLabel].filter((value): value is string => Boolean(value));
+    metaMarkup = metaLines.length
+      ? `<div class="nz-snap__meta">${metaLines.map((line) => `<div class="nz-snap__metric">${line}</div>`).join('')}</div>`
+      : '';
+  }
 
   const jstTime = new Date(event.time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
 
@@ -202,7 +214,7 @@ function renderEventState(
       <div class="nz-snap__headline">${event.place.text}</div>
       ${metricsBlock}
       ${headline ? `<div class="nz-snap__metric">${headline}</div>` : ''}
-      ${metaMarkup ? `<div class="nz-snap__meta">${metaMarkup}</div>` : ''}
+      ${metaMarkup}
       ${healthMarkup}
       ${sourceBlock}
       <div class="nz-snap__coords">
