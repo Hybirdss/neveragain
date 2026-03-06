@@ -52,6 +52,8 @@ type Listener<T> = (value: T, prev: T) => void;
 class ConsoleStore {
   private state: ConsoleState;
   private listeners = new Map<keyof ConsoleState, Set<Listener<any>>>();
+  private batching = false;
+  private pending: Array<{ key: keyof ConsoleState; value: any; prev: any }> = [];
 
   constructor(initial: ConsoleState) {
     this.state = { ...initial };
@@ -69,11 +71,34 @@ class ConsoleStore {
     const prev = this.state[key];
     if (prev === value) return;
     this.state[key] = value;
-    const subs = this.listeners.get(key);
-    if (subs) {
-      for (const fn of subs) {
-        try { fn(value, prev); }
-        catch (err) { console.error(`[ConsoleStore] Error on "${String(key)}":`, err); }
+
+    if (this.batching) {
+      // Deduplicate: keep only the latest value per key
+      const existing = this.pending.findIndex((p) => p.key === key);
+      if (existing >= 0) {
+        this.pending[existing].value = value;
+      } else {
+        this.pending.push({ key, value, prev });
+      }
+      return;
+    }
+
+    this.notify(key, value, prev);
+  }
+
+  /**
+   * Batch multiple set() calls — subscribers fire once per key after fn completes.
+   * Prevents cascading re-renders when updating mode + selectedEvent + grid + exposures etc.
+   */
+  batch(fn: () => void): void {
+    this.batching = true;
+    try {
+      fn();
+    } finally {
+      this.batching = false;
+      const deferred = this.pending.splice(0);
+      for (const { key, value, prev } of deferred) {
+        this.notify(key, value, prev);
       }
     }
   }
@@ -84,6 +109,16 @@ class ConsoleStore {
     }
     this.listeners.get(key)!.add(fn);
     return () => { this.listeners.get(key)?.delete(fn); };
+  }
+
+  private notify(key: keyof ConsoleState, value: any, prev: any): void {
+    const subs = this.listeners.get(key);
+    if (subs) {
+      for (const fn of subs) {
+        try { fn(value, prev); }
+        catch (err) { console.error(`[ConsoleStore] Error on "${String(key)}":`, err); }
+      }
+    }
   }
 }
 

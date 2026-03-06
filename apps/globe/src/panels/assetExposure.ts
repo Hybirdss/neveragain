@@ -84,7 +84,17 @@ export function mountAssetExposure(container: HTMLElement): () => void {
     container.innerHTML = renderExposures(exposures);
   }
 
+  let renderScheduled = false;
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  };
+
   render();
-  const unsub = consoleStore.subscribe('readModel', render);
+  const unsub = consoleStore.subscribe('readModel', scheduleRender);
   return () => { unsub(); };
 }

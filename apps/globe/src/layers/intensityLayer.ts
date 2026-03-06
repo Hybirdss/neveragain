@@ -78,16 +78,68 @@ function gridToPoints(grid: IntensityGrid): IntensityPoint[] {
 
 const FADE_BAND_KM = 30; // smooth fade band at the reveal edge
 
+// Pre-allocated pool for animation frames — avoids GC every 50ms.
+// Pool grows to fit the largest grid, then stays that size.
+let animPool: IntensityPoint[] = [];
+let animPoolGrid: IntensityGrid | null = null;
+
+/**
+ * Ensure the animation pool has pre-allocated points for this grid.
+ * Only reallocates when the grid reference changes.
+ */
+function ensureAnimPool(grid: IntensityGrid): void {
+  if (grid === animPoolGrid) return;
+  animPoolGrid = grid;
+
+  const latMin = grid.center.lat - grid.radiusDeg;
+  const lngRadDeg = grid.radiusLngDeg ?? grid.radiusDeg;
+  const lngMin = grid.center.lng - lngRadDeg;
+  const latStep = (2 * grid.radiusDeg) / Math.max(1, grid.rows - 1);
+  const lngStep = (2 * lngRadDeg) / Math.max(1, grid.cols - 1);
+
+  // Count qualifying cells
+  let count = 0;
+  for (let i = 0; i < grid.data.length; i++) {
+    if (grid.data[i] >= 0.5) count++;
+  }
+
+  // Grow pool if needed (never shrink — avoids repeated alloc for same grid size)
+  while (animPool.length < count) {
+    animPool.push({
+      position: [0, 0],
+      color: [0, 0, 0, 0],
+      radius: 0,
+    });
+  }
+
+  // Pre-fill positions (they don't change during animation)
+  const cellRadiusM = (latStep * 111_000) / 2;
+  let idx = 0;
+  for (let r = 0; r < grid.rows; r++) {
+    const lat = latMin + r * latStep;
+    for (let c = 0; c < grid.cols; c++) {
+      if (grid.data[r * grid.cols + c] < 0.5) continue;
+      const lng = lngMin + c * lngStep;
+      const pt = animPool[idx];
+      pt.position[0] = lng;
+      pt.position[1] = lat;
+      pt.radius = cellRadiusM;
+      idx++;
+    }
+  }
+}
+
 /**
  * Build points with distance-based alpha modulation for ink-in-water effect.
- * NOT cached — called every 50ms during animation.
+ * Uses pre-allocated pool — zero allocations per frame.
  */
 function gridToAnimatedPoints(
   grid: IntensityGrid,
   epicenter: { lat: number; lng: number },
   revealRadiusKm: number,
 ): IntensityPoint[] {
-  const points: IntensityPoint[] = [];
+  ensureAnimPool(grid);
+
   const latMin = grid.center.lat - grid.radiusDeg;
   const lngRadDeg = grid.radiusLngDeg ?? grid.radiusDeg;
   const lngMin = grid.center.lng - lngRadDeg;
@@ -97,6 +149,8 @@ function gridToAnimatedPoints(
 
   const outerEdge = revealRadiusKm + FADE_BAND_KM;
   const cosLat = Math.cos(epicenter.lat * Math.PI / 180);
+
+  let visibleCount = 0;
 
   for (let r = 0; r < grid.rows; r++) {
     const lat = latMin + r * latStep;
@@ -113,29 +167,33 @@ function gridToAnimatedPoints(
       if (distKm > outerEdge) continue;
 
       const baseColor = intensityToColor(intensity);
+      const pt = animPool[visibleCount];
+      pt.position[0] = lng;
+      pt.position[1] = lat;
+      pt.radius = cellRadiusM;
 
-      // Within reveal radius: full alpha (as computed by intensityToColor)
+      // Within reveal radius: full alpha
       if (distKm <= revealRadiusKm) {
-        points.push({
-          position: [lng, lat],
-          color: baseColor,
-          radius: cellRadiusM,
-        });
+        pt.color[0] = baseColor[0];
+        pt.color[1] = baseColor[1];
+        pt.color[2] = baseColor[2];
+        pt.color[3] = baseColor[3];
       } else {
-        // In the fade band: smooth alpha falloff
+        // Fade band: ease-out alpha falloff
         const t = 1 - (distKm - revealRadiusKm) / FADE_BAND_KM;
-        // Ease-out for organic ink feel
         const alpha = t * t;
-        points.push({
-          position: [lng, lat],
-          color: [baseColor[0], baseColor[1], baseColor[2], Math.round(baseColor[3] * alpha)],
-          radius: cellRadiusM,
-        });
+        pt.color[0] = baseColor[0];
+        pt.color[1] = baseColor[1];
+        pt.color[2] = baseColor[2];
+        pt.color[3] = Math.round(baseColor[3] * alpha);
       }
+
+      visibleCount++;
     }
   }
 
-  return points;
+  // Return a slice view — only visible points (no allocation: slice reuses pool objects)
+  return animPool.slice(0, visibleCount);
 }
 
 // ── Public API ───────────────────────────────────────────────────

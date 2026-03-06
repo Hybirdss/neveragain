@@ -101,9 +101,19 @@ export function mountMaritimeExposure(container: HTMLElement): () => void {
     }
   }
 
+  let renderScheduled = false;
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  };
+
   render();
-  const unsub1 = consoleStore.subscribe('vessels', render);
-  const unsub2 = consoleStore.subscribe('selectedEvent', render);
+  const unsub1 = consoleStore.subscribe('vessels', scheduleRender);
+  const unsub2 = consoleStore.subscribe('selectedEvent', scheduleRender);
 
   return () => {
     unsub1();

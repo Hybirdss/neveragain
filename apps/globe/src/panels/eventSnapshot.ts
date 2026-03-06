@@ -197,12 +197,22 @@ export function mountEventSnapshot(container: HTMLElement): () => void {
     });
   }
 
+  let renderScheduled = false;
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  };
+
   render();
 
-  const unsub1 = consoleStore.subscribe('selectedEvent', render);
-  const unsub2 = consoleStore.subscribe('mode', render);
-  const unsub3 = consoleStore.subscribe('readModel', render);
-  const unsub4 = consoleStore.subscribe('realtimeStatus', render);
+  const unsub1 = consoleStore.subscribe('selectedEvent', scheduleRender);
+  const unsub2 = consoleStore.subscribe('mode', scheduleRender);
+  const unsub3 = consoleStore.subscribe('readModel', scheduleRender);
+  const unsub4 = consoleStore.subscribe('realtimeStatus', scheduleRender);
 
   // Refresh time labels every 30s
   const timer = setInterval(render, 30_000);

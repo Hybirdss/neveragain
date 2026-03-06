@@ -69,10 +69,20 @@ export function mountRecentFeed(
     });
   }
 
+  let renderScheduled = false;
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  };
+
   render();
 
-  const unsub1 = consoleStore.subscribe('events', render);
-  const unsub2 = consoleStore.subscribe('selectedEvent', render);
+  const unsub1 = consoleStore.subscribe('events', scheduleRender);
+  const unsub2 = consoleStore.subscribe('selectedEvent', scheduleRender);
   const timer = setInterval(render, 30_000);
 
   return () => {

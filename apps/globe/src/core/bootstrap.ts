@@ -127,10 +127,10 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const viewport = createViewportManager(engine.map);
   viewport.subscribe((state) => {
     consoleStore.set('viewport', state);
-    if (consoleStore.get('events').length > 0) {
-      syncOperationalTruth();
-      return;
-    }
+    // NOTE: Do NOT call syncOperationalTruth() here.
+    // The intensity grid, exposures, and priorities depend on selectedEvent,
+    // not on viewport. Recomputing GMPE on every pan/zoom was a perf bug.
+    // Layer compositor handles viewport-dependent layers via dirty flags.
     updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
   });
 
@@ -249,18 +249,22 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       viewport: consoleStore.get('viewport'),
     });
 
-    consoleStore.set('mode', result.mode);
-    consoleStore.set('selectedEvent', result.selectedEvent);
-    consoleStore.set('intensityGrid', result.intensityGrid);
-    consoleStore.set('exposures', result.exposures);
-    consoleStore.set('priorities', result.priorities);
-    consoleStore.set('readModel', result.readModel);
-    consoleStore.set('realtimeStatus', result.realtimeStatus);
-    updateSystemBar(result.mode, consoleStore.get('events').length);
+    // Batch: all 7 updates fire subscribers only once per key, after batch completes.
+    // Without batch: 7 sequential .set() → 15+ cascading subscriber callbacks.
+    consoleStore.batch(() => {
+      consoleStore.set('mode', result.mode);
+      consoleStore.set('selectedEvent', result.selectedEvent);
+      consoleStore.set('intensityGrid', result.intensityGrid);
+      consoleStore.set('exposures', result.exposures);
+      consoleStore.set('priorities', result.priorities);
+      consoleStore.set('readModel', result.readModel);
+      consoleStore.set('realtimeStatus', result.realtimeStatus);
+    });
   }
 
   function selectEvent(event: EarthquakeEvent): void {
-    consoleStore.set('selectedEvent', event);
+    // NOTE: Don't set selectedEvent here — syncOperationalTruth already sets it
+    // inside a batch. Pre-setting would fire subscribers twice for selectedEvent.
     syncOperationalTruth(event);
     engine.map.flyTo({
       center: [event.lng, event.lat],
@@ -270,12 +274,14 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   }
 
   function deselectEvent(): void {
-    consoleStore.set('selectedEvent', null);
-    consoleStore.set('intensityGrid', null);
-    consoleStore.set('exposures', []);
-    consoleStore.set('priorities', []);
-    consoleStore.set('readModel', createEmptyServiceReadModel(consoleStore.get('realtimeStatus')));
-    consoleStore.set('mode', 'calm');
+    consoleStore.batch(() => {
+      consoleStore.set('selectedEvent', null);
+      consoleStore.set('intensityGrid', null);
+      consoleStore.set('exposures', []);
+      consoleStore.set('priorities', []);
+      consoleStore.set('readModel', createEmptyServiceReadModel(consoleStore.get('realtimeStatus')));
+      consoleStore.set('mode', 'calm');
+    });
   }
 
   // 7. Keyboard shortcuts
@@ -427,19 +433,20 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     }
   });
 
-  // 9. System bar — mode + event count
-  consoleStore.subscribe('mode', (mode) => {
-    updateSystemBar(mode, consoleStore.get('events').length);
-  });
-  consoleStore.subscribe('events', (events) => {
-    updateSystemBar(consoleStore.get('mode'), events.length);
-  });
-  consoleStore.subscribe('readModel', () => {
-    updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
-  });
-  consoleStore.subscribe('realtimeStatus', () => {
-    updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
-  });
+  // 9. System bar — coalesced updates (mode, events, readModel, realtimeStatus all affect it)
+  let sysBarScheduled = false;
+  const scheduleSysBar = (): void => {
+    if (sysBarScheduled) return;
+    sysBarScheduled = true;
+    requestAnimationFrame(() => {
+      sysBarScheduled = false;
+      updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
+    });
+  };
+  consoleStore.subscribe('mode', scheduleSysBar);
+  consoleStore.subscribe('events', scheduleSysBar);
+  consoleStore.subscribe('readModel', scheduleSysBar);
+  consoleStore.subscribe('realtimeStatus', scheduleSysBar);
 
   function updateSystemBar(mode: string, eventCount: number): void {
     const state = buildSystemBarState({
@@ -475,21 +482,26 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       message: error instanceof Error ? error.message : 'Realtime poll failed',
       readModel: consoleStore.get('readModel'),
     });
-    consoleStore.set('realtimeStatus', degraded.realtimeStatus);
-    consoleStore.set('readModel', degraded.readModel);
+    consoleStore.batch(() => {
+      consoleStore.set('realtimeStatus', degraded.realtimeStatus);
+      consoleStore.set('readModel', degraded.readModel);
+    });
   }
 
   // 13. AIS vessel tracking
   const aisManager = createAisManager((vessels) => {
-    consoleStore.set('vessels', vessels);
-    consoleStore.set('readModel', refreshConsoleBundleTruth({
-      readModel: consoleStore.get('readModel'),
-      realtimeStatus: consoleStore.get('realtimeStatus'),
-      selectedEvent: consoleStore.get('selectedEvent'),
-      exposures: consoleStore.get('exposures'),
-      vessels,
-      assets: OPS_ASSETS,
-    }));
+    // Batch: vessels + readModel update triggers subscribers once, not twice
+    consoleStore.batch(() => {
+      consoleStore.set('vessels', vessels);
+      consoleStore.set('readModel', refreshConsoleBundleTruth({
+        readModel: consoleStore.get('readModel'),
+        realtimeStatus: consoleStore.get('realtimeStatus'),
+        selectedEvent: consoleStore.get('selectedEvent'),
+        exposures: consoleStore.get('exposures'),
+        vessels,
+        assets: OPS_ASSETS,
+      }));
+    });
   });
 
   // 14. Start on map load

@@ -397,7 +397,10 @@ function bindDockInteractions(dock: HTMLElement, drawer: HTMLElement): void {
 }
 
 export function mountLayerControl(dock: HTMLElement, drawerHost: HTMLElement): () => void {
+  let renderScheduled = false;
+
   const render = (): void => {
+    renderScheduled = false;
     const state = consoleStore.getState();
     const model = buildLayerControlModel(state);
     dock.innerHTML = renderDock(state, model);
@@ -405,19 +408,39 @@ export function mountLayerControl(dock: HTMLElement, drawerHost: HTMLElement): (
     bindDockInteractions(dock, drawerHost);
   };
 
+  // Coalesce rapid store changes into a single render per frame
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(render);
+  };
+
+  // Fast path: only update zoom/coords text without full DOM rebuild
+  const renderViewportFast = (): void => {
+    const state = consoleStore.getState();
+    const zoomEl = dock.querySelector('.nz-bottom-bar__zoom');
+    const tierEl = dock.querySelector('.nz-bottom-bar__tier');
+    const coordsEl = dock.querySelector('.nz-bottom-bar__coords');
+    if (zoomEl) zoomEl.textContent = `z${state.viewport.zoom.toFixed(1)}`;
+    if (tierEl) tierEl.textContent = state.viewport.tier;
+    if (coordsEl) {
+      coordsEl.textContent = `${state.viewport.center.lat.toFixed(3)}° ${state.viewport.center.lng.toFixed(3)}°`;
+    }
+  };
+
   render();
 
   const unsubs = [
-    consoleStore.subscribe('viewport', render),
-    consoleStore.subscribe('scenarioMode', render),
-    consoleStore.subscribe('activeBundleId', render),
-    consoleStore.subscribe('activeViewId', render),
-    consoleStore.subscribe('bundleSettings', render),
-    consoleStore.subscribe('bundleDrawerOpen', render),
-    consoleStore.subscribe('layerVisibility', render),
-    consoleStore.subscribe('vessels', render),
-    consoleStore.subscribe('readModel', render),
-    consoleStore.subscribe('showCoordinates', render),
+    consoleStore.subscribe('viewport', renderViewportFast),
+    consoleStore.subscribe('scenarioMode', scheduleRender),
+    consoleStore.subscribe('activeBundleId', scheduleRender),
+    consoleStore.subscribe('activeViewId', scheduleRender),
+    consoleStore.subscribe('bundleSettings', scheduleRender),
+    consoleStore.subscribe('bundleDrawerOpen', scheduleRender),
+    consoleStore.subscribe('layerVisibility', scheduleRender),
+    consoleStore.subscribe('vessels', scheduleRender),
+    consoleStore.subscribe('readModel', scheduleRender),
+    consoleStore.subscribe('showCoordinates', scheduleRender),
   ];
 
   return () => {

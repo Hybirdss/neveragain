@@ -2,14 +2,15 @@
  * Layer Compositor — Orchestrates deck.gl layers with proper performance.
  *
  * Architecture:
+ *   EVENT-DRIVEN: compositor is IDLE by default (0% CPU).
+ *   Renders only when:
+ *     (a) A dirty flag is set (store change) → single frame via requestRender()
+ *     (b) Animations are active (waves/intensity) → continuous rAF loop
+ *   When animations end, loop stops automatically.
+ *
  *   - Factory layers: registered in layerFactories.ts, auto-managed dirty tracking
  *   - Asset layer: contextual infrastructure markers, tied to seismic posture
  *   - Wave layer: animation-driven overlay, independent of dirty system
- *
- * Performance budget per frame:
- *   TIER 1 — Every frame (~0 cost): push cached layers, visibility check
- *   TIER 2 — Every 50ms: wave ring position update
- *   TIER 3 — On store change: factory rebuild via dirty flags
  *
  * Adding a new layer does NOT require touching this file.
  * Register it in layerFactories.ts instead.
@@ -54,10 +55,20 @@ export interface LayerCompositor {
 export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let running = false;
   let frameId: number | null = null;
+  let renderRequested = false;
 
   // Factory layer cache and dirty tracking
   const dirty = new Map<LayerId, boolean>();
   const cache = new Map<LayerId, Layer[]>();
+  let anyFactoryDirty = false;
+
+  // Visibility / bundle cache — avoid re-reading store every frame
+  let dirtyVisibility = true;
+  let cachedVis: Record<LayerId, boolean> = {} as Record<LayerId, boolean>;
+  let cachedBundleSettings: BundleSettings = consoleStore.get('bundleSettings');
+
+  // Zoom cache — viewport changes only dirty factories when zoom actually changes
+  let cachedZoom = consoleStore.get('viewport').zoom;
 
   // Asset layer (contextual markers, not factory-managed)
   let assetLayers: Layer[] = [];
@@ -69,43 +80,105 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   const WAVE_UPDATE_INTERVAL = 50;
 
   // Intensity ink-in-water animation state
-  const INTENSITY_SPREAD_SPEED = 250;      // km/s (visual, not physical)
-  const INTENSITY_ANIM_DURATION = 3000;    // ms
-  const INTENSITY_ANIM_INTERVAL = 50;      // ms between updates
+  const INTENSITY_SPREAD_SPEED = 250;
+  const INTENSITY_ANIM_DURATION = 3000;
+  const INTENSITY_ANIM_INTERVAL = 50;
   let intensityAnimStart = 0;
   let intensityAnimEpicenter: { lat: number; lng: number } | null = null;
   let lastIntensityAnimUpdate = 0;
+
+  // ── Animation state helpers ───────────────────────────────────
+
+  function hasActiveAnimations(): boolean {
+    return waveSources.length > 0 ||
+      (intensityAnimEpicenter != null && intensityAnimStart > 0);
+  }
+
+  // ── Event-driven render scheduling ────────────────────────────
+  // Palantir pattern: request a single render frame. If animations
+  // are active, the tick loop runs continuously. If not, only the
+  // requested frame executes then stops.
+
+  function requestRender(): void {
+    if (!running) return;
+    if (renderRequested || frameId !== null) return;
+    renderRequested = true;
+    frameId = requestAnimationFrame(tick);
+  }
 
   // ── Store subscriptions ─────────────────────────────────────
 
   const unsubs: (() => void)[] = [];
 
-  // Helper: subscribe to a store key with a value-ignoring callback.
-  // Avoids TypeScript generic inference issues with dynamic keyof unions.
   function watch(key: string, fn: () => void): () => void {
     return (consoleStore as any).subscribe(key, fn);
   }
 
   // Build dep index: storeKey → factoryIds
+  // Viewport is split: zoom-only factories skip rebuilds on pan,
+  // full-viewport factories (e.g. AIS with bounds filtering) rebuild on every viewport change.
   const depIndex = new Map<string, LayerId[]>();
+  const viewportZoomFactoryIds: LayerId[] = [];
+  const viewportFullFactoryIds: LayerId[] = [];
   for (const factory of LAYER_FACTORIES) {
     for (const dep of factory.deps) {
+      if (dep === 'viewport') {
+        if (factory.viewportMode === 'full') {
+          viewportFullFactoryIds.push(factory.id);
+        } else {
+          viewportZoomFactoryIds.push(factory.id);
+        }
+        continue;
+      }
       if (!depIndex.has(dep as string)) depIndex.set(dep as string, []);
       depIndex.get(dep as string)!.push(factory.id);
     }
   }
 
-  // Auto-subscribe: each unique dep key marks its factories dirty
+  // Auto-subscribe: each unique dep key marks its factories dirty AND requests render
   for (const [key, factoryIds] of depIndex) {
     unsubs.push(watch(key, () => {
       for (const id of factoryIds) dirty.set(id, true);
+      anyFactoryDirty = true;
+      requestRender();
     }));
   }
+
+  // Viewport subscription: zoom-only factories skip pan, full-viewport factories always rebuild
+  if (viewportZoomFactoryIds.length > 0 || viewportFullFactoryIds.length > 0) {
+    unsubs.push(watch('viewport', () => {
+      let changed = false;
+
+      // Full-viewport factories always rebuild (e.g. AIS needs bounds for filtering)
+      if (viewportFullFactoryIds.length > 0) {
+        for (const id of viewportFullFactoryIds) dirty.set(id, true);
+        changed = true;
+      }
+
+      // Zoom-only factories only rebuild when zoom actually changes
+      const newZoom = consoleStore.get('viewport').zoom;
+      if (Math.abs(newZoom - cachedZoom) >= 0.01) {
+        cachedZoom = newZoom;
+        for (const id of viewportZoomFactoryIds) dirty.set(id, true);
+        changed = true;
+      }
+
+      if (changed) {
+        anyFactoryDirty = true;
+        requestRender();
+      }
+    }));
+  }
+
+  // Visibility/bundle changes: mark visibility dirty + request render
+  unsubs.push(watch('layerVisibility', () => { dirtyVisibility = true; requestRender(); }));
+  unsubs.push(watch('bundleSettings', () => { dirtyVisibility = true; requestRender(); }));
 
   // Special: wave sources derived from events
   unsubs.push(
     consoleStore.subscribe('events', (events) => {
       waveSources = extractWaveSources(events);
+      requestRender();
     }),
   );
 
@@ -117,16 +190,15 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       intensityAnimStart = Date.now();
       intensityAnimEpicenter = { lat: event.lat, lng: event.lng };
       lastIntensityAnimUpdate = 0;
+      requestRender();
     }
   }
 
   unsubs.push(
     consoleStore.subscribe('selectedEvent', (event) => {
       if (event) {
-        // Event selected — start animation if grid is already available
         maybeStartIntensityAnim();
       } else {
-        // Deselected — clear animation state
         intensityAnimStart = 0;
         intensityAnimEpicenter = null;
       }
@@ -135,7 +207,6 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
   unsubs.push(
     consoleStore.subscribe('intensityGrid', (grid) => {
-      // Grid arrived (possibly after event selection) — start animation
       if (grid && consoleStore.get('selectedEvent')) {
         maybeStartIntensityAnim();
       }
@@ -143,35 +214,48 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   );
 
   // Special: asset layer depends on exposures and viewport tier
-  unsubs.push(watch('exposures', () => { dirtyAssets = true; }));
-  unsubs.push(watch('viewport', () => { dirtyAssets = true; }));
+  unsubs.push(watch('exposures', () => { dirtyAssets = true; requestRender(); }));
+  unsubs.push(watch('viewport', () => { dirtyAssets = true; requestRender(); }));
 
   // ── Render loop ─────────────────────────────────────────────
 
   function tick(): void {
     if (!running) return;
+    frameId = null;
+    renderRequested = false;
 
     const now = Date.now();
     const layers: Layer[] = [];
-    const vis: Record<LayerId, boolean> = consoleStore.get('layerVisibility');
-    const bundleSettings: BundleSettings = consoleStore.get('bundleSettings');
+
+    // Refresh visibility cache only when changed
+    if (dirtyVisibility) {
+      cachedVis = consoleStore.get('layerVisibility');
+      cachedBundleSettings = consoleStore.get('bundleSettings');
+      dirtyVisibility = false;
+    }
 
     // 1. Factory layers (ordered by factory.order)
     const intensityAnimActive = intensityAnimEpicenter != null && intensityAnimStart > 0;
-    for (const factory of LAYER_FACTORIES) {
-      if (dirty.get(factory.id)) {
-        cache.set(factory.id, factory.create(consoleStore.getState()));
-        dirty.set(factory.id, false);
+
+    if (anyFactoryDirty) {
+      for (const factory of LAYER_FACTORIES) {
+        if (dirty.get(factory.id)) {
+          cache.set(factory.id, factory.create(consoleStore.getState()));
+          dirty.set(factory.id, false);
+        }
       }
-      // Skip intensity push during animation — step 1b handles it
+      anyFactoryDirty = false;
+    }
+
+    for (const factory of LAYER_FACTORIES) {
       if (factory.id === 'intensity' && intensityAnimActive) continue;
-      if (isLayerEffectivelyVisible(factory.id, vis[factory.id], bundleSettings)) {
+      if (isLayerEffectivelyVisible(factory.id, cachedVis[factory.id], cachedBundleSettings)) {
         const cached = cache.get(factory.id);
         if (cached) layers.push(...cached);
       }
     }
 
-    // 1b. Intensity ink-in-water animation override (TIER 2: 50ms interval)
+    // 1b. Intensity ink-in-water animation override
     if (intensityAnimActive) {
       const elapsed = now - intensityAnimStart;
       if (elapsed < INTENSITY_ANIM_DURATION) {
@@ -184,39 +268,37 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
             lastIntensityAnimUpdate = now;
           }
         }
-        // Push animated intensity if visible
-        if (isLayerEffectivelyVisible('intensity', vis['intensity'], bundleSettings)) {
+        if (isLayerEffectivelyVisible('intensity', cachedVis['intensity'], cachedBundleSettings)) {
           const cached = cache.get('intensity');
           if (cached) layers.push(...cached);
         }
       } else {
-        // Animation complete — final full render (no animation params)
+        // Animation complete — final full render
         dirty.set('intensity', true);
         intensityAnimStart = 0;
         intensityAnimEpicenter = null;
         lastIntensityAnimUpdate = 0;
-        // Rebuild and push immediately
         cache.set('intensity', LAYER_FACTORIES.find((f) => f.id === 'intensity')!.create(consoleStore.getState()));
         dirty.set('intensity', false);
-        if (isLayerEffectivelyVisible('intensity', vis['intensity'], bundleSettings)) {
+        if (isLayerEffectivelyVisible('intensity', cachedVis['intensity'], cachedBundleSettings)) {
           const cached = cache.get('intensity');
           if (cached) layers.push(...cached);
         }
       }
     }
 
-    // 2. Asset markers (tied to seismic bundle posture)
+    // 2. Asset markers
     if (dirtyAssets) {
       const tier = consoleStore.get('viewport').tier;
       const exposures = consoleStore.get('exposures');
       assetLayers = createAssetLayers(tier, exposures);
       dirtyAssets = false;
     }
-    if (bundleSettings.seismic.enabled) {
+    if (cachedBundleSettings.seismic.enabled) {
       layers.push(...assetLayers);
     }
 
-    // 3. Wave animation overlay (TIER 2: 50ms update interval)
+    // 3. Wave animation overlay
     if (waveSources.length > 0) {
       if (now - lastWaveUpdate >= WAVE_UPDATE_INTERVAL) {
         updateWaveData(waveSources, now);
@@ -226,7 +308,12 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     }
 
     engine.setLayers(layers);
-    frameId = requestAnimationFrame(tick);
+
+    // Continue rAF only if animations are running.
+    // Otherwise, compositor goes idle until next requestRender().
+    if (hasActiveAnimations()) {
+      frameId = requestAnimationFrame(tick);
+    }
   }
 
   return {
@@ -234,17 +321,17 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       if (running) return;
       running = true;
 
-      // Initialize from current store
       waveSources = extractWaveSources(consoleStore.get('events'));
 
-      // Mark all factories dirty for initial render
       for (const factory of LAYER_FACTORIES) {
         dirty.set(factory.id, true);
       }
+      anyFactoryDirty = true;
       dirtyAssets = true;
+      dirtyVisibility = true;
       lastWaveUpdate = 0;
 
-      tick();
+      requestRender();
     },
 
     stop() {

@@ -208,10 +208,20 @@ export function mountTimelineRail(
 
   container.addEventListener('wheel', handleWheel, { passive: false });
 
+  let renderScheduled = false;
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  };
+
   render();
 
-  const unsub1 = consoleStore.subscribe('events', render);
-  const unsub2 = consoleStore.subscribe('selectedEvent', render);
+  const unsub1 = consoleStore.subscribe('events', scheduleRender);
+  const unsub2 = consoleStore.subscribe('selectedEvent', scheduleRender);
 
   // Refresh time labels every 60s
   const timer = setInterval(render, 60_000);

@@ -136,12 +136,22 @@ export function mountFaultCatalog(
     }
   }
 
+  let renderScheduled = false;
+  const scheduleRender = (): void => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      render();
+    });
+  };
+
   render();
-  const unsub1 = consoleStore.subscribe('faults', render);
-  const unsub2 = consoleStore.subscribe('viewport', render);
-  const unsub3 = consoleStore.subscribe('selectedEvent', render);
-  const unsub4 = consoleStore.subscribe('layerVisibility', render);
-  const unsub5 = consoleStore.subscribe('scenarioMode', render);
+  const unsub1 = consoleStore.subscribe('faults', scheduleRender);
+  const unsub2 = consoleStore.subscribe('viewport', scheduleRender);
+  const unsub3 = consoleStore.subscribe('selectedEvent', scheduleRender);
+  const unsub4 = consoleStore.subscribe('layerVisibility', scheduleRender);
+  const unsub5 = consoleStore.subscribe('scenarioMode', scheduleRender);
 
   return () => {
     unsub1();

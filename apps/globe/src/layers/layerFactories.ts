@@ -33,6 +33,8 @@ export interface LayerFactory {
   id: LayerId;
   order: number;
   deps: (keyof ConsoleState)[];
+  /** 'zoom' (default): only rebuild on zoom change. 'full': rebuild on every viewport update. */
+  viewportMode?: 'zoom' | 'full';
   create(state: ConsoleState): Layer[];
 }
 
@@ -78,6 +80,7 @@ export const LAYER_FACTORIES: LayerFactory[] = [
     id: 'ais',
     order: 300,
     deps: ['vessels', 'selectedEvent', 'viewport'],
+    viewportMode: 'full',
     create(state: ConsoleState) {
       return createAisLayers(state.vessels, state.selectedEvent, state.viewport);
     },
