@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Date:** 2026-03-07
-**Primary Sources:** `docs/current/DESIGN.md`, `docs/current/BACKEND.md`
+**Primary Sources:** `docs/current/DESIGN.md`, `docs/current/BACKEND.md`, `docs/current/LAYER-INTELLIGENCE.md`
 
 ---
 

@@ -1,8 +1,9 @@
 # namazue.dev — Spatial Operations Console
 
 **Status:** Active
-**Date:** 2026-03-06
+**Date:** 2026-03-07
 **Supersedes:** All prior product docs (moved to `docs/legacy/product-v2/`)
+**Companion docs:** `LAYER-INTELLIGENCE.md` (per-domain API + visualization), `ICON-SYSTEM.md` (icon atlas design), `BACKEND.md` (worker architecture)
 
 ---
 
@@ -106,17 +107,20 @@ No city/metro selection. The camera position determines what loads.
 ### Layer Stack (bottom to top)
 
 ```
- 9. IconLayer          Ops asset markers (port/rail/hospital, severity glow)
+ 9. IconLayer          Ops asset markers (shared icon atlas, severity-tinted)
  8. ScatterplotLayer   Earthquake epicenters (pulsing)
  7. PathLayer          Power transmission lines
- 6. ScatterplotLayer   Power substations
- 5. ScatterplotLayer   AIS ship positions (with trail)
+ 6. IconLayer          Power plants (atom/zap icons, status-colored)
+ 5. IconLayer          AIS ship positions (hull silhouettes, type-colored)
  4. PathLayer          Rail lines (section-colored during event)
  3. HeatmapLayer       GMPE intensity field
  2. GeoJsonLayer       Active faults (thin red)
  1. Tile3DLayer        PLATEAU 3D buildings (exposure-colored)
  0. MapLibre           Dark vector base
 ```
+
+> Per-domain visualization specs, API pipelines, and derived intelligence
+> chains: see `LAYER-INTELLIGENCE.md`. Icon atlas design: see `ICON-SYSTEM.md`.
 
 ### Operator Control Model
 
@@ -181,13 +185,19 @@ GIS settings surface.
 
 | Layer | Source | Update Cycle | Notes |
 |-------|--------|-------------|-------|
-| Earthquakes | USGS + namazue API (JMA) | 60s poll | Existing |
-| 3D Buildings | PLATEAU CDN (3D Tiles) | Static | 34 cities, existing URLs |
-| Active Faults | GSI -> GeoJSON | Static | Pre-convert, host on CDN |
-| AIS Ships | AISstream.io WebSocket | Real-time | Free, bbox filter for Japan coasts |
-| Railway | ODPT API | 30s | Free (registration), JR + Metro + private |
-| Power Grid | TEPCO public data + OSM | Static + daily | Substation locations static, supply daily |
+| Earthquakes | USGS + namazue API (JMA) | 60s poll | LIVE — Neon DB 57K+ events |
+| 3D Buildings | PLATEAU CDN (3D Tiles) | Static | 34 cities, z11+ only |
+| Active Faults | GSI -> GeoJSON | Static | 766 faults, scenario mode |
+| AIS Ships | AISstream.io WebSocket | Real-time | Worker Durable Object, synthetic fallback |
+| Railway | ODPT API + JR Central/West scrape | 60s | ODPT covers JR East only; JR Central/West = HTML scrape |
+| Power Grid | Utility HTML scrape (でんき予報) | 5m | No JSON APIs; scrape TEPCO/KEPCO web portals |
+| Nuclear | GMPE inference (PGA at site) | Event-driven | NRA has no API; infer SCRAM from intensity |
+| Water/Dams | MLIT HTML scrape (Phase 2+) | 10m | No API; fragile scraping; defer for V1 |
+| Hospitals | Static catalog + GMPE | Event-driven | 30 hospitals built-in; EMIS is closed system |
+| Telecom | Inference from intensity | Event-driven | No API; estimate from cell tower damage curves |
 | Seismic Hazard | J-SHIS (NIED) | Static | Existing tile URLs |
+
+> Full data pipeline architecture per domain: see `LAYER-INTELLIGENCE.md` §7.
 
 ---
 
@@ -544,8 +554,8 @@ interface PanelModule {
 | P4 | Faults + hazard | GeoJsonLayer for active faults, J-SHIS hazard tiles |
 | P5 | PLATEAU spike | Tile3DLayer risk validation: load/memory/z-order/color |
 | P6 | Bundle control | layerRegistry, bundleRegistry, bundle drawer, operator views |
-| P7 | AIS ships | ScatterplotLayer real-time via AISstream WebSocket |
-| P8 | Rail network | PathLayer + ODPT positions, corridor stress view |
+| P7 | AIS ships | IconLayer real-time via AISstream WebSocket |
+| P8 | Rail network | PathLayer + ODPT status, corridor stress view |
 | P9 | Ops panels | Check These Now, asset exposure, bundle summaries |
 | P10 | Replay + scenario | Timeline scrub, scenario shift, split comparison |
 | P11 | Performance | Stable data refs, updateTriggers, picking policy, FPS gate |

@@ -172,17 +172,25 @@ function computeGMPE(input: GMPEInput): GMPEOutput;
 
 ## 6. Known Limitations (알려진 제한사항)
 
-| 제한사항 | 영향 | 대응 방안 |
-|---------|------|----------|
-| Mw 8.3 cap | M9급 지진 과소평가 | Subfault 분할 (Nankai 시나리오) |
-| Point source approximation | 대규모 단층 파열 시 근거리 과소평가 | Subfault 개별 계산 후 에너지 합산 |
-| No regional path correction | 일본 내 지역별 감쇠 차이 미반영 | 향후 지역 보정항 추가 가능 |
-| Uniform Vs30 assumption | 실제 지반 조건 미반영 | 향후 JSHIS Vs30 맵 연동 가능 |
-| No directivity | 단층 파열 방향성 효과 미반영 | 교육용 목적에서는 허용 가능한 근사 |
+| 제한사항 | 영향 | 대응 방안 | 상태 |
+|---------|------|----------|------|
+| Mw 8.3 cap | M9급 지진 과소평가 | Subfault 분할 (Nankai 시나리오) | 미해결 |
+| ~~Point source approximation~~ | ~~대규모 단층 파열 시 근거리 과소평가~~ | ~~Subfault 개별 계산 후 에너지 합산~~ | **해결됨** — Wells & Coppersmith (1994) 유한단층 거리 보정 적용 |
+| No regional path correction | 일본 내 지역별 감쇠 차이 미반영 | 향후 지역 보정항 추가 가능 | 미해결 |
+| Uniform Vs30 assumption | 실제 지반 조건 미반영 | J-SHIS Vs30 맵 연동 가능 (인프라 구축 완료) | 부분 해결 — `vs30Grid` 파라미터 지원, 데이터 미연동 |
+| ~~No directivity~~ | ~~단층 파열 방향성 효과 미반영~~ | ~~교육용 목적에서는 허용 가능한 근사~~ | **해결됨** — Slab2/GSI 기반 단층 주향 추정 + 유한단층 모델 |
+
+> **참고:** 유한단층 거리 보정, 경도 보정, 원형 엣지 페이드 등 상세 기술 사양은
+> [`EVIDENCE_BASED_PARAMETERS.md`](./EVIDENCE_BASED_PARAMETERS.md)에 문서화.
 
 ## 7. References
 
 1. Si, H. and Midorikawa, S. (1999). "New Attenuation Relationships for Peak Ground Acceleration and Velocity Considering Effects of Fault Type and Site Condition." *Journal of Structural and Construction Engineering (Transactions of AIJ)*, No. 523, pp. 63-70.
 2. Si, H. and Midorikawa, S. (2000). "New Attenuation Relations for Peak Ground Acceleration and Velocity Considering Effects of Fault Type and Site Condition." *Proceedings of the 12th World Conference on Earthquake Engineering*, Paper No. 0532.
 3. Midorikawa, S., Fujimoto, K., and Muramatsu, I. (1999). "Correlation of New JMA Instrumental Seismic Intensity with Former JMA Seismic Intensity and Ground Motion Parameters." *Journal of Social Safety Science*, No. 1, pp. 51-56.
-4. OpenQuake hazardlib implementation: `openquake.hazardlib.gsim.si_midorikawa_1999`
+4. Wells, D.L. and Coppersmith, K.J. (1994). "New empirical relationships among magnitude, rupture length, rupture width, rupture area, and surface displacement." *BSSA*, 84(4), 974-1002.
+5. Hayes, G.P. et al. (2018). "Slab2, a comprehensive subduction zone geometry model." *Science*, 362(6410):58-61.
+6. OpenQuake hazardlib implementation: `openquake.hazardlib.gsim.si_midorikawa_1999`
+
+> 전체 파라미터 근거 목록 (SCRAM, 병원, 응답 타임라인 등 포함):
+> [`EVIDENCE_BASED_PARAMETERS.md`](./EVIDENCE_BASED_PARAMETERS.md)

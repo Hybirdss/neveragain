@@ -3,18 +3,22 @@
  *
  * Caching hierarchy:
  *   1. This SW (browser, 30-day TTL) — instant, offline-capable
- *   2. CF Workers edge (30-day TTL) — shared across all users
- *   3. MapTiler / GSI origin — only on double cache miss
+ *   2. CF edge / R2 CDN — shared across all users
+ *   3. Origin (GSI, PLATEAU) — only on double cache miss
  *
  * Intercepts:
- *   - /satellite/* (CF Workers proxy)
- *   - /terrain/*   (CF Workers proxy)
- *   - /maptiler-proxy/* (Vite dev proxy)
+ *   - /satellite/* (CF Workers proxy, legacy)
+ *   - /terrain/*   (CF Workers proxy, legacy)
+ *   - tiles.namazue.dev (PMTiles on R2)
+ *   - Protomaps font/sprite assets
  *   - server.arcgisonline.com (Esri fallback)
+ *
+ * Note: PMTiles uses HTTP Range requests. The SW caches full
+ * responses keyed by URL+Range, which works for repeated tile fetches.
  *
  * Rules:
  *   - Cache-first: cached tiles serve instantly
- *   - Only cache HTTP 200 (never 204, 429, 5xx)
+ *   - Only cache HTTP 200 / 206 (never 204, 429, 5xx)
  *   - Stale cache returned on network errors
  */
 
@@ -36,15 +40,16 @@ self.addEventListener('activate', (event) => {
 });
 
 function isTileRequest(url) {
-  // CF Workers proxy
+  // PMTiles on R2 (vector tiles)
+  if (url.hostname === 'tiles.namazue.dev') return true;
+  if (url.hostname.endsWith('.r2.dev')) return true;
+  // Protomaps font/sprite CDN
+  if (url.hostname === 'protomaps.github.io') return true;
+  // CF Workers proxy (legacy satellite/terrain)
   if (url.pathname.startsWith('/satellite/') || url.pathname.startsWith('/terrain/')) return true;
   // PLATEAU 3D Tiles
   if (url.pathname.startsWith('/plateau/')) return true;
   if (url.hostname === 'plateau.geospatial.jp') return true;
-  // Vite dev proxy
-  if (url.pathname.startsWith('/maptiler-proxy/')) return true;
-  // Direct MapTiler
-  if (url.hostname === 'api.maptiler.com') return true;
   // Esri fallback
   if (url.hostname === 'server.arcgisonline.com') return true;
   // GSI (direct, unlikely but possible)
@@ -71,8 +76,8 @@ self.addEventListener('fetch', (event) => {
       try {
         const response = await fetch(event.request);
 
-        // Only cache 200 OK (not 204 zoom-blocked, not errors)
-        if (response.status === 200) {
+        // Cache 200 OK and 206 Partial Content (PMTiles Range requests)
+        if (response.status === 200 || response.status === 206) {
           const headers = new Headers(response.headers);
           headers.set('x-cached-at', String(Date.now()));
           const timestamped = new Response(await response.clone().blob(), {

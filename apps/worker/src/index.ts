@@ -6,6 +6,7 @@ import { reportsRoute } from './routes/reports.ts';
 import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
 import { maritimeRoute } from './routes/maritime.ts';
+import { railRoute } from './routes/rail.ts';
 import { handleCron } from './routes/cron.ts';
 export { MaritimeHub } from './durableObjects/maritimeHub.ts';
 
@@ -19,6 +20,7 @@ export interface Env {
   AISSTREAM_API_KEY?: string;
   AIS_SNAPSHOT_TTL_MS?: number;
   AISSTREAM_COLLECTION_WINDOW_MS?: number;
+  ODPT_CONSUMER_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -81,6 +83,7 @@ app.route('/api/reports', reportsRoute);
 app.route('/api/ask', askRoute);
 app.route('/api/chat', chatRoute);
 app.route('/api/maritime', maritimeRoute);
+app.route('/api/rail', railRoute);
 
 export default {
   fetch: app.fetch,
