@@ -10,6 +10,8 @@ import { generateContourFeatures } from '../utils/contourProjection';
 import { updateIsoseismal, clearIsoseismal } from '../globe/layers/isoseismal';
 import { setActiveFaultsVisible } from '../globe/features/activeFaults';
 import { computeImpact } from '../engine/impactAssessment';
+import { buildAssetExposures } from '../ops/exposure';
+import { buildOpsPriorities } from '../ops/priorities';
 
 export function initLayerOrchestrator(
   globe: GlobeInstance,
@@ -22,6 +24,8 @@ export function initLayerOrchestrator(
     if (!grid) {
       clearIsoseismal(globe);
       store.set('impactResults', null);
+      const ops = store.get('ops');
+      store.set('ops', { ...ops, exposures: [], priorities: [] });
       return;
     }
 
@@ -33,6 +37,27 @@ export function initLayerOrchestrator(
       const impacts = computeImpact(grid, dataGrids.prefectures);
       store.set('impactResults', impacts);
     }
+
+    const selectedEvent = store.get('selectedEvent');
+    const tsunamiAssessment = store.get('tsunamiAssessment');
+    const ops = store.get('ops');
+
+    if (!selectedEvent) {
+      store.set('ops', { ...ops, exposures: [], priorities: [] });
+      return;
+    }
+
+    const exposures = buildAssetExposures({
+      grid,
+      assets: ops.assets,
+      tsunamiAssessment,
+    });
+    const priorities = buildOpsPriorities({
+      assets: ops.assets,
+      exposures,
+      metro: ops.metro,
+    });
+    store.set('ops', { ...ops, exposures, priorities });
   }));
 
   // Layer visibility → toggle features (diff-based)

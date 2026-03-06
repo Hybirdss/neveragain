@@ -7,18 +7,18 @@ This is the working build order for the new `namazue.dev` service route.
 
 ## In Progress
 
-- [ ] Compute launch asset exposure for ports, rail hubs, and hospitals
+- [ ] Replace static service-root console content with live event-backed snapshot data
+- [ ] Connect `ops.exposures` and `ops.priorities` into the root service shell
 
 ## Completed
 
 - [x] Add Tokyo-first ops domain contracts and seed asset catalog
 - [x] Add calm mode and focused-event presentation models
+- [x] Compute launch asset exposure for ports, rail hubs, and hospitals
+- [x] Generate `Check These Now` priorities from exposure + tsunami posture
 
 ## Next
 
-- [ ] Compute launch asset exposure for ports, rail hubs, and hospitals
-- [ ] Generate `Check These Now` priorities from exposure + tsunami posture
-- [ ] Replace static service-root console content with live event-backed snapshot data
 - [ ] Add `/lab/architecture` visual layer map tied to real code ownership
 - [ ] Add scenario-shift state model and service-lab delta rendering
 
