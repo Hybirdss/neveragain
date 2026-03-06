@@ -12,14 +12,14 @@ This is the working backend build order for the new `namazue.dev` service.
 
 ## Next
 
-- [ ] Add scenario shift producers so `ops.scenarioShift` and `scenarioDelta` are driven by live what-if inputs
-- [ ] Tighten stale/degraded policy with explicit network error and fallback messaging rules
+- [ ] Connect scenario UI to backend-produced deltas instead of view-layer inference
+- [ ] Add integration tests around orchestrator-driven backend state transitions
 
 ## After That
 
 - [ ] Connect replay rail to replay milestones instead of raw timeline timestamps alone
-- [ ] Connect scenario UI to backend-produced deltas instead of view-layer inference
-- [ ] Add integration tests around orchestrator-driven backend state transitions
+- [ ] Publish replay/scenario cache invalidation rules into service selectors
+- [ ] Expose backend freshness and scenario reason strings on the root service route
 
 ## Completed
 
@@ -32,6 +32,8 @@ This is the working backend build order for the new `namazue.dev` service.
 - [x] Add replay milestone derivation for event lock, impact ready, tsunami posture, exposure ready, and priorities published
 - [x] Add scenario delta contracts for exposure and priority changes
 - [x] Add a service-facing selector boundary for backend truth objects
+- [x] Add live scenario shift producers so `ops.scenarioShift` and `scenarioDelta` can be driven by what-if inputs
+- [x] Tighten stale/degraded policy with explicit network error and fallback messaging rules
 
 ## Workstreams
 

@@ -7,6 +7,7 @@ import type { EarthquakeEvent } from '../types';
 import { buildServiceReadModel } from '../ops/serviceReadModel';
 import type { RealtimeStatus } from '../ops/readModelTypes';
 import {
+  getLastSuccessSource,
   startRealtimePolling,
   type RealtimePollMeta,
   type RealtimePollerHandle,
@@ -26,23 +27,37 @@ interface DeriveRealtimeStatusInput {
   now: number;
   staleAfterMs: number;
   fallbackActive: boolean;
+  networkError: string | null;
 }
 
 export function deriveRealtimeStatus(input: DeriveRealtimeStatusInput): RealtimeStatus {
+  if (input.networkError) {
+    return {
+      source: input.source,
+      state: 'degraded',
+      updatedAt: input.updatedAt,
+      staleAfterMs: input.staleAfterMs,
+      message: input.networkError,
+    };
+  }
+
   if (input.fallbackActive || input.source !== 'server') {
     return {
       source: input.source,
       state: 'degraded',
       updatedAt: input.updatedAt,
       staleAfterMs: input.staleAfterMs,
+      message: 'Running on fallback realtime feed',
     };
   }
 
+  const isStale = input.now - input.updatedAt > input.staleAfterMs;
   return {
     source: input.source,
-    state: input.now - input.updatedAt > input.staleAfterMs ? 'stale' : 'fresh',
+    state: isStale ? 'stale' : 'fresh',
     updatedAt: input.updatedAt,
     staleAfterMs: input.staleAfterMs,
+    message: isStale ? 'Realtime updates are delayed' : undefined,
   };
 }
 
@@ -65,6 +80,7 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[], meta: RealtimePollMet
     now: Date.now(),
     staleAfterMs: STALE_AFTER_MS,
     fallbackActive: meta.source !== 'server',
+    networkError: null,
   });
   store.set('realtimeStatus', realtimeStatus);
 
@@ -104,6 +120,21 @@ function onNewRealtimeEvents(newEvents: EarthquakeEvent[], meta: RealtimePollMet
 export function initRealtimeOrchestrator(): RealtimeOrchestratorHandle {
   const pollerHandle = startRealtimePolling(onNewRealtimeEvents);
 
+  const unsubNetworkError = store.subscribe('networkError', (networkError) => {
+    if (!networkError) return;
+
+    const currentStatus = store.get('realtimeStatus');
+    store.set('realtimeStatus', deriveRealtimeStatus({
+      source: currentStatus.source || getLastSuccessSource(),
+      updatedAt: currentStatus.updatedAt,
+      now: Date.now(),
+      staleAfterMs: currentStatus.staleAfterMs || STALE_AFTER_MS,
+      fallbackActive: currentStatus.source !== 'server',
+      networkError,
+    }));
+    syncServiceReadModel();
+  });
+
   // Mode changes → clean up stale state
   const unsubMode = store.subscribe('mode', (mode) => {
     store.set('selectedEvent', null);
@@ -120,6 +151,7 @@ export function initRealtimeOrchestrator(): RealtimeOrchestratorHandle {
   return {
     pollerHandle,
     dispose: () => {
+      unsubNetworkError();
       unsubMode();
       pollerHandle.stop();
     },
