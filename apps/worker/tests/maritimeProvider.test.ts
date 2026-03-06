@@ -79,6 +79,23 @@ test('maritime provider falls back to synthetic snapshots when AISstream fails',
   assert.ok(snapshot.totalTracked > 122);
 });
 
+test('maritime provider falls back when AISstream never opens', async () => {
+  const provider = createMaritimeSnapshotProvider(
+    {
+      AISSTREAM_API_KEY: 'test-key',
+      AISSTREAM_COLLECTION_WINDOW_MS: 10,
+    },
+    {
+      webSocketFactory: (url) => new FakeWebSocket(url) as unknown as WebSocket,
+      connectTimeoutMs: 20,
+    },
+  );
+
+  const snapshot = await provider.loadProfileSnapshot('japan-wide', 9_000);
+  assert.equal(snapshot.source, 'synthetic');
+  assert.ok(snapshot.totalTracked > 122);
+});
+
 class FakeWebSocket {
   readonly sentMessages: string[] = [];
   private readonly listeners = new Map<string, Array<(event?: unknown) => void>>();

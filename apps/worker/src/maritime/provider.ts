@@ -8,6 +8,7 @@ const MAX_TRAIL = 15;
 
 interface CreateMaritimeSnapshotProviderDependencies {
   webSocketFactory?: (url: string) => WebSocket;
+  connectTimeoutMs?: number;
 }
 
 interface AisStreamMessage {
@@ -41,6 +42,7 @@ export function createMaritimeSnapshotProvider(
 
   const collectionWindowMs = normalizeCollectionWindowMs(env.AISSTREAM_COLLECTION_WINDOW_MS);
   const webSocketFactory = dependencies.webSocketFactory ?? ((url: string) => new WebSocket(url));
+  const connectTimeoutMs = dependencies.connectTimeoutMs ?? Math.max(2_500, collectionWindowMs * 2);
 
   return {
     provider: 'live',
@@ -52,6 +54,7 @@ export function createMaritimeSnapshotProvider(
           now,
           collectionWindowMs,
           webSocketFactory,
+          connectTimeoutMs,
         });
         if (snapshot.totalTracked > 0) {
           return snapshot;
@@ -80,6 +83,7 @@ async function collectAisstreamSnapshot(input: {
   now: number;
   collectionWindowMs: number;
   webSocketFactory: (url: string) => WebSocket;
+  connectTimeoutMs: number;
 }): Promise<{
   source: 'live';
   profile: ReturnType<typeof getAisCoverageProfile>;
@@ -93,10 +97,22 @@ async function collectAisstreamSnapshot(input: {
   await new Promise<void>((resolve, reject) => {
     const socket = input.webSocketFactory(AISSTREAM_URL);
     let settled = false;
+    let openTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      finish(new Error('AISstream websocket connect timeout'));
+    }, input.connectTimeoutMs);
+    let collectionTimer: ReturnType<typeof setTimeout> | null = null;
 
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
+      if (openTimer) {
+        clearTimeout(openTimer);
+        openTimer = null;
+      }
+      if (collectionTimer) {
+        clearTimeout(collectionTimer);
+        collectionTimer = null;
+      }
       try {
         socket.close();
       } catch {
@@ -115,7 +131,11 @@ async function collectAisstreamSnapshot(input: {
         BoundingBoxes: profile.boundingBoxes,
         FilterMessageTypes: ['PositionReport'],
       }));
-      setTimeout(() => finish(), input.collectionWindowMs);
+      if (openTimer) {
+        clearTimeout(openTimer);
+        openTimer = null;
+      }
+      collectionTimer = setTimeout(() => finish(), input.collectionWindowMs);
     });
 
     socket.addEventListener('message', (event) => {
