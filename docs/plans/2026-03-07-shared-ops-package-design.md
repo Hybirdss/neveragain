@@ -8,95 +8,124 @@
 
 ## Goal
 
-Remove the remaining architectural inversion after the backend truth cutover:
+Remove the last architectural leak from the backend-truth cutover:
 
-- `apps/worker` must not import from `apps/globe/src/*`
-- pure operational contracts and calculations must live in a workspace package
-- `apps/globe` remains the rendering shell, not the domain owner
+- the worker must stop importing source files from `apps/globe/src`
+- the pure operational domain must live in a dedicated workspace package
+- the frontend and worker must share the same contracts and calculation code
+
+This is a boundary cleanup, not a product-scope change. Runtime behavior should stay the same.
 
 ## Current Problem
 
-The backend truth route works, but `apps/worker/src/lib/consoleOps.ts` still imports:
+The worker-owned console snapshot route is live, but its implementation still imports these modules from the frontend app:
 
-- `engine/gmpe.ts`
-- `data/eventEnvelope.ts`
-- `ops/*`
 - `types.ts`
+- `data/eventEnvelope.ts`
+- `engine/gmpe.ts`
+- `ops/assetCatalog.ts`
+- `ops/eventSelection.ts`
+- `ops/exposure.ts`
+- `ops/priorities.ts`
+- `ops/serviceReadModel.ts`
+- `ops/readModelTypes.ts`
+- `ops/types.ts`
 
-from `apps/globe/src`. Runtime ownership is already on the worker, but source ownership is not.
+That means the backend truth path still depends on an application package that also contains browser runtime concerns.
 
 ## Approaches Considered
 
-### 1. Copy the required code into `apps/worker`
+### 1. Full import cutover everywhere
 
-Fastest local change, worst long-term result. It creates a second truth implementation and guarantees drift.
+Move the pure modules into `packages/ops` and update every frontend import to point directly at the package.
 
-### 2. Thin wrappers in `apps/globe` with worker-only mirrors
+Pros:
+- cleanest end state
 
-This keeps the app compiling with low churn, but it preserves an unnecessary middle layer and leaves ownership ambiguous.
+Cons:
+- broad churn across many UI and test files
+- higher chance of accidental behavior drift in a refactor-only pass
 
-### 3. Dedicated shared workspace package (recommended)
+### 2. Shared package with thin frontend shims
 
-Create `packages/ops` for pure contracts and calculations, then have both app packages import from it. Keep browser-only rendering, panels, AIS integration, and UI formatting in `apps/globe`.
+Move the canonical logic into `packages/ops`. Update the worker to import the package directly. Keep a small number of frontend compatibility files that only re-export from the package where that avoids noisy churn.
 
-## Design
+Pros:
+- removes the backend/frontend boundary leak immediately
+- keeps the canonical code in one workspace package
+- minimizes risk in a refactor-only pass
 
-### Package Boundary
+Cons:
+- some frontend imports may still go through app-local re-export files
 
-Create `@namazue/ops` with only pure modules:
+### 3. Duplicate the logic into worker and app
 
-- shared event and grid contracts from `types.ts`
-- canonical event envelope helpers
-- GMPE intensity grid computation
-- ops asset types and starter catalog
-- exposure scoring
-- priority generation
-- viewport filtering/types
-- operational event selection
-- service read model construction
-- bundle/domain summary helpers
+Copy the pure modules into worker and leave the frontend as-is.
 
-Do not move browser/runtime modules:
+Pros:
+- smallest local code churn today
 
-- panels, layers, shell, bootstrap
-- map or deck.gl integration
-- AIS manager and vessel tooltips
-- any fetch/storage/UI state helpers
+Cons:
+- guarantees future drift
+- violates the architecture direction we just established
 
-### Compatibility Strategy
+## Selected Design
 
-Move the source-of-truth modules into `packages/ops`, then turn the current `apps/globe/src/types.ts`, `apps/globe/src/data/eventEnvelope.ts`, `apps/globe/src/engine/gmpe.ts`, and pure `apps/globe/src/ops/*` modules into re-export shims where needed.
+Use approach 2.
 
-This keeps frontend churn bounded while severing worker-to-app imports immediately.
+`packages/ops` becomes the source of truth for pure operational contracts and calculations. The worker imports only from `@namazue/ops`. The frontend may keep thin compatibility exports for `types`, `eventEnvelope`, `gmpe`, and `ops/*` during this pass, but those files must contain no domain logic.
 
-### Scope Cut
+## Package Boundary
 
-Included now:
+Move these modules into `packages/ops`:
 
-- worker import boundary cleanup
-- shared package creation
-- frontend + worker import rewiring
-- tests and package metadata updates
+- shared contracts currently in `apps/globe/src/types.ts` that are used by pure ops and backend snapshot logic
+- `data/eventEnvelope.ts`
+- `engine/gmpe.ts`
+- pure `ops/*` modules:
+  - `assetCatalog.ts`
+  - `assetClassRegistry.ts`
+  - `bundleDomainOverviews.ts`
+  - `bundleSummaries.ts`
+  - `eventSelection.ts`
+  - `exposure.ts`
+  - `maritimeTelemetry.ts`
+  - `priorities.ts`
+  - `readModelTypes.ts`
+  - `serviceReadModel.ts`
+  - `types.ts`
+  - `viewport.ts`
 
-Deferred:
+Keep these in `apps/globe`:
 
-- moving AIS/maritime helpers into shared code
-- broader `types.ts` breakup beyond what the worker/frontend boundary needs
-- replay/scenario backendization beyond the existing cut
+- `core/*`
+- `layers/*`
+- `panels/*`
+- `data/opsApi.ts`
+- any file with DOM, MapLibre, deck.gl, fetch orchestration, store, or browser worker concerns
+- app-only types such as presentation state, UI state, worker message types, color constants
+
+## Import Policy
+
+- Worker code imports only from `@namazue/ops` and `@namazue/db`
+- Shared pure modules must not import from `apps/*`
+- Frontend runtime files may import `@namazue/ops` directly
+- Frontend compatibility files are allowed only as thin re-exports
 
 ## Risks
 
-1. Circular type edges
-   `types.ts`, `eventEnvelope.ts`, and `ops/readModelTypes.ts` reference each other. Re-export shims must stay shallow to avoid cycles.
+1. Type splitting in `apps/globe/src/types.ts`
+   The file mixes pure contracts and app-only UI types. Split carefully so UI-only consumers keep working.
 
-2. Over-moving app-only code
-   `maritimeTelemetry.ts` depends on AIS manager types from the app and should stay outside the first package cut.
+2. Module surface inflation
+   Do not move scenario UI helpers, panel formatting, or map/layer code into the shared package.
 
-3. Import path churn
-   The safest path is to move only the modules that are already pure and currently shared by behavior, then leave UI-facing files untouched.
+3. Build resolution
+   Add the workspace package cleanly so Vite, Vitest, `tsx`, and worker typecheck all resolve the new package the same way.
 
 ## Verification
 
+- focused worker test that imports `@namazue/ops`
 - `npm test -w @namazue/worker -- tests/opsConsole.test.ts`
 - `npm run typecheck -w @namazue/worker`
 - `npm test -w @namazue/globe`
@@ -104,7 +133,7 @@ Deferred:
 
 ## Acceptance Criteria
 
-1. `apps/worker` has no imports from `apps/globe/src/*`.
-2. Pure console domain logic lives in `packages/ops`.
-3. `@namazue/globe` and `@namazue/worker` both import shared domain code from `@namazue/ops`.
-4. Existing console behavior remains unchanged under the current test/build suite.
+1. No file in `apps/worker` imports from `apps/globe/src`.
+2. `packages/ops` owns the shared operational contracts/calculations.
+3. The worker snapshot path still produces the same event/read-model outputs.
+4. Globe tests, globe build, and worker verification remain green.
