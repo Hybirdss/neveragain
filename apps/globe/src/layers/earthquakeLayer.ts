@@ -39,7 +39,7 @@ export function createEarthquakeLayer(
     data: events,
     pickable: true,
     autoHighlight: true,
-    highlightColor: [125, 211, 252, 180],
+    highlightColor: [255, 255, 255, 100],
     stroked: true,
     filled: true,
     radiusUnits: 'pixels',
