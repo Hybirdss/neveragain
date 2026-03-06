@@ -13,9 +13,9 @@ describe('resolveAppRoute', () => {
     expect(resolveAppRoute('/lab/')).toBe('lab');
   });
 
-  it('maps /legacy paths to the legacy globe app', () => {
-    expect(resolveAppRoute('/legacy')).toBe('legacy');
-    expect(resolveAppRoute('/legacy/')).toBe('legacy');
+  it('collapses /legacy paths back onto the live service shell', () => {
+    expect(resolveAppRoute('/legacy')).toBe('service');
+    expect(resolveAppRoute('/legacy/')).toBe('service');
   });
 });
 

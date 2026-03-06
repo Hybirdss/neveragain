@@ -1,4 +1,4 @@
-export type AppRoute = 'service' | 'lab' | 'legacy';
+export type AppRoute = 'service' | 'lab';
 
 export const LAB_TAB_IDS = [
   'console',
@@ -18,10 +18,6 @@ function normalizePathname(pathname: string): string {
 
 export function resolveAppRoute(pathname: string): AppRoute {
   const normalized = normalizePathname(pathname);
-
-  if (normalized === '/legacy' || normalized.startsWith('/legacy/')) {
-    return 'legacy';
-  }
 
   if (normalized === '/lab' || normalized.startsWith('/lab/')) {
     return 'lab';
