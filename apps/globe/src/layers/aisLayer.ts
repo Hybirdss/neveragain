@@ -20,6 +20,7 @@ import { IconLayer, PathLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import type { Vessel, VesselType } from '../data/aisManager';
 import type { EarthquakeEvent } from '../types';
+import { isHighPriorityVessel } from '../ops/maritimeTelemetry';
 
 type RGBA = [number, number, number, number];
 
@@ -72,10 +73,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function isHighPriority(type: VesselType): boolean {
-  return type === 'passenger' || type === 'tanker';
-}
-
 // ── Vessel Size ───────────────────────────────────────────────
 
 function vesselSize(type: VesselType, inImpactZone: boolean): number {
@@ -96,44 +93,6 @@ export interface MaritimeExposure {
   cargoCount: number;
   fishingCount: number;
   summary: string;
-}
-
-export interface MaritimeOverview {
-  totalTracked: number;
-  highPriorityTracked: number;
-  underwayCount: number;
-  anchoredCount: number;
-  summary: string;
-}
-
-export function buildMaritimeOverview(vessels: Vessel[]): MaritimeOverview {
-  const totalTracked = vessels.length;
-  const highPriorityTracked = vessels.filter((v) => isHighPriority(v.type)).length;
-  const underwayCount = vessels.filter((v) => v.sog > 0.5).length;
-  const anchoredCount = totalTracked - underwayCount;
-
-  if (totalTracked === 0) {
-    return {
-      totalTracked: 0,
-      highPriorityTracked: 0,
-      underwayCount: 0,
-      anchoredCount: 0,
-      summary: 'No tracked traffic',
-    };
-  }
-
-  const parts = [`${totalTracked} tracked`];
-  if (highPriorityTracked > 0) parts.push(`${highPriorityTracked} high-priority`);
-  if (underwayCount > 0) parts.push(`${underwayCount} underway`);
-  if (anchoredCount > 0) parts.push(`${anchoredCount} anchored`);
-
-  return {
-    totalTracked,
-    highPriorityTracked,
-    underwayCount,
-    anchoredCount,
-    summary: parts.join(' · '),
-  };
 }
 
 export function computeMaritimeExposure(
@@ -183,7 +142,7 @@ export function formatVesselTooltip(v: Vessel, selectedEvent: EarthquakeEvent | 
   const typeLabel = v.type.toUpperCase();
   const speed = v.sog > 0.5 ? `${v.sog.toFixed(1)} kn` : 'Anchored';
   const heading = v.sog > 0.5 ? `HDG ${Math.round(v.cog)}°` : '';
-  const priority = isHighPriority(v.type) ? ' — HIGH PRIORITY' : '';
+  const priority = isHighPriorityVessel(v.type) ? ' — HIGH PRIORITY' : '';
 
   let zoneInfo = '';
   if (selectedEvent) {
@@ -257,7 +216,7 @@ export function createAisLayers(
     getAngle: (d) => 360 - d.cog,
     getColor: (d) => {
       if (inZone.has(d.mmsi)) {
-        return isHighPriority(d.type) ? IMPACT_CRITICAL : IMPACT_NORMAL;
+        return isHighPriorityVessel(d.type) ? IMPACT_CRITICAL : IMPACT_NORMAL;
       }
       return TYPE_COLORS[d.type] ?? TYPE_COLORS.other;
     },

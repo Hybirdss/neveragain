@@ -1,4 +1,4 @@
-import { buildMaritimeOverview } from '../layers/aisLayer';
+import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
 import {
   applyOperatorViewPreset,
   getAllBundleDefinitions,

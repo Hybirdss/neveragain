@@ -1,12 +1,16 @@
 import { earthquakeStore } from '../data/earthquakeStore';
+import type { Vessel } from '../data/aisManager';
 import { computeIntensityGrid } from '../engine/gmpe';
 import { OPS_ASSETS } from '../ops/assetCatalog';
+import { buildOperatorBundleSummaries } from '../ops/bundleSummaries';
 import { selectOperationalFocusEvent } from '../ops/eventSelection';
 import { buildAssetExposures } from '../ops/exposure';
+import type { OpsAsset, OpsAssetExposure } from '../ops/types';
 import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
 import { buildServiceReadModel, createEmptyServiceReadModel } from '../ops/serviceReadModel';
 import type { ViewportState as OpsViewportState } from '../ops/types';
 import { buildOpsPriorities } from '../ops/priorities';
+import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
 import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '../types';
 import { deriveRealtimeStatus } from '../orchestration/realtimeOrchestrator';
 import type { ViewportState as ConsoleViewportState } from './viewportManager';
@@ -54,6 +58,31 @@ export function applyConsoleRealtimeError(input: {
           freshnessStatus: realtimeStatus,
         }
       : createEmptyServiceReadModel(realtimeStatus),
+  };
+}
+
+export function refreshConsoleBundleTruth(input: {
+  readModel: ServiceReadModel | null;
+  realtimeStatus: RealtimeStatus;
+  selectedEvent: EarthquakeEvent | null;
+  exposures: OpsAssetExposure[];
+  vessels: Vessel[];
+  assets: OpsAsset[];
+}): ServiceReadModel {
+  const baseReadModel = input.readModel ?? createEmptyServiceReadModel(input.realtimeStatus);
+  const currentEvent = input.selectedEvent ?? baseReadModel.currentEvent;
+
+  return {
+    ...baseReadModel,
+    currentEvent,
+    bundleSummaries: buildOperatorBundleSummaries({
+      selectedEvent: currentEvent,
+      assets: input.assets,
+      exposures: input.exposures,
+      operationalOverview: baseReadModel.operationalOverview,
+      maritimeOverview: buildMaritimeOverview(input.vessels),
+    }),
+    freshnessStatus: input.realtimeStatus,
   };
 }
 
@@ -121,14 +150,24 @@ export function deriveConsoleOperationalState(
   const selectedEvent = focus.selectedEventId
     ? earthquakeStore.get(focus.selectedEventId) ?? null
     : null;
+  // Dynamic radius: large events need wider grids to avoid rectangular clipping
+  const intensityRadiusDeg = selectedEvent
+    ? (selectedEvent.magnitude >= 8.5 ? 8
+      : selectedEvent.magnitude >= 8.0 ? 6
+      : selectedEvent.magnitude >= 7.0 ? 4
+      : 3)
+    : 3;
+  // Coarser grid for very large events to keep performance budget
+  const intensitySpacing = intensityRadiusDeg >= 6 ? 0.15 : 0.1;
+
   const intensityGrid = selectedEvent
     ? computeIntensityGrid(
         { lat: selectedEvent.lat, lng: selectedEvent.lng },
         selectedEvent.magnitude,
         selectedEvent.depth_km,
         selectedEvent.faultType,
-        0.1,
-        3,
+        intensitySpacing,
+        intensityRadiusDeg,
       )
     : null;
   const tsunamiAssessment = quickTsunami(selectedEvent);

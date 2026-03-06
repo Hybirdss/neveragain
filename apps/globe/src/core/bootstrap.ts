@@ -18,10 +18,15 @@ import './console.css';
 import { createMapEngine } from './mapEngine';
 import { createViewportManager } from './viewportManager';
 import { createShell } from './shell';
-import { applyConsoleRealtimeError, deriveConsoleOperationalState } from './consoleOps';
+import {
+  applyConsoleRealtimeError,
+  deriveConsoleOperationalState,
+  refreshConsoleBundleTruth,
+} from './consoleOps';
 import { consoleStore } from './store';
 import { buildSystemBarState } from './systemBar';
 import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
+import { OPS_ASSETS } from '../ops/assetCatalog';
 import { createLayerCompositor } from '../layers/layerCompositor';
 import { mountEventSnapshot } from '../panels/eventSnapshot';
 import { mountRecentFeed } from '../panels/recentFeed';
@@ -296,6 +301,14 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   // 13. AIS vessel tracking
   const aisManager = createAisManager((vessels) => {
     consoleStore.set('vessels', vessels);
+    consoleStore.set('readModel', refreshConsoleBundleTruth({
+      readModel: consoleStore.get('readModel'),
+      realtimeStatus: consoleStore.get('realtimeStatus'),
+      selectedEvent: consoleStore.get('selectedEvent'),
+      exposures: consoleStore.get('exposures'),
+      vessels,
+      assets: OPS_ASSETS,
+    }));
   });
 
   // 14. Start on map load

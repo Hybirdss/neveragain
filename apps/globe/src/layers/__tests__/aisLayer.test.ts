@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildMaritimeOverview,
   computeMaritimeExposure,
   formatVesselTooltip,
 } from '../aisLayer';
 import type { Vessel } from '../../data/aisManager';
+import { buildMaritimeOverview } from '../../ops/maritimeTelemetry';
 import type { EarthquakeEvent } from '../../types';
 
 const selectedEvent: EarthquakeEvent = {

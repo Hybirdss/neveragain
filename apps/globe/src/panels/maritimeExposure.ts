@@ -8,10 +8,10 @@
 
 import { consoleStore } from '../core/store';
 import {
-  buildMaritimeOverview,
   computeMaritimeExposure,
   type MaritimeExposure,
 } from '../layers/aisLayer';
+import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
 
 function renderCalm(vesselCount: number): string {
   if (vesselCount === 0) return '';
