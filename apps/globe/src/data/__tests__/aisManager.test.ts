@@ -15,6 +15,13 @@ describe('aisManager coverage', () => {
     expect(config.profile.demoFleetScale).toBeGreaterThan(1);
   });
 
+  it('prefers the worker API when an api base is provided', () => {
+    const config = resolveAisManagerConfig({ apiBase: 'https://api.example.com' });
+
+    expect(config.apiBase).toBe('https://api.example.com');
+    expect(config.profile.id).toBe('japan-wide');
+  });
+
   it('expands synthetic fleet geography beyond the old fixed core footprint', () => {
     const coreFleet = generateDemoFleet({ profileId: 'japan-core' });
     const wideFleet = generateDemoFleet({ profileId: 'japan-wide' });

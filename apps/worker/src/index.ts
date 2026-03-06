@@ -5,6 +5,7 @@ import { searchRoute } from './routes/search.ts';
 import { reportsRoute } from './routes/reports.ts';
 import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
+import { maritimeRoute } from './routes/maritime.ts';
 import { handleCron } from './routes/cron.ts';
 
 export interface Env {
@@ -74,6 +75,7 @@ app.route('/api/search', searchRoute);
 app.route('/api/reports', reportsRoute);
 app.route('/api/ask', askRoute);
 app.route('/api/chat', chatRoute);
+app.route('/api/maritime', maritimeRoute);
 
 export default {
   fetch: app.fetch,

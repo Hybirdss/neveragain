@@ -6,7 +6,8 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./geo": "./geo.ts"
+    "./geo": "./geo.ts",
+    "./maritime": "./maritime.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate",

@@ -1,175 +1,39 @@
 /**
- * AIS Manager — Vessel position tracking for Japan coastal waters.
+ * AIS Manager — Vessel position tracking for Japan maritime operations.
  *
- * Two modes:
- * - Live: AISstream.io WebSocket (requires VITE_AISSTREAM_KEY)
- * - Demo: Synthetic fleet along realistic Japan shipping lanes
- *
- * Demo mode generates ~120 vessels that drift along predefined lanes,
- * creating the "living map" feel even without a WebSocket connection.
+ * Runtime modes:
+ * - Worker API snapshot polling (preferred)
+ * - Local synthetic fleet fallback for local dev / API failure
  */
 
-// ── Public Types ──────────────────────────────────────────────
+import {
+  MARITIME_LANES,
+  getAisCoverageProfile as getSharedAisCoverageProfile,
+  parseAisCoverageProfileId,
+  type AisCoverageProfile,
+  type AisCoverageProfileId,
+  type ShippingLane,
+  type Vessel,
+  type VesselType,
+} from '@namazue/db';
 
-export type VesselType = 'cargo' | 'tanker' | 'passenger' | 'fishing' | 'other';
-
-export interface Vessel {
-  mmsi: string;
-  name: string;
-  lat: number;
-  lng: number;
-  cog: number;  // course over ground, degrees
-  sog: number;  // speed over ground, knots
-  type: VesselType;
-  lastUpdate: number;
-  trail: [number, number][]; // [lng, lat] recent positions for PathLayer
-}
+export type {
+  AisCoverageProfile,
+  AisCoverageProfileId,
+  Vessel,
+  VesselType,
+};
 
 export interface AisManager {
   start(): void;
   stop(): void;
 }
 
-export type AisCoverageProfileId = 'japan-core' | 'japan-wide' | 'northwest-pacific';
-
-export interface AisCoverageProfile {
-  id: AisCoverageProfileId;
-  label: string;
-  boundingBoxes: Array<[[number, number], [number, number]]>;
-  laneIds: string[];
-  demoFleetScale: number;
-}
-
 export interface CreateAisManagerOptions {
-  apiKey?: string | null;
   profileId?: AisCoverageProfileId;
   demoFleetScale?: number;
+  apiBase?: string | null;
 }
-
-// ── Shipping Lane Definitions ─────────────────────────────────
-
-interface ShippingLane {
-  id: string;
-  waypoints: [number, number][]; // [lng, lat]
-  count: number;
-  spread: number; // random offset from lane center (degrees)
-  types: VesselType[];
-}
-
-const LANES: ShippingLane[] = [
-  {
-    id: 'tokyo-bay',
-    waypoints: [[139.75, 34.95], [139.80, 35.15], [139.78, 35.35], [139.82, 35.50]],
-    count: 18,
-    spread: 0.025,
-    types: ['cargo', 'tanker', 'cargo', 'passenger', 'cargo', 'tanker'],
-  },
-  {
-    id: 'ise-bay',
-    waypoints: [[136.78, 34.48], [136.84, 34.68], [136.88, 34.88]],
-    count: 10,
-    spread: 0.02,
-    types: ['cargo', 'tanker', 'cargo'],
-  },
-  {
-    id: 'osaka-kobe',
-    waypoints: [[135.08, 34.22], [135.18, 34.38], [135.30, 34.52], [135.20, 34.66]],
-    count: 14,
-    spread: 0.025,
-    types: ['cargo', 'tanker', 'cargo', 'passenger'],
-  },
-  {
-    id: 'seto-inland',
-    waypoints: [[131.00, 33.95], [131.80, 34.05], [132.60, 34.15], [133.50, 34.25], [134.40, 34.40], [134.85, 34.55]],
-    count: 22,
-    spread: 0.035,
-    types: ['cargo', 'tanker', 'cargo', 'fishing', 'cargo'],
-  },
-  {
-    id: 'kanmon-strait',
-    waypoints: [[130.82, 33.91], [130.93, 33.95], [131.05, 33.98]],
-    count: 8,
-    spread: 0.01,
-    types: ['cargo', 'tanker', 'cargo'],
-  },
-  {
-    id: 'hakata',
-    waypoints: [[130.18, 33.53], [130.32, 33.58], [130.48, 33.64]],
-    count: 6,
-    spread: 0.02,
-    types: ['cargo', 'fishing', 'passenger'],
-  },
-  {
-    id: 'pacific-lane',
-    waypoints: [[140.50, 33.50], [141.50, 35.00], [142.50, 37.00], [143.50, 39.00], [144.50, 41.00]],
-    count: 10,
-    spread: 0.12,
-    types: ['cargo', 'tanker', 'cargo', 'cargo'],
-  },
-  {
-    id: 'japan-sea',
-    waypoints: [[132.50, 35.80], [134.50, 37.00], [136.50, 38.20], [138.50, 39.50], [140.00, 41.00]],
-    count: 8,
-    spread: 0.08,
-    types: ['cargo', 'fishing', 'cargo'],
-  },
-  {
-    id: 'tsugaru-strait',
-    waypoints: [[139.70, 41.15], [140.20, 41.35], [140.75, 41.50]],
-    count: 6,
-    spread: 0.015,
-    types: ['cargo', 'fishing', 'passenger'],
-  },
-  {
-    id: 'hokkaido-pacific',
-    waypoints: [[141.30, 42.15], [141.80, 42.60], [143.20, 43.10], [144.80, 43.20]],
-    count: 8,
-    spread: 0.04,
-    types: ['cargo', 'fishing', 'fishing', 'cargo'],
-  },
-  {
-    id: 'kuroshio-offshore',
-    waypoints: [[139.80, 32.20], [141.50, 33.80], [143.80, 35.70], [146.20, 38.20]],
-    count: 14,
-    spread: 0.09,
-    types: ['cargo', 'tanker', 'cargo', 'other'],
-  },
-  {
-    id: 'nansei-okinawa',
-    waypoints: [[127.20, 26.00], [128.60, 26.50], [130.00, 27.30], [131.40, 28.10]],
-    count: 12,
-    spread: 0.04,
-    types: ['cargo', 'tanker', 'cargo', 'passenger'],
-  },
-  {
-    id: 'east-china-sea',
-    waypoints: [[126.20, 30.80], [128.40, 31.80], [130.60, 32.90], [132.20, 33.70]],
-    count: 12,
-    spread: 0.06,
-    types: ['cargo', 'tanker', 'cargo', 'fishing'],
-  },
-  {
-    id: 'hokuriku-japan-sea',
-    waypoints: [[136.20, 36.20], [137.60, 37.30], [139.10, 38.70], [140.40, 40.10]],
-    count: 10,
-    spread: 0.05,
-    types: ['cargo', 'fishing', 'cargo'],
-  },
-  {
-    id: 'okhotsk',
-    waypoints: [[142.20, 43.90], [144.10, 44.40], [146.00, 44.80], [148.20, 45.10]],
-    count: 8,
-    spread: 0.05,
-    types: ['cargo', 'fishing', 'other'],
-  },
-  {
-    id: 'sanriku-fishing',
-    waypoints: [[141.70, 38.30], [142.00, 38.80], [142.20, 39.40], [142.10, 40.00]],
-    count: 12,
-    spread: 0.06,
-    types: ['fishing', 'fishing', 'fishing', 'cargo'],
-  },
-];
 
 // ── Ship Names ────────────────────────────────────────────────
 
@@ -196,6 +60,67 @@ const NAMES: Record<VesselType, string[]> = {
   ],
   other: ['KAIHO', 'MIZUHO', 'SHIKINAMI', 'TAKANAMI', 'MURAKUMO'],
 };
+
+// ── Internal State ────────────────────────────────────────────
+
+interface InternalVessel extends Vessel {
+  _laneIdx: number;
+  _progress: number;
+  _speed: number;
+  _direction: 1 | -1;
+}
+
+interface MaritimeSnapshotResponse {
+  source: 'synthetic' | 'live';
+  profile: { id: AisCoverageProfileId; label: string };
+  generated_at: number;
+  total_tracked: number;
+  visible_count: number;
+  vessels: Vessel[];
+}
+
+const MAX_TRAIL = 15;
+const UPDATE_INTERVAL = 3000;
+
+const AIS_API_BASE = (() => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL as string;
+  if (import.meta.env.PROD) return 'https://api.namazue.dev';
+  return '';
+})();
+const AIS_COVERAGE_PROFILE_ID = (import.meta.env.VITE_AIS_COVERAGE_PROFILE as string | undefined)?.trim();
+const AIS_DEMO_SCALE = Number(import.meta.env.VITE_AIS_DEMO_SCALE ?? '');
+
+// ── Shared Coverage Profiles ──────────────────────────────────
+
+function clampDemoScale(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(6, Math.round(value!)));
+}
+
+export function getAisCoverageProfile(profileId: AisCoverageProfileId): AisCoverageProfile {
+  return getSharedAisCoverageProfile(profileId);
+}
+
+export function resolveAisManagerConfig(
+  options: CreateAisManagerOptions = {},
+): {
+  apiBase: string | null;
+  profile: AisCoverageProfile;
+  demoFleetScale: number;
+} {
+  const profileId = options.profileId ?? parseAisCoverageProfileId(AIS_COVERAGE_PROFILE_ID);
+  const profile = getAisCoverageProfile(profileId);
+  return {
+    apiBase: (options.apiBase ?? AIS_API_BASE ?? null)?.trim() || null,
+    profile,
+    demoFleetScale: clampDemoScale(options.demoFleetScale ?? AIS_DEMO_SCALE, profile.demoFleetScale),
+  };
+}
+
+function getShippingLanes(profile: AisCoverageProfile): ShippingLane[] {
+  const laneIds = new Set(profile.laneIds);
+  return MARITIME_LANES.filter((lane) => laneIds.has(lane.id));
+}
 
 // ── Deterministic Random ──────────────────────────────────────
 
@@ -242,7 +167,7 @@ function interpolateLane(
     target -= segLen;
   }
 
-  return waypoints[waypoints.length - 1];
+  return waypoints[waypoints.length - 1]!;
 }
 
 function laneHeading(
@@ -251,107 +176,10 @@ function laneHeading(
 ): number {
   const dt = 0.001;
   const a = interpolateLane(waypoints, t);
-  const b = interpolateLane(waypoints, t + dt);
+  const b = interpolateLane(waypoints, Math.min(1, t + dt));
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
   return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
-}
-
-// ── Internal Vessel State ─────────────────────────────────────
-
-interface InternalVessel extends Vessel {
-  _laneIdx: number;
-  _progress: number;
-  _speed: number; // progress-per-update
-  _direction: 1 | -1;
-}
-
-const MAX_TRAIL = 15;
-const UPDATE_INTERVAL = 3000;
-
-const ALL_LANE_IDS = LANES.map((lane) => lane.id);
-const CORE_LANE_IDS = [
-  'tokyo-bay',
-  'ise-bay',
-  'osaka-kobe',
-  'seto-inland',
-  'kanmon-strait',
-  'hakata',
-  'tsugaru-strait',
-  'sanriku-fishing',
-] satisfies string[];
-
-const AIS_COVERAGE_PROFILES: Record<AisCoverageProfileId, AisCoverageProfile> = {
-  'japan-core': {
-    id: 'japan-core',
-    label: 'Japan Core',
-    boundingBoxes: [
-      [[24, 122], [46, 150]],
-    ],
-    laneIds: CORE_LANE_IDS,
-    demoFleetScale: 1,
-  },
-  'japan-wide': {
-    id: 'japan-wide',
-    label: 'Japan Wide',
-    boundingBoxes: [
-      [[24, 122], [34.5, 133]],
-      [[30, 131], [38.5, 147]],
-      [[34, 128], [46.5, 142]],
-      [[40.5, 140], [47.5, 151]],
-    ],
-    laneIds: ALL_LANE_IDS,
-    demoFleetScale: 2,
-  },
-  'northwest-pacific': {
-    id: 'northwest-pacific',
-    label: 'Northwest Pacific',
-    boundingBoxes: [
-      [[22, 122], [31, 132]],
-      [[28, 128], [38, 146]],
-      [[34, 130], [47.5, 148]],
-      [[38, 142], [48, 156]],
-    ],
-    laneIds: ALL_LANE_IDS,
-    demoFleetScale: 3,
-  },
-};
-
-function parseCoverageProfileId(value: string | undefined): AisCoverageProfileId {
-  const normalized = value?.trim();
-  switch (normalized) {
-    case 'japan-core':
-    case 'japan-wide':
-    case 'northwest-pacific':
-      return normalized;
-    default:
-      return 'japan-wide';
-  }
-}
-
-function clampDemoScale(value: number | undefined, fallback: number): number {
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(1, Math.min(6, Math.round(value!)));
-}
-
-export function getAisCoverageProfile(profileId: AisCoverageProfileId): AisCoverageProfile {
-  return AIS_COVERAGE_PROFILES[profileId];
-}
-
-export function resolveAisManagerConfig(
-  options: CreateAisManagerOptions = {},
-): {
-  apiKey: string | null;
-  profile: AisCoverageProfile;
-  demoFleetScale: number;
-} {
-  const profileId = options.profileId ?? parseCoverageProfileId(AIS_COVERAGE_PROFILE_ID);
-  const profile = getAisCoverageProfile(profileId);
-  return {
-    apiKey: (options.apiKey ?? AISSTREAM_KEY ?? null)?.trim() || null,
-    profile,
-    demoFleetScale: clampDemoScale(options.demoFleetScale ?? AIS_DEMO_SCALE, profile.demoFleetScale),
-  };
 }
 
 // ── Fleet Generation ──────────────────────────────────────────
@@ -363,39 +191,37 @@ function pickName(type: VesselType): string {
   if (!nameCounters) nameCounters = { cargo: 0, tanker: 0, passenger: 0, fishing: 0, other: 0 };
   const idx = nameCounters[type] % pool.length;
   nameCounters[type]++;
-  // Add a number suffix for uniqueness if pool exhausted
   const suffix = Math.floor(nameCounters[type] / pool.length);
-  return suffix > 0 ? `${pool[idx]} ${suffix + 1}` : pool[idx];
+  return suffix > 0 ? `${pool[idx]} ${suffix + 1}` : pool[idx]!;
 }
 
 function generateFleet(profile: AisCoverageProfile, demoFleetScale: number): InternalVessel[] {
   const fleet: InternalVessel[] = [];
   nameCounters = { cargo: 0, tanker: 0, passenger: 0, fishing: 0, other: 0 };
-  let mmsiBase = 431000000; // Japan MMSI range
-  const laneById = new Map(LANES.map((lane) => [lane.id, lane]));
+  let mmsiBase = 431000000;
+  const lanes = getShippingLanes(profile);
 
-  for (let li = 0; li < profile.laneIds.length; li++) {
-    const lane = laneById.get(profile.laneIds[li]);
-    if (!lane) continue;
+  for (let li = 0; li < lanes.length; li++) {
+    const lane = lanes[li]!;
     const rng = seededRandom(li * 1000 + 42);
     const vesselCount = Math.max(1, Math.round(lane.count * demoFleetScale));
 
     for (let si = 0; si < vesselCount; si++) {
-      const type = lane.types[si % lane.types.length];
+      const type = lane.types[si % lane.types.length]!;
       const progress = rng();
       const [baseLng, baseLat] = interpolateLane(lane.waypoints, progress);
       const offsetLng = (rng() - 0.5) * 2 * lane.spread;
       const offsetLat = (rng() - 0.5) * 2 * lane.spread;
       const heading = laneHeading(lane.waypoints, progress);
-      const speed = 0.0002 + rng() * 0.0006; // progress per update
+      const speed = 0.0002 + rng() * 0.0006;
 
-      const vessel: InternalVessel = {
+      fleet.push({
         mmsi: String(mmsiBase++),
         name: pickName(type),
         lat: baseLat + offsetLat,
         lng: baseLng + offsetLng,
         cog: heading + (rng() - 0.5) * 10,
-        sog: 2 + rng() * 12, // 2-14 knots
+        sog: 2 + rng() * 12,
         type,
         lastUpdate: Date.now(),
         trail: [[baseLng + offsetLng, baseLat + offsetLat]],
@@ -403,9 +229,7 @@ function generateFleet(profile: AisCoverageProfile, demoFleetScale: number): Int
         _progress: progress,
         _speed: speed,
         _direction: rng() > 0.5 ? 1 : -1,
-      };
-
-      fleet.push(vessel);
+      });
     }
   }
 
@@ -418,204 +242,94 @@ export function generateDemoFleet(
   const config = resolveAisManagerConfig({
     profileId: options.profileId,
     demoFleetScale: options.demoFleetScale,
-    apiKey: null,
+    apiBase: null,
   });
   return generateFleet(config.profile, config.demoFleetScale);
 }
 
-// ── Fleet Advancement ─────────────────────────────────────────
-
-function advanceFleet(fleet: InternalVessel[]): void {
+function advanceFleet(fleet: InternalVessel[], profile: AisCoverageProfile): void {
   const now = Date.now();
+  const lanes = getShippingLanes(profile);
 
-  for (const v of fleet) {
-    const lane = LANES[v._laneIdx];
+  for (const vessel of fleet) {
+    const lane = lanes[vessel._laneIdx]!;
+    vessel._progress += vessel._speed * vessel._direction;
 
-    // Advance along lane
-    v._progress += v._speed * v._direction;
-
-    // Bounce at lane ends
-    if (v._progress > 1) {
-      v._progress = 2 - v._progress;
-      v._direction = -1;
-    } else if (v._progress < 0) {
-      v._progress = -v._progress;
-      v._direction = 1;
+    if (vessel._progress > 1) {
+      vessel._progress = 2 - vessel._progress;
+      vessel._direction = -1;
+    } else if (vessel._progress < 0) {
+      vessel._progress = -vessel._progress;
+      vessel._direction = 1;
     }
 
-    const [baseLng, baseLat] = interpolateLane(lane.waypoints, v._progress);
+    const [baseLng, baseLat] = interpolateLane(lane.waypoints, vessel._progress);
+    const driftLng = (vessel.lng - baseLng) * 0.95;
+    const driftLat = (vessel.lat - baseLat) * 0.95;
+    const nextLng = baseLng + driftLng * 0.3;
+    const nextLat = baseLat + driftLat * 0.3;
 
-    // Keep the initial random offset consistent (small drift)
-    const driftLng = (v.lng - baseLng) * 0.95;
-    const driftLat = (v.lat - baseLat) * 0.95;
-    const newLng = baseLng + driftLng * 0.3;
-    const newLat = baseLat + driftLat * 0.3;
-
-    // Update heading
-    const prevLng = v.lng;
-    const prevLat = v.lat;
-    if (Math.abs(newLng - prevLng) > 0.0001 || Math.abs(newLat - prevLat) > 0.0001) {
-      const dx = newLng - prevLng;
-      const dy = newLat - prevLat;
-      v.cog = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+    const prevLng = vessel.lng;
+    const prevLat = vessel.lat;
+    if (Math.abs(nextLng - prevLng) > 0.0001 || Math.abs(nextLat - prevLat) > 0.0001) {
+      const dx = nextLng - prevLng;
+      const dy = nextLat - prevLat;
+      vessel.cog = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
     }
 
-    // Update position
-    v.lng = newLng;
-    v.lat = newLat;
-    v.lastUpdate = now;
-
-    // Update trail
-    v.trail.unshift([newLng, newLat]);
-    if (v.trail.length > MAX_TRAIL) {
-      v.trail.pop();
-    }
+    vessel.lng = nextLng;
+    vessel.lat = nextLat;
+    vessel.lastUpdate = now;
+    vessel.trail.unshift([nextLng, nextLat]);
+    if (vessel.trail.length > MAX_TRAIL) vessel.trail.pop();
   }
 }
 
-// ── AISstream.io WebSocket ─────────────────────────────────────
+// ── Worker API Polling ────────────────────────────────────────
 
-const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
-const FLUSH_INTERVAL = 2000; // push updates every 2s to avoid thrashing store
-
-// AISstream message types
-interface AisStreamMeta {
-  MMSI: number;
-  ShipName: string;
-  time_utc: string;
-}
-
-interface AisPositionReport {
-  Latitude: number;
-  Longitude: number;
-  Cog: number;
-  Sog: number;
-  TrueHeading: number;
-  NavigationalStatus: number;
-}
-
-interface AisStreamMessage {
-  MessageType: string;
-  MetaData: AisStreamMeta;
-  Message: {
-    PositionReport?: AisPositionReport;
-  };
-}
-
-function classifyShipType(navStatus: number, name: string): VesselType {
-  const upper = name.toUpperCase();
-  if (upper.includes('TANKER') || upper.includes('OIL')) return 'tanker';
-  if (upper.includes('FERRY') || upper.includes('PASSENGER')) return 'passenger';
-  if (navStatus === 7) return 'fishing'; // Engaged in fishing
-  if (upper.includes('MARU') && upper.includes('FISH')) return 'fishing';
-  return 'cargo';
-}
-
-function createLiveAisManager(
-  apiKey: string,
+function createApiAisManager(
+  apiBase: string,
   profile: AisCoverageProfile,
   onUpdate: (vessels: Vessel[]) => void,
 ): AisManager {
-  let ws: WebSocket | null = null;
-  let flushTimer: ReturnType<typeof setInterval> | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  const vesselMap = new Map<string, Vessel>();
-  let dirty = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let fallbackManager: AisManager | null = null;
 
-  function connect(): void {
-    if (ws) return;
-
-    ws = new WebSocket(AISSTREAM_URL);
-
-    ws.onopen = () => {
-      console.log('[AIS] WebSocket connected');
-      ws!.send(JSON.stringify({
-        APIKey: apiKey,
-        BoundingBoxes: profile.boundingBoxes,
-        FilterMessageTypes: ['PositionReport'],
-      }));
-    };
-
-    ws.onmessage = (ev) => {
-      try {
-        const msg: AisStreamMessage = JSON.parse(ev.data);
-        if (msg.MessageType !== 'PositionReport' || !msg.Message.PositionReport) return;
-
-        const pos = msg.Message.PositionReport;
-        const meta = msg.MetaData;
-        const mmsi = String(meta.MMSI);
-
-        // Skip invalid positions
-        if (!Number.isFinite(pos.Latitude) || !Number.isFinite(pos.Longitude)) return;
-        if (pos.Latitude === 0 && pos.Longitude === 0) return;
-
-        const existing = vesselMap.get(mmsi);
-        const now = Date.now();
-
-        if (existing) {
-          // Update trail
-          existing.trail.unshift([existing.lng, existing.lat]);
-          if (existing.trail.length > MAX_TRAIL) existing.trail.pop();
-
-          existing.lat = pos.Latitude;
-          existing.lng = pos.Longitude;
-          existing.cog = pos.Cog;
-          existing.sog = pos.Sog;
-          existing.lastUpdate = now;
-        } else {
-          vesselMap.set(mmsi, {
-            mmsi,
-            name: meta.ShipName.trim() || `VESSEL ${mmsi}`,
-            lat: pos.Latitude,
-            lng: pos.Longitude,
-            cog: pos.Cog,
-            sog: pos.Sog,
-            type: classifyShipType(pos.NavigationalStatus, meta.ShipName),
-            lastUpdate: now,
-            trail: [[pos.Longitude, pos.Latitude]],
-          });
-        }
-        dirty = true;
-      } catch {
-        // Skip malformed messages
+  async function poll(): Promise<void> {
+    try {
+      const url = new URL('/api/maritime/vessels', apiBase);
+      url.searchParams.set('profile', profile.id);
+      const response = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) throw new Error(`AIS API ${response.status}`);
+      const payload = await response.json() as MaritimeSnapshotResponse;
+      onUpdate(payload.vessels);
+    } catch (error) {
+      console.warn('[AIS] Worker maritime API unavailable, falling back to local synthetic fleet:', error);
+      if (!fallbackManager) {
+        fallbackManager = createDemoAisManager(profile, profile.demoFleetScale, onUpdate);
+        fallbackManager.start();
       }
-    };
-
-    ws.onclose = () => {
-      console.log('[AIS] WebSocket closed, reconnecting in 5s…');
-      ws = null;
-      reconnectTimer = setTimeout(connect, 5000);
-    };
-
-    ws.onerror = () => {
-      ws?.close();
-    };
-  }
-
-  function flush(): void {
-    if (!dirty) return;
-    dirty = false;
-
-    // Prune stale vessels (no update in 10 minutes)
-    const cutoff = Date.now() - 600_000;
-    for (const [mmsi, v] of vesselMap) {
-      if (v.lastUpdate < cutoff) vesselMap.delete(mmsi);
     }
-
-    onUpdate([...vesselMap.values()]);
   }
 
   return {
     start() {
-      connect();
-      flushTimer = setInterval(flush, FLUSH_INTERVAL);
+      if (timer) return;
+      void poll();
+      timer = setInterval(() => {
+        void poll();
+      }, UPDATE_INTERVAL);
     },
 
     stop() {
-      if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-      if (ws) { ws.close(); ws = null; }
-      vesselMap.clear();
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      fallbackManager?.stop();
+      fallbackManager = null;
     },
   };
 }
@@ -637,13 +351,16 @@ function createDemoAisManager(
       onUpdate(fleet);
 
       timer = setInterval(() => {
-        advanceFleet(fleet);
+        advanceFleet(fleet, profile);
         onUpdate([...fleet]);
       }, UPDATE_INTERVAL);
     },
 
     stop() {
-      if (timer) { clearInterval(timer); timer = null; }
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
       fleet = [];
     },
   };
@@ -651,20 +368,17 @@ function createDemoAisManager(
 
 // ── Public Interface ──────────────────────────────────────────
 
-const AISSTREAM_KEY = (import.meta.env.VITE_AISSTREAM_KEY as string | undefined)?.trim();
-const AIS_COVERAGE_PROFILE_ID = (import.meta.env.VITE_AIS_COVERAGE_PROFILE as string | undefined)?.trim();
-const AIS_DEMO_SCALE = Number(import.meta.env.VITE_AIS_DEMO_SCALE ?? '');
-
 export function createAisManager(
   onUpdate: (vessels: Vessel[]) => void,
   options: CreateAisManagerOptions = {},
 ): AisManager {
   const config = resolveAisManagerConfig(options);
 
-  if (config.apiKey) {
-    console.log(`[AIS] Using live AISstream.io feed (${config.profile.label})`);
-    return createLiveAisManager(config.apiKey, config.profile, onUpdate);
+  if (config.apiBase) {
+    console.log(`[AIS] Using worker maritime snapshot API (${config.profile.label})`);
+    return createApiAisManager(config.apiBase, config.profile, onUpdate);
   }
-  console.log(`[AIS] No API key, using synthetic fleet (${config.profile.label} x${config.demoFleetScale})`);
+
+  console.log(`[AIS] No maritime API configured, using synthetic fleet (${config.profile.label} x${config.demoFleetScale})`);
   return createDemoAisManager(config.profile, config.demoFleetScale, onUpdate);
 }
