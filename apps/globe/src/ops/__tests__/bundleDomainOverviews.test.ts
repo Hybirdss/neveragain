@@ -103,6 +103,13 @@ describe('buildDefaultBundleDomainOverviews', () => {
     expect(overviews.lifelines?.counters).toEqual([
       { id: 'checks', label: 'Checks', value: 2, tone: 'critical' },
       { id: 'lifeline-sites', label: 'Lifeline Sites', value: 2, tone: 'critical' },
+      { id: 'power-nodes', label: 'Power Nodes', value: 1, tone: 'critical' },
+      { id: 'water-sites', label: 'Water Sites', value: 1, tone: 'priority' },
+    ]);
+    expect(overviews.lifelines?.signals).toEqual([
+      { id: 'next-check', label: 'Next Check', value: 'Verify Tokyo East Substation power posture', tone: 'critical' },
+      { id: 'lifeline-region', label: 'Region', value: 'Kanto', tone: 'critical' },
+      { id: 'primary-domain', label: 'Primary Domain', value: 'Power', tone: 'critical' },
     ]);
     expect(overviews['built-environment']).toMatchObject({
       metric: '1 urban integrity review queued',
@@ -111,9 +118,14 @@ describe('buildDefaultBundleDomainOverviews', () => {
       availability: 'live',
       trust: 'review',
     });
+    expect(overviews['built-environment']?.counters).toEqual([
+      { id: 'checks', label: 'Checks', value: 1, tone: 'watch' },
+      { id: 'building-clusters', label: 'Building Clusters', value: 1, tone: 'watch' },
+    ]);
     expect(overviews['built-environment']?.signals).toEqual([
       { id: 'next-check', label: 'Next Check', value: 'Review Marunouchi Core built-environment posture', tone: 'watch' },
       { id: 'built-environment-region', label: 'Region', value: 'Kanto', tone: 'watch' },
+      { id: 'primary-domain', label: 'Primary Domain', value: 'Built Environment', tone: 'watch' },
     ]);
   });
 });

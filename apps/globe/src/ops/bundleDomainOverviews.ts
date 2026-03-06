@@ -1,7 +1,9 @@
 import type {
+  OperatorBundleCounter,
   OperatorBundleDomainOverview,
   OperatorBundleDomainOverviews,
   OperatorBundleId,
+  OperatorBundleSignal,
   OperatorBundleTrust,
 } from './readModelTypes';
 import type { OpsAsset, OpsAssetClass, OpsAssetExposure, OpsPriority, OpsRegion, OpsSeverity } from './types';
@@ -95,6 +97,49 @@ interface BundleOverviewDefinition {
   regionSignalId: string;
 }
 
+function buildClassCounts(
+  exposures: OpsAssetExposure[],
+  assetMap: Map<string, OpsAsset>,
+  classes: OpsAssetClass[],
+): Map<OpsAssetClass, { count: number; tone: OpsSeverity }> {
+  const allowed = new Set(classes);
+  const counts = new Map<OpsAssetClass, { count: number; tone: OpsSeverity }>();
+
+  for (const exposure of exposures) {
+    if (exposure.severity === 'clear') continue;
+    const asset = assetMap.get(exposure.assetId);
+    if (!asset || !allowed.has(asset.class)) continue;
+
+    const current = counts.get(asset.class);
+    counts.set(asset.class, {
+      count: (current?.count ?? 0) + 1,
+      tone: current && severityRank(current.tone) > severityRank(exposure.severity)
+        ? current.tone
+        : exposure.severity,
+    });
+  }
+
+  return counts;
+}
+
+function buildFamilyCounters(
+  classCounts: Map<OpsAssetClass, { count: number; tone: OpsSeverity }>,
+): OperatorBundleCounter[] {
+  if (classCounts.size <= 1) {
+    return [];
+  }
+
+  return [...classCounts.entries()].map(([assetClass, value]) => {
+    const definition = getOpsAssetClassDefinition(assetClass);
+    return {
+      id: definition.counterLabel.toLowerCase().replace(/\s+/g, '-'),
+      label: definition.counterLabel,
+      value: value.count,
+      tone: value.tone,
+    };
+  });
+}
+
 const BUNDLE_OVERVIEW_DEFINITIONS: BundleOverviewDefinition[] = [
   {
     bundleId: 'lifelines',
@@ -120,6 +165,7 @@ const BUNDLE_OVERVIEW_DEFINITIONS: BundleOverviewDefinition[] = [
 ];
 
 function buildOverview(input: {
+  bundleId: Extract<OperatorBundleId, 'lifelines' | 'medical' | 'built-environment'>;
   priorities: OpsPriority[];
   exposures: OpsAssetExposure[];
   assets: OpsAsset[];
@@ -152,9 +198,25 @@ function buildOverview(input: {
       .filter((assetClass): assetClass is OpsAssetClass => assetClass !== null),
   );
   const topClass = pickTopAssetClass(relevantPriorities, assetMap);
+  const classCounts = buildClassCounts(input.exposures, assetMap, input.classes);
   const metricLabel = distinctClasses.size > 1 || topClass === null
     ? input.defaultMetricLabel
     : getOpsAssetClassDefinition(topClass).domainCheckLabel;
+  const signals: OperatorBundleSignal[] = [
+    { id: 'next-check', label: 'Next Check', value: topPriority.title, tone: topPriority.severity },
+    { id: input.regionSignalId, label: 'Region', value: region, tone: topPriority.severity },
+  ];
+
+  if (topClass) {
+    signals.push({
+      id: 'primary-domain',
+      label: 'Primary Domain',
+      value: input.bundleId === 'built-environment'
+        ? 'Built Environment'
+        : getOpsAssetClassDefinition(topClass).familyLabel,
+      tone: topPriority.severity,
+    });
+  }
 
   return {
     metric: `${relevantPriorities.length} ${pluralize(relevantPriorities.length, metricLabel)} queued`,
@@ -165,11 +227,9 @@ function buildOverview(input: {
     counters: [
       { id: 'checks', label: 'Checks', value: relevantPriorities.length, tone: topPriority.severity },
       { id: input.counterLabel.toLowerCase().replace(/\s+/g, '-'), label: input.counterLabel, value: affectedCount, tone: topPriority.severity },
+      ...buildFamilyCounters(classCounts),
     ],
-    signals: [
-      { id: 'next-check', label: 'Next Check', value: topPriority.title, tone: topPriority.severity },
-      { id: input.regionSignalId, label: 'Region', value: region, tone: topPriority.severity },
-    ],
+    signals,
   };
 }
 
@@ -181,6 +241,7 @@ export function buildDefaultBundleDomainOverviews(input: {
 }): OperatorBundleDomainOverviews {
   return BUNDLE_OVERVIEW_DEFINITIONS.reduce<OperatorBundleDomainOverviews>((acc, definition) => {
     acc[definition.bundleId] = buildOverview({
+      bundleId: definition.bundleId,
       priorities: input.priorities,
       exposures: input.exposures,
       assets: input.assets,

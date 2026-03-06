@@ -342,6 +342,7 @@ describe('buildServiceReadModel', () => {
     expect(model.bundleSummaries.lifelines?.signals).toEqual([
       { id: 'next-check', label: 'Next Check', value: 'Inspect Tokyo Station rail hub', tone: 'priority' },
       { id: 'lifeline-region', label: 'Region', value: 'Kanto', tone: 'priority' },
+      { id: 'primary-domain', label: 'Primary Domain', value: 'Rail', tone: 'priority' },
     ]);
     expect(model.bundleSummaries.medical).toMatchObject({
       metric: '1 medical access check queued',
@@ -353,6 +354,7 @@ describe('buildServiceReadModel', () => {
     expect(model.bundleSummaries.medical?.signals).toEqual([
       { id: 'next-check', label: 'Next Check', value: 'Confirm University of Tokyo Hospital access posture', tone: 'watch' },
       { id: 'medical-region', label: 'Region', value: 'Kanto', tone: 'watch' },
+      { id: 'primary-domain', label: 'Primary Domain', value: 'Hospital', tone: 'watch' },
     ]);
   });
 

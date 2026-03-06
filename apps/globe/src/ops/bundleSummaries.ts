@@ -11,7 +11,7 @@ import type {
   OperatorBundleTrust,
 } from './readModelTypes';
 import type { OpsAsset, OpsAssetClass, OpsAssetExposure, OpsSeverity } from './types';
-import { getBundleAssetClasses } from './assetClassRegistry';
+import { getBundleAssetClasses, getOpsAssetClassDefinition } from './assetClassRegistry';
 
 export interface MaritimeTelemetryOverview {
   totalTracked: number;
@@ -120,6 +120,36 @@ function summarizeBundleExposure(
   };
 }
 
+function summarizeBundleFamilies(
+  bundleId: Extract<OperatorBundleId, 'lifelines' | 'medical' | 'built-environment'>,
+  assets: OpsAsset[],
+  exposures: OpsAssetExposure[],
+): Array<{ assetClass: OpsAssetClass; count: number; tone: OpsSeverity }> {
+  const classes = new Set(getBundleAssetClasses(bundleId));
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const counts = new Map<OpsAssetClass, { count: number; tone: OpsSeverity }>();
+
+  for (const entry of exposures) {
+    if (entry.severity === 'clear') continue;
+    const asset = assetById.get(entry.assetId);
+    if (!asset || !classes.has(asset.class)) continue;
+
+    const current = counts.get(asset.class);
+    counts.set(asset.class, {
+      count: (current?.count ?? 0) + 1,
+      tone: current && severityRank(current.tone) > severityRank(entry.severity)
+        ? current.tone
+        : entry.severity,
+    });
+  }
+
+  return [...counts.entries()].map(([assetClass, value]) => ({
+    assetClass,
+    count: value.count,
+    tone: value.tone,
+  }));
+}
+
 function resolveBundleTrust(
   availability: 'live' | 'planned',
   trustLevel: Exclude<OperatorBundleTrust, 'pending'> | undefined,
@@ -147,6 +177,42 @@ function buildSignal(
   tone: OpsSeverity,
 ): OperatorBundleSignal {
   return { id, label, value, tone };
+}
+
+function buildBundleFamilyCounters(
+  families: Array<{ assetClass: OpsAssetClass; count: number; tone: OpsSeverity }>,
+): OperatorBundleCounter[] {
+  if (families.length <= 1) {
+    return [];
+  }
+
+  return families.map((family) => {
+    const definition = getOpsAssetClassDefinition(family.assetClass);
+    return buildCounter(
+      definition.counterLabel.toLowerCase().replace(/\s+/g, '-'),
+      definition.counterLabel,
+      family.count,
+      family.tone,
+    );
+  });
+}
+
+function buildBundleDomainMixSignal(
+  families: Array<{ assetClass: OpsAssetClass; count: number; tone: OpsSeverity }>,
+  tone: OpsSeverity,
+): OperatorBundleSignal[] {
+  if (families.length <= 1) {
+    return [];
+  }
+
+  return [
+    buildSignal(
+      'domain-mix',
+      'Domain Mix',
+      families.map((family) => getOpsAssetClassDefinition(family.assetClass).familyLabel).join(' + '),
+      tone,
+    ),
+  ];
 }
 
 function summarizeTopAssets(
@@ -200,6 +266,8 @@ export function buildOperatorBundleSummaries(
   const lifelines = summarizeBundleExposure('lifelines', input.assets, input.exposures);
   const medical = summarizeBundleExposure('medical', input.assets, input.exposures);
   const builtEnvironment = summarizeBundleExposure('built-environment', input.assets, input.exposures);
+  const lifelineFamilies = summarizeBundleFamilies('lifelines', input.assets, input.exposures);
+  const builtEnvironmentFamilies = summarizeBundleFamilies('built-environment', input.assets, input.exposures);
   const topAssets = summarizeTopAssets(input.exposures, input.assets, 2);
   const topRegion = formatRegion(input.operationalOverview.topRegion);
   const hasEvent = input.selectedEvent !== null;
@@ -294,10 +362,16 @@ export function buildOperatorBundleSummaries(
       availability: lifelines.count > 0 ? 'live' : 'planned',
       trust: lifelines.count > 0 ? liveTrust : plannedTrust,
       counters: lifelines.count > 0
-        ? [buildCounter('lifeline-sites', 'Lifeline Sites', lifelines.count, lifelines.topSeverity)]
+        ? [
+            buildCounter('lifeline-sites', 'Lifeline Sites', lifelines.count, lifelines.topSeverity),
+            ...buildBundleFamilyCounters(lifelineFamilies),
+          ]
         : [],
       signals: lifelines.count > 0
-        ? [buildSignal('corridor-focus', 'Corridor Focus', joinAssetNames(lifelines.topAssets), lifelines.topSeverity)]
+        ? [
+            buildSignal('corridor-focus', 'Corridor Focus', joinAssetNames(lifelines.topAssets), lifelines.topSeverity),
+            ...buildBundleDomainMixSignal(lifelineFamilies, lifelines.topSeverity),
+          ]
         : [],
     }, input.domainOverviews?.lifelines),
     medical: applyDomainOverview({
@@ -336,10 +410,16 @@ export function buildOperatorBundleSummaries(
       availability: builtEnvironment.count > 0 ? 'live' : 'planned',
       trust: builtEnvironment.count > 0 ? liveTrust : plannedTrust,
       counters: builtEnvironment.count > 0
-        ? [buildCounter('building-clusters', 'Building Clusters', builtEnvironment.count, builtEnvironment.topSeverity)]
+        ? [
+            buildCounter('building-clusters', 'Building Clusters', builtEnvironment.count, builtEnvironment.topSeverity),
+            ...buildBundleFamilyCounters(builtEnvironmentFamilies),
+          ]
         : [],
       signals: builtEnvironment.count > 0
-        ? [buildSignal('urban-focus', 'Urban Focus', joinAssetNames(builtEnvironment.topAssets), builtEnvironment.topSeverity)]
+        ? [
+            buildSignal('urban-focus', 'Urban Focus', joinAssetNames(builtEnvironment.topAssets), builtEnvironment.topSeverity),
+            ...buildBundleDomainMixSignal(builtEnvironmentFamilies, builtEnvironment.topSeverity),
+          ]
         : hasEvent
           ? [buildSignal('activation-tier', 'Activation Tier', 'City-tier on operator focus', 'watch')]
           : [],

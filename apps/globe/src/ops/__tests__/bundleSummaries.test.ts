@@ -231,4 +231,102 @@ describe('buildOperatorBundleSummaries', () => {
       trust: 'confirmed',
     });
   });
+
+  it('surfaces family breakdown counters for mixed lifeline and built-environment exposure sets', () => {
+    const summaries = buildOperatorBundleSummaries({
+      selectedEvent: {
+        id: 'eq-2',
+        lat: 35.64,
+        lng: 139.82,
+        depth_km: 22,
+        magnitude: 6.9,
+        time: Date.parse('2026-03-06T10:04:00.000Z'),
+        faultType: 'interface',
+        tsunami: true,
+        place: { text: 'Tokyo Bay operator corridor' },
+      },
+      assets: [
+        ...assets,
+        {
+          id: 'tokyo-east-substation',
+          region: 'kanto',
+          class: 'power_substation',
+          name: 'Tokyo East Substation',
+          lat: 35.65,
+          lng: 139.83,
+          tags: ['power', 'grid'],
+          minZoomTier: 'regional',
+        },
+        {
+          id: 'toyosu-water',
+          region: 'kanto',
+          class: 'water_facility',
+          name: 'Toyosu Water Purification Center',
+          lat: 35.64,
+          lng: 139.81,
+          tags: ['water', 'lifeline'],
+          minZoomTier: 'regional',
+        },
+        {
+          id: 'marunouchi-core',
+          region: 'kanto',
+          class: 'building_cluster',
+          name: 'Marunouchi Core',
+          lat: 35.68,
+          lng: 139.76,
+          tags: ['urban', 'buildings'],
+          minZoomTier: 'city',
+        },
+      ] as OpsAsset[],
+      exposures: [
+        ...exposures,
+        {
+          assetId: 'tokyo-east-substation',
+          severity: 'critical',
+          score: 93,
+          summary: 'Tokyo East Substation is in critical posture.',
+          reasons: ['grid stability risk'],
+        },
+        {
+          assetId: 'toyosu-water',
+          severity: 'priority',
+          score: 67,
+          summary: 'Toyosu Water Purification Center is in priority posture.',
+          reasons: ['service continuity risk'],
+        },
+        {
+          assetId: 'marunouchi-core',
+          severity: 'watch',
+          score: 44,
+          summary: 'Marunouchi Core is in watch posture.',
+          reasons: ['urban structure inspection'],
+        },
+      ],
+      operationalOverview: {
+        ...operationalOverview,
+        visibleAffectedAssetCount: 6,
+        nationalAffectedAssetCount: 6,
+        topSeverity: 'critical',
+      },
+      maritimeOverview: null,
+      trustLevel: 'review',
+    });
+
+    expect(summaries.lifelines?.counters).toEqual([
+      { id: 'lifeline-sites', label: 'Lifeline Sites', value: 3, tone: 'critical' },
+      { id: 'rail-hubs', label: 'Rail Hubs', value: 1, tone: 'watch' },
+      { id: 'power-nodes', label: 'Power Nodes', value: 1, tone: 'critical' },
+      { id: 'water-sites', label: 'Water Sites', value: 1, tone: 'priority' },
+    ]);
+    expect(summaries.lifelines?.signals).toEqual([
+      { id: 'corridor-focus', label: 'Corridor Focus', value: 'Tokyo East Substation, Toyosu Water Purification Center', tone: 'critical' },
+      { id: 'domain-mix', label: 'Domain Mix', value: 'Rail + Power + Water', tone: 'critical' },
+    ]);
+    expect(summaries['built-environment']?.counters).toEqual([
+      { id: 'building-clusters', label: 'Building Clusters', value: 1, tone: 'watch' },
+    ]);
+    expect(summaries['built-environment']?.signals).toEqual([
+      { id: 'urban-focus', label: 'Urban Focus', value: 'Marunouchi Core', tone: 'watch' },
+    ]);
+  });
 });

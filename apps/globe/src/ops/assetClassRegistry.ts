@@ -14,6 +14,8 @@ export interface OpsAssetClassDefinition {
   label: string;
   icon: string;
   bundleId: BundleBackedAssetFamily;
+  familyLabel: string;
+  counterLabel: string;
   exposureWeight: number;
   thresholdRules: OpsAssetThresholdRule[];
   tsunamiSensitive?: boolean;
@@ -27,6 +29,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'port',
     icon: '\u2693',
     bundleId: 'maritime',
+    familyLabel: 'Ports',
+    counterLabel: 'Ports',
     exposureWeight: 14,
     thresholdRules: [],
     tsunamiSensitive: true,
@@ -38,6 +42,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'rail hub',
     icon: '\u{1F689}',
     bundleId: 'lifelines',
+    familyLabel: 'Rail',
+    counterLabel: 'Rail Hubs',
     exposureWeight: 12,
     thresholdRules: [
       {
@@ -54,6 +60,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'hospital',
     icon: '\u271A',
     bundleId: 'medical',
+    familyLabel: 'Hospital',
+    counterLabel: 'Sites',
     exposureWeight: 11,
     thresholdRules: [
       {
@@ -70,6 +78,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'power substation',
     icon: '\u26A1',
     bundleId: 'lifelines',
+    familyLabel: 'Power',
+    counterLabel: 'Power Nodes',
     exposureWeight: 12,
     thresholdRules: [
       {
@@ -86,6 +96,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'water facility',
     icon: '\u{1F4A7}',
     bundleId: 'lifelines',
+    familyLabel: 'Water',
+    counterLabel: 'Water Sites',
     exposureWeight: 11,
     thresholdRules: [
       {
@@ -102,6 +114,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'telecom hub',
     icon: '\u{1F4F6}',
     bundleId: 'lifelines',
+    familyLabel: 'Telecom',
+    counterLabel: 'Telecom Hubs',
     exposureWeight: 10,
     thresholdRules: [
       {
@@ -118,6 +132,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     label: 'building cluster',
     icon: '\u{1F3E2}',
     bundleId: 'built-environment',
+    familyLabel: 'Urban Core',
+    counterLabel: 'Building Clusters',
     exposureWeight: 9,
     thresholdRules: [
       {
