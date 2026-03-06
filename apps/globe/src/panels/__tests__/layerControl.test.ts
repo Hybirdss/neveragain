@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildBundleSummary, buildLayerControlModel } from '../layerControl';
 import { createDefaultBundleSettings, createDefaultLayerVisibility } from '../../layers/bundleRegistry';
+import { createDefaultOperatorLatencyState } from '../../core/operatorLatency';
 import type { ServiceReadModel } from '../../ops/readModelTypes';
 import { createEmptyServiceReadModel } from '../../ops/serviceReadModel';
 import type { ConsoleState } from '../../core/store';
@@ -16,7 +17,7 @@ function createReadModel(): ServiceReadModel {
 }
 
 function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
-  return {
+  const baseState: ConsoleState = {
     mode: 'calm',
     viewport: {
       center: { lat: 35.68, lng: 139.69 },
@@ -48,7 +49,13 @@ function createState(overrides: Partial<ConsoleState> = {}): ConsoleState {
     bundleDrawerOpen: true,
     panelsVisible: true,
     showCoordinates: true,
+    operatorLatency: createDefaultOperatorLatencyState(),
+  };
+
+  return {
+    ...baseState,
     ...overrides,
+    operatorLatency: overrides.operatorLatency ?? baseState.operatorLatency,
   };
 }
 
