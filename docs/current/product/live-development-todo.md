@@ -7,13 +7,12 @@ This is the working backend build order for the new `namazue.dev` service.
 
 ## In Progress
 
-- [ ] Connect root service shell to backend-owned read models only
+- [ ] Connect root service shell to backend-owned read models only via selector boundary
 - [ ] Add selective caching and invalidation for scenario/replay outputs
 
 ## Next
 
 - [ ] Add scenario shift producers so `ops.scenarioShift` and `scenarioDelta` are driven by live what-if inputs
-- [ ] Expose replay milestones and realtime freshness through a service-facing API/selector boundary
 - [ ] Tighten stale/degraded policy with explicit network error and fallback messaging rules
 
 ## After That
@@ -32,6 +31,7 @@ This is the working backend build order for the new `namazue.dev` service.
 - [x] Publish backend-owned operational truth objects for current event snapshot, exposure summary, and priority queue
 - [x] Add replay milestone derivation for event lock, impact ready, tsunami posture, exposure ready, and priorities published
 - [x] Add scenario delta contracts for exposure and priority changes
+- [x] Add a service-facing selector boundary for backend truth objects
 
 ## Workstreams
 
