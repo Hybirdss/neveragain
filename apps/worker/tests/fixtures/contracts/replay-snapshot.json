@@ -1,0 +1,22 @@
+{
+  "contractVersion": "v1",
+  "sourceEventId": "tokyo-impact",
+  "generatedAt": 1741318408000,
+  "milestones": [
+    {
+      "kind": "event_locked",
+      "at": 1741318401000,
+      "label": "Event locked"
+    },
+    {
+      "kind": "impact_ready",
+      "at": 1741318404000,
+      "label": "Impact ready"
+    },
+    {
+      "kind": "priorities_published",
+      "at": 1741318408000,
+      "label": "Priorities published"
+    }
+  ]
+}

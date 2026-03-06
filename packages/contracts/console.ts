@@ -176,3 +176,122 @@ export interface ConsoleSnapshot {
   scenarioDelta?: ScenarioDelta | null;
   sourceMeta: ConsoleSourceMeta;
 }
+
+export interface ConsoleSnapshotDocument extends Omit<ConsoleSnapshot, 'replayMilestones' | 'scenarioDelta'> {
+  contractVersion: typeof CONSOLE_CONTRACT_VERSION;
+  replayMilestones: ReplayMilestone[];
+  scenarioDelta: ScenarioDelta | null;
+}
+
+export function serializeConsoleSnapshot(snapshot: ConsoleSnapshot): ConsoleSnapshotDocument {
+  return {
+    contractVersion: CONSOLE_CONTRACT_VERSION,
+    ...snapshot,
+    events: snapshot.events.map((event) => ({
+      ...event,
+      place: { ...event.place },
+    })),
+    selectedEvent: snapshot.selectedEvent
+      ? {
+          ...snapshot.selectedEvent,
+          place: { ...snapshot.selectedEvent.place },
+        }
+      : null,
+    intensityGrid: snapshot.intensityGrid
+      ? {
+          ...snapshot.intensityGrid,
+          center: { ...snapshot.intensityGrid.center },
+          data: [...snapshot.intensityGrid.data],
+        }
+      : null,
+    exposures: snapshot.exposures.map((entry) => ({
+      ...entry,
+      reasons: [...entry.reasons],
+    })),
+    priorities: snapshot.priorities.map((entry) => ({ ...entry })),
+    readModel: {
+      ...snapshot.readModel,
+      currentEvent: snapshot.readModel.currentEvent
+        ? {
+            ...snapshot.readModel.currentEvent,
+            place: { ...snapshot.readModel.currentEvent.place },
+          }
+        : null,
+      eventTruth: snapshot.readModel.eventTruth
+        ? {
+            ...snapshot.readModel.eventTruth,
+            sources: [...snapshot.readModel.eventTruth.sources],
+          }
+        : null,
+      viewport: snapshot.readModel.viewport
+        ? {
+            ...snapshot.readModel.viewport,
+            center: { ...snapshot.readModel.viewport.center },
+            bounds: [...snapshot.readModel.viewport.bounds] as typeof snapshot.readModel.viewport.bounds,
+          }
+        : null,
+      nationalSnapshot: snapshot.readModel.nationalSnapshot
+        ? {
+            ...snapshot.readModel.nationalSnapshot,
+            topImpact: snapshot.readModel.nationalSnapshot.topImpact
+              ? { ...snapshot.readModel.nationalSnapshot.topImpact }
+              : null,
+            tsunami: snapshot.readModel.nationalSnapshot.tsunami
+              ? {
+                  ...snapshot.readModel.nationalSnapshot.tsunami,
+                  factors: [...snapshot.readModel.nationalSnapshot.tsunami.factors],
+                }
+              : null,
+          }
+        : null,
+      systemHealth: {
+        ...snapshot.readModel.systemHealth,
+        flags: [...snapshot.readModel.systemHealth.flags],
+      },
+      operationalOverview: {
+        ...snapshot.readModel.operationalOverview,
+      },
+      bundleSummaries: Object.fromEntries(
+        Object.entries(snapshot.readModel.bundleSummaries).map(([bundleId, summary]) => [
+          bundleId,
+          summary
+            ? {
+                ...summary,
+                counters: summary.counters.map((counter) => ({ ...counter })),
+                signals: summary.signals.map((signal) => ({ ...signal })),
+                domains: summary.domains.map((domain) => ({
+                  ...domain,
+                  counters: domain.counters.map((counter) => ({ ...counter })),
+                  signals: domain.signals.map((signal) => ({ ...signal })),
+                })),
+              }
+            : summary,
+        ]),
+      ),
+      nationalExposureSummary: snapshot.readModel.nationalExposureSummary.map((entry) => ({
+        ...entry,
+        reasons: [...entry.reasons],
+      })),
+      visibleExposureSummary: snapshot.readModel.visibleExposureSummary.map((entry) => ({
+        ...entry,
+        reasons: [...entry.reasons],
+      })),
+      nationalPriorityQueue: snapshot.readModel.nationalPriorityQueue.map((entry) => ({ ...entry })),
+      visiblePriorityQueue: snapshot.readModel.visiblePriorityQueue.map((entry) => ({ ...entry })),
+      freshnessStatus: {
+        ...snapshot.readModel.freshnessStatus,
+      },
+    },
+    realtimeStatus: { ...snapshot.realtimeStatus },
+    replayMilestones: (snapshot.replayMilestones ?? []).map((milestone) => ({ ...milestone })),
+    scenarioDelta: snapshot.scenarioDelta
+      ? {
+          changeSummary: [...snapshot.scenarioDelta.changeSummary],
+          exposureChanges: snapshot.scenarioDelta.exposureChanges.map((entry) => ({ ...entry })),
+          priorityChanges: snapshot.scenarioDelta.priorityChanges.map((entry) => ({ ...entry })),
+          reasons: [...snapshot.scenarioDelta.reasons],
+        }
+      : null,
+    sourceMeta: { ...snapshot.sourceMeta },
+  };
+}

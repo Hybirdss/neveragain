@@ -1,0 +1,248 @@
+{
+  "contractVersion": "v1",
+  "events": [
+    {
+      "id": "tokyo-impact",
+      "lat": 35.68,
+      "lng": 139.76,
+      "depth_km": 22,
+      "magnitude": 6.8,
+      "time": 1741318400000,
+      "faultType": "crustal",
+      "tsunami": false,
+      "place": {
+        "text": "Tokyo Bay"
+      }
+    }
+  ],
+  "mode": "event",
+  "selectedEvent": {
+    "id": "tokyo-impact",
+    "lat": 35.68,
+    "lng": 139.76,
+    "depth_km": 22,
+    "magnitude": 6.8,
+    "time": 1741318400000,
+    "faultType": "crustal",
+    "tsunami": false,
+    "place": {
+      "text": "Tokyo Bay"
+    }
+  },
+  "intensityGrid": {
+    "cols": 2,
+    "rows": 2,
+    "center": {
+      "lat": 35.68,
+      "lng": 139.76
+    },
+    "radiusDeg": 1.5,
+    "data": [4.2, 5.1, 4.6, 3.8]
+  },
+  "exposures": [
+    {
+      "assetId": "tokyo-port",
+      "severity": "critical",
+      "score": 91,
+      "summary": "Port cranes and logistics yards face strong shaking.",
+      "reasons": ["JMA 5+", "soil amplification"]
+    }
+  ],
+  "priorities": [
+    {
+      "id": "tokyo-port-check",
+      "assetId": "tokyo-port",
+      "severity": "critical",
+      "title": "Inspect Tokyo Port operations",
+      "rationale": "Critical maritime handling nodes show the highest exposure score."
+    }
+  ],
+  "readModel": {
+    "currentEvent": {
+      "id": "tokyo-impact",
+      "lat": 35.68,
+      "lng": 139.76,
+      "depth_km": 22,
+      "magnitude": 6.8,
+      "time": 1741318400000,
+      "faultType": "crustal",
+      "tsunami": false,
+      "place": {
+        "text": "Tokyo Bay"
+      }
+    },
+    "eventTruth": {
+      "source": "server",
+      "revision": "server:tokyo-impact:1741318400000",
+      "issuedAt": 1741318405000,
+      "receivedAt": 1741318408000,
+      "observedAt": 1741318400000,
+      "supersedes": null,
+      "confidence": "high",
+      "revisionCount": 1,
+      "sources": ["server"],
+      "hasConflictingRevision": false,
+      "divergenceSeverity": "none",
+      "magnitudeSpread": 0,
+      "depthSpreadKm": 0,
+      "locationSpreadKm": 0,
+      "tsunamiMismatch": false,
+      "faultTypeMismatch": false
+    },
+    "viewport": {
+      "center": {
+        "lat": 35.68,
+        "lng": 139.76
+      },
+      "zoom": 8.4,
+      "bounds": [138.5, 34.8, 140.9, 36.4],
+      "tier": "regional",
+      "activeRegion": "kanto"
+    },
+    "nationalSnapshot": {
+      "title": "Kanto shaking posture",
+      "summary": "Tokyo Bay event is driving the national operator view.",
+      "headline": "Strong shaking expected across the Tokyo Bay corridor.",
+      "tsunami": null,
+      "topImpact": {
+        "id": "tokyo",
+        "name": "Tokyo",
+        "nameEn": "Tokyo",
+        "maxIntensity": 5.1,
+        "jmaClass": "5+",
+        "population": 14000000,
+        "exposedPopulation": 8200000
+      }
+    },
+    "systemHealth": {
+      "level": "nominal",
+      "headline": "Primary realtime feed healthy",
+      "detail": "Worker-owned snapshot is current.",
+      "flags": []
+    },
+    "operationalOverview": {
+      "selectionReason": "auto-select",
+      "selectionSummary": "Tokyo Bay event remains the operational focus.",
+      "impactSummary": "Critical exposure concentrated in Tokyo Bay logistics and medical corridors.",
+      "visibleAffectedAssetCount": 1,
+      "nationalAffectedAssetCount": 3,
+      "topRegion": "kanto",
+      "topSeverity": "critical"
+    },
+    "bundleSummaries": {
+      "seismic": {
+        "bundleId": "seismic",
+        "title": "Seismic",
+        "metric": "1 critical exposure",
+        "detail": "Tokyo Bay shaking is concentrated around the main logistics belt.",
+        "severity": "critical",
+        "availability": "live",
+        "trust": "confirmed",
+        "counters": [
+          {
+            "id": "critical",
+            "label": "Critical",
+            "value": 1,
+            "tone": "critical"
+          }
+        ],
+        "signals": [
+          {
+            "id": "focus",
+            "label": "Focus",
+            "value": "Tokyo Bay",
+            "tone": "critical"
+          }
+        ],
+        "domains": []
+      }
+    },
+    "nationalExposureSummary": [
+      {
+        "assetId": "tokyo-port",
+        "severity": "critical",
+        "score": 91,
+        "summary": "Port cranes and logistics yards face strong shaking.",
+        "reasons": ["JMA 5+", "soil amplification"]
+      }
+    ],
+    "visibleExposureSummary": [
+      {
+        "assetId": "tokyo-port",
+        "severity": "critical",
+        "score": 91,
+        "summary": "Port cranes and logistics yards face strong shaking.",
+        "reasons": ["JMA 5+", "soil amplification"]
+      }
+    ],
+    "nationalPriorityQueue": [
+      {
+        "id": "tokyo-port-check",
+        "assetId": "tokyo-port",
+        "severity": "critical",
+        "title": "Inspect Tokyo Port operations",
+        "rationale": "Critical maritime handling nodes show the highest exposure score."
+      }
+    ],
+    "visiblePriorityQueue": [
+      {
+        "id": "tokyo-port-check",
+        "assetId": "tokyo-port",
+        "severity": "critical",
+        "title": "Inspect Tokyo Port operations",
+        "rationale": "Critical maritime handling nodes show the highest exposure score."
+      }
+    ],
+    "freshnessStatus": {
+      "source": "server",
+      "state": "fresh",
+      "updatedAt": 1741318408000,
+      "staleAfterMs": 60000
+    }
+  },
+  "realtimeStatus": {
+    "source": "server",
+    "state": "fresh",
+    "updatedAt": 1741318408000,
+    "staleAfterMs": 60000
+  },
+  "replayMilestones": [
+    {
+      "kind": "event_locked",
+      "at": 1741318401000,
+      "label": "Event locked"
+    },
+    {
+      "kind": "impact_ready",
+      "at": 1741318404000,
+      "label": "Impact ready"
+    },
+    {
+      "kind": "priorities_published",
+      "at": 1741318408000,
+      "label": "Priorities published"
+    }
+  ],
+  "scenarioDelta": {
+    "changeSummary": ["Magnitude +0.4", "Depth -10 km"],
+    "exposureChanges": [
+      {
+        "assetId": "tokyo-port",
+        "from": "watch",
+        "to": "critical"
+      }
+    ],
+    "priorityChanges": [
+      {
+        "id": "tokyo-port-check",
+        "from": 1,
+        "to": 0
+      }
+    ],
+    "reasons": ["Shallower rupture increased near-bay shaking"]
+  },
+  "sourceMeta": {
+    "source": "server",
+    "updatedAt": 1741318408000
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "contractVersion": "v1",
+  "sourceEventId": "scenario-sagami",
+  "generatedAt": 1741318500000,
+  "delta": {
+    "changeSummary": ["Magnitude +0.7", "Depth -15 km", "Latitude shift +0.2°"],
+    "exposureChanges": [
+      {
+        "assetId": "yokohama-port",
+        "from": "priority",
+        "to": "critical"
+      }
+    ],
+    "priorityChanges": [
+      {
+        "id": "yokohama-port-check",
+        "from": 2,
+        "to": 0
+      }
+    ],
+    "reasons": ["Scenario shift moved strongest shaking into the bay corridor"]
+  }
+}
