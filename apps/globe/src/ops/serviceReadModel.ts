@@ -10,6 +10,7 @@ import {
 } from '../data/eventEnvelope';
 import type {
   EventTruth,
+  OperatorBundleDomainOverviews,
   OperationalOverview,
   OpsSnapshot,
   RealtimeStatus,
@@ -36,6 +37,7 @@ export interface BuildServiceReadModelInput {
   exposures: OpsAssetExposure[];
   priorities: OpsPriority[];
   maritimeOverview?: MaritimeTelemetryOverview | null;
+  domainOverviews?: OperatorBundleDomainOverviews;
   freshnessStatus: RealtimeStatus;
 }
 
@@ -410,6 +412,7 @@ export function buildServiceReadModel(input: BuildServiceReadModelInput): Servic
       exposures: input.exposures,
       operationalOverview,
       maritimeOverview: input.maritimeOverview ?? null,
+      domainOverviews: input.domainOverviews,
       trustLevel,
     }),
     nationalExposureSummary,

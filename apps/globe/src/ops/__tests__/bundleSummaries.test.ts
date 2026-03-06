@@ -160,4 +160,75 @@ describe('buildOperatorBundleSummaries', () => {
     expect(summaries.medical!.detail).toContain('standing by');
     expect(summaries.medical!.signals).toEqual([]);
   });
+
+  it('accepts domain overview overrides so future feeds can plug into the same summary contract', () => {
+    const summaries = buildOperatorBundleSummaries({
+      selectedEvent: {
+        id: 'eq-1',
+        lat: 35,
+        lng: 139,
+        depth_km: 24,
+        magnitude: 6.8,
+        time: Date.parse('2026-03-06T10:00:00.000Z'),
+        faultType: 'interface',
+        tsunami: false,
+        place: { text: 'Sagami corridor' },
+      },
+      assets,
+      exposures,
+      operationalOverview,
+      maritimeOverview: null,
+      domainOverviews: {
+        lifelines: {
+          metric: '2 rail corridors, 1 power node under review',
+          detail: 'Tokaido corridor and Tokyo grid ingress require operator verification.',
+          severity: 'critical',
+          availability: 'live',
+          trust: 'review',
+          counters: [
+            { id: 'rail-corridors', label: 'Rail Corridors', value: 2, tone: 'priority' },
+            { id: 'power-nodes', label: 'Power Nodes', value: 1, tone: 'watch' },
+          ],
+          signals: [
+            { id: 'lifeline-focus', label: 'Lifeline Focus', value: 'Tokaido, Tokyo Grid East', tone: 'critical' },
+          ],
+        },
+        medical: {
+          metric: 'Tertiary hospitals on ambulance access watch',
+          detail: 'Ambulance ingress degraded across central Tokyo catchments.',
+          severity: 'watch',
+          availability: 'live',
+          trust: 'confirmed',
+          counters: [
+            { id: 'ambulance-zones', label: 'Ambulance Zones', value: 3, tone: 'watch' },
+          ],
+          signals: [
+            { id: 'medical-access', label: 'Medical Access', value: 'Central Tokyo catchments', tone: 'watch' },
+          ],
+        },
+      },
+    });
+
+    expect(summaries.lifelines).toMatchObject({
+      metric: '2 rail corridors, 1 power node under review',
+      detail: 'Tokaido corridor and Tokyo grid ingress require operator verification.',
+      severity: 'critical',
+      availability: 'live',
+      trust: 'review',
+    });
+    expect(summaries.lifelines!.counters).toEqual([
+      { id: 'rail-corridors', label: 'Rail Corridors', value: 2, tone: 'priority' },
+      { id: 'power-nodes', label: 'Power Nodes', value: 1, tone: 'watch' },
+    ]);
+    expect(summaries.lifelines!.signals).toEqual([
+      { id: 'lifeline-focus', label: 'Lifeline Focus', value: 'Tokaido, Tokyo Grid East', tone: 'critical' },
+    ]);
+    expect(summaries.medical).toMatchObject({
+      metric: 'Tertiary hospitals on ambulance access watch',
+      detail: 'Ambulance ingress degraded across central Tokyo catchments.',
+      severity: 'watch',
+      availability: 'live',
+      trust: 'confirmed',
+    });
+  });
 });

@@ -1,8 +1,11 @@
 import type { EarthquakeEvent } from '../types';
 import type {
+  OperatorBundleDomainOverview,
+  OperatorBundleDomainOverviews,
   OperationalOverview,
   OperatorBundleCounter,
   OperatorBundleSignal,
+  OperatorBundleSummary,
   OperatorBundleSummaries,
   OperatorBundleTrust,
 } from './readModelTypes';
@@ -22,6 +25,7 @@ interface BuildOperatorBundleSummariesInput {
   exposures: OpsAssetExposure[];
   operationalOverview: OperationalOverview;
   maritimeOverview?: MaritimeTelemetryOverview | null;
+  domainOverviews?: OperatorBundleDomainOverviews;
   trustLevel?: Exclude<OperatorBundleTrust, 'pending'>;
 }
 
@@ -134,6 +138,26 @@ function joinAssetNames(assets: OpsAsset[]): string {
   return assets.map((asset) => asset.name).join(', ');
 }
 
+function applyDomainOverview(
+  summary: OperatorBundleSummary,
+  override: OperatorBundleDomainOverview | undefined,
+): OperatorBundleSummary {
+  if (!override) {
+    return summary;
+  }
+
+  return {
+    ...summary,
+    metric: override.metric,
+    detail: override.detail,
+    severity: override.severity,
+    availability: override.availability,
+    trust: override.trust,
+    counters: override.counters,
+    signals: override.signals,
+  };
+}
+
 export function buildOperatorBundleSummaries(
   input: BuildOperatorBundleSummariesInput,
 ): OperatorBundleSummaries {
@@ -147,7 +171,7 @@ export function buildOperatorBundleSummaries(
   const plannedTrust = resolveBundleTrust('planned', input.trustLevel);
 
   return {
-    seismic: {
+    seismic: applyDomainOverview({
       bundleId: 'seismic',
       title: 'Seismic',
       metric: input.operationalOverview.nationalAffectedAssetCount > 0
@@ -181,8 +205,8 @@ export function buildOperatorBundleSummaries(
               : []),
           ]
         : [],
-    },
-    maritime: {
+    }, input.domainOverviews?.seismic),
+    maritime: applyDomainOverview({
       bundleId: 'maritime',
       title: 'Maritime',
       metric: input.maritimeOverview
@@ -220,8 +244,8 @@ export function buildOperatorBundleSummaries(
             )]
           : []),
       ],
-    },
-    lifelines: {
+    }, input.domainOverviews?.maritime),
+    lifelines: applyDomainOverview({
       bundleId: 'lifelines',
       title: 'Lifelines',
       metric: rail.count > 0
@@ -239,8 +263,8 @@ export function buildOperatorBundleSummaries(
       signals: rail.count > 0
         ? [buildSignal('corridor-focus', 'Corridor Focus', joinAssetNames(rail.topAssets), rail.topSeverity)]
         : [],
-    },
-    medical: {
+    }, input.domainOverviews?.lifelines),
+    medical: applyDomainOverview({
       bundleId: 'medical',
       title: 'Medical',
       metric: medical.count > 0
@@ -258,8 +282,8 @@ export function buildOperatorBundleSummaries(
       signals: medical.count > 0
         ? [buildSignal('medical-focus', 'Medical Focus', joinAssetNames(medical.topAssets), medical.topSeverity)]
         : [],
-    },
-    'built-environment': {
+    }, input.domainOverviews?.medical),
+    'built-environment': applyDomainOverview({
       bundleId: 'built-environment',
       title: 'Built Environment',
       metric: hasEvent
@@ -275,6 +299,6 @@ export function buildOperatorBundleSummaries(
       signals: hasEvent
         ? [buildSignal('activation-tier', 'Activation Tier', 'City-tier on operator focus', 'watch')]
         : [],
-    },
+    }, input.domainOverviews?.['built-environment']),
   };
 }

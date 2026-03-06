@@ -97,6 +97,18 @@ export interface OperatorBundleSummary {
   signals: OperatorBundleSignal[];
 }
 
+export interface OperatorBundleDomainOverview {
+  metric: string;
+  detail: string;
+  severity: OpsSeverity;
+  availability: 'live' | 'planned';
+  trust: OperatorBundleTrust;
+  counters: OperatorBundleCounter[];
+  signals: OperatorBundleSignal[];
+}
+
+export type OperatorBundleDomainOverviews = Partial<Record<OperatorBundleId, OperatorBundleDomainOverview>>;
+
 export type OperatorBundleSummaries = Partial<Record<OperatorBundleId, OperatorBundleSummary>>;
 
 export interface ServiceReadModel {

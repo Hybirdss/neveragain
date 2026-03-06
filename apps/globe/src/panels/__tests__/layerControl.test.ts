@@ -128,6 +128,37 @@ describe('layerControl bundle summaries', () => {
     ]);
   });
 
+  it('passes through future domain-overview signals without panel-specific logic changes', () => {
+    const summary = buildBundleSummary('lifelines', createState({
+      readModel: {
+        ...createReadModel(),
+        bundleSummaries: {
+          lifelines: {
+            bundleId: 'lifelines',
+            title: 'Lifelines',
+            metric: '2 rail corridors, 1 power node under review',
+            detail: 'Tokaido corridor and Tokyo grid ingress require operator verification.',
+            severity: 'critical',
+            availability: 'live',
+            trust: 'review',
+            counters: [
+              { id: 'rail-corridors', label: 'Rail Corridors', value: 2, tone: 'priority' },
+            ],
+            signals: [
+              { id: 'lifeline-focus', label: 'Lifeline Focus', value: 'Tokaido, Tokyo Grid East', tone: 'critical' },
+            ],
+          },
+        },
+      },
+    }));
+
+    expect(summary.metric).toContain('2 rail corridors');
+    expect(summary.trust).toBe('review');
+    expect(summary.signals).toEqual([
+      { id: 'lifeline-focus', label: 'Lifeline Focus', value: 'Tokaido, Tokyo Grid East', tone: 'critical' },
+    ]);
+  });
+
   it('falls back to empty backend truth instead of pending copy when a bundle summary is missing', () => {
     const summary = buildBundleSummary('medical', createState({
       readModel: {
