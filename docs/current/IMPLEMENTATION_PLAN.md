@@ -1,7 +1,7 @@
 # namazue.dev — Implementation Plan
 
-**Status:** Active  
-**Date:** 2026-03-06  
+**Status:** Active
+**Date:** 2026-03-07
 **Primary Sources:** `docs/current/DESIGN.md`, `docs/current/BACKEND.md`
 
 ---
@@ -32,30 +32,56 @@ Use those docs to validate implementation details before deep renderer work.
 
 ---
 
-## Order Of Work
+## Current Progress Snapshot
 
-This is the recommended full-stack order.
+The core stack is already live in an initial operator form.
 
-The rule is:
+Implemented now:
 
-> contracts first, shell second, layers third, polish last.
+- Japan-wide shared contracts
+- nationwide starter asset catalog
+- canonical event envelope + revision-aware event truth
+- backend-owned `ServiceReadModel`
+- backend-owned bundle summaries
+- bundle `trust / counters / signals / domains[]`
+- bundle-first dock and drawer
+- AIS-backed maritime refresh path
+- seeded lifelines / built-environment starter truth
+
+Not yet complete:
+
+- feed-backed rail / power / water / medical domain adapters
+- replay UI bound only to backend milestone surfaces
+- scenario UI bound only to backend `scenarioDelta`
+- PLATEAU production decision
+- tile-minded infrastructure distribution strategy
 
 ---
 
-## Phase 1 — Shared Contracts
+## Order Of Work
+
+The rule remains:
+
+> contracts first, shell second, layers third, polish last.
+
+What changed is progress: several foundation phases are already complete.
+
+---
+
+## Phase 1 — Shared Contracts `[Done]`
 
 ### Outcome
 
 Remove the old metro-first assumptions from the data model without breaking the current app all at once.
 
-### Tasks
+### Completed
 
-- add `OpsRegion`
-- add `ZoomTier`
-- add `ViewportState`
-- add region metadata to `OpsAsset`
-- add zoom-tier visibility metadata to `OpsAsset`
-- add pure helpers for zoom-tier derivation and viewport-visible asset filtering
+- added `OpsRegion`
+- added `ZoomTier`
+- added `ViewportState`
+- added region metadata to `OpsAsset`
+- added zoom-tier visibility metadata to `OpsAsset`
+- added pure helpers for zoom-tier derivation and viewport-visible asset filtering
 
 ### Files
 
@@ -65,215 +91,164 @@ Remove the old metro-first assumptions from the data model without breaking the 
 - `apps/globe/src/ops/viewport.ts`
 - `apps/globe/src/ops/__tests__/viewport.test.ts`
 
-### Notes
-
-- keep the current app bootable while contracts evolve
-- prefer additive changes first, destructive removals second
-
 ---
 
-## Phase 2 — Nationwide Ops Domain
+## Phase 2 — Nationwide Ops Domain `[Done]`
 
 ### Outcome
 
-Move from 6 demo assets to a real Japan starter catalog.
+Move from a small demo catalog to a real Japan starter catalog.
 
-### Tasks
+### Completed
 
-- expand asset catalog to major ports
-- add major rail hubs
-- add major hospitals
-- organize by region
-- add region-aware lookup helpers
-- remove Tokyo/Osaka-specific priority copy
+- expanded nationwide ports
+- added major rail hubs
+- added major hospitals
+- added starter `power_substation`, `water_facility`, and `building_cluster` assets
+- organized assets by region
+- removed metro-specific priority copy
 
 ### Files
 
 - `apps/globe/src/ops/assetCatalog.ts`
+- `apps/globe/src/ops/assetClassRegistry.ts`
 - `apps/globe/src/ops/priorities.ts`
 - `apps/globe/src/ops/presentation.ts`
-- `apps/globe/src/ops/__tests__/assetCatalog.test.ts`
-- `apps/globe/src/ops/__tests__/priorities.test.ts`
-
-### Exit Criteria
-
-- asset catalog is nationwide
-- priority copy is asset/region aware
-- no shared ops contract assumes `tokyo` vs `osaka`
 
 ---
 
-## Phase 3 — Backend Truth Bundle V2
+## Phase 3 — Backend Truth Bundle V2 `[Done]`
 
 ### Outcome
 
-Upgrade backend-owned service outputs so the new fullscreen shell can render national and viewport truth without recomputing meaning.
+Upgrade backend-owned service outputs so the fullscreen shell can render national and viewport truth without recomputing meaning.
 
-### Tasks
+### Completed
 
-- evolve `serviceReadModel`
-- separate `nationalSnapshot` from `visibleExposureSummary`
-- keep `priorityQueue`, `realtimeStatus`, `replayMilestones`, `scenarioDelta`
-- keep selector boundary strict
+- evolved `serviceReadModel`
+- separated national vs visible exposure and priority truth
+- added canonical `eventTruth`
+- added `systemHealth`
+- added structured bundle summaries
+- kept selector boundary strict
 
 ### Files
 
 - `apps/globe/src/ops/readModelTypes.ts`
 - `apps/globe/src/ops/serviceReadModel.ts`
 - `apps/globe/src/ops/serviceSelectors.ts`
-- `apps/globe/src/ops/__tests__/serviceReadModel.test.ts`
-- `apps/globe/src/ops/__tests__/serviceSelectors.test.ts`
-
-### Exit Criteria
-
-- root shell can render entirely from backend bundle + viewport state
+- `apps/globe/src/data/eventEnvelope.ts`
+- `apps/globe/src/data/earthquakeStore.ts`
 
 ---
 
-## Phase 4 — Map Runtime Shell
+## Phase 4 — Map Runtime Shell `[Done: Initial]`
 
 ### Outcome
 
-Replace the old renderer assumption with a minimal but production-shaped MapLibre + Deck.gl runtime.
+Replace the old renderer assumption with a production-shaped MapLibre + Deck.gl runtime.
 
-### Tasks
+### Completed
 
-- create `core/mapEngine.ts`
-- initialize MapLibre map
-- attach Deck.gl `MapboxOverlay`
-- wire URL hash camera state
-- expose event hooks for viewport changes
+- created initial `core/mapEngine.ts`
+- initialized MapLibre map
+- attached Deck.gl `MapboxOverlay`
+- wired URL hash camera state
+- exposed event hooks for viewport changes
 
-### Files
+### Remaining
 
-- `apps/globe/src/core/mapEngine.ts`
-- `apps/globe/src/core/theme.ts`
-- `apps/globe/src/core/store.ts` or adaptation layer
-- `apps/globe/src/entry.ts`
-
-### Exit Criteria
-
-- root route loads a real map shell
-- map camera is shareable via URL
+- keep hardening runtime integration as more layers land
 
 ---
 
-## Phase 5 — Viewport Manager
+## Phase 5 — Viewport Manager `[Done: Initial]`
 
 ### Outcome
 
 Make the camera the primary navigator.
 
-### Tasks
+### Completed
 
-- derive zoom tier from camera zoom
-- derive active region from bounds/center
-- derive visible assets from bounds + zoom tier
-- debounce heavy recompute to `moveend`
+- derived zoom tier from camera zoom
+- derived active region from bounds / center
+- derived visible assets from bounds + zoom tier
+- separated light viewport updates from heavier recompute paths
 
-### Files
+### Remaining
 
-- `apps/globe/src/core/viewportManager.ts`
-- `apps/globe/src/ops/viewport.ts`
-- `apps/globe/src/types.ts`
-
-### Exit Criteria
-
-- camera movement changes what the system considers active
+- refine live shell bindings as new feeds land
 
 ---
 
-## Phase 6 — Base Operational Layers
+## Phase 6 — Base Operational Layers `[Done: Initial]`
 
 ### Outcome
 
 Get the first real operational map online.
 
-### Tasks
+### Completed
 
 - earthquake epicenter layer
 - intensity field layer
-- active fault layer
+- fault layer path
 - asset marker layer
 
-### Files
+### Remaining
 
-- `apps/globe/src/layers/earthquakes/index.ts`
-- `apps/globe/src/layers/intensity/index.ts`
-- `apps/globe/src/layers/faults/index.ts`
-- `apps/globe/src/layers/assets/index.ts`
-- `apps/globe/src/core/layerRegistry.ts`
-
-### Exit Criteria
-
-- a live earthquake produces visible national operational consequences
+- continue improving density, corridor emphasis, and large-scale infrastructure rendering
 
 ---
 
-## Phase 7 — Operator Control Surface
+## Phase 7 — Operator Control Surface `[Done: Initial]`
 
 ### Outcome
 
 Prevent the product from collapsing into per-layer toggle spam as domains grow.
 
-### Tasks
+### Completed
 
-- introduce `layerRegistry`
-- introduce `bundleRegistry`
-- define bundle metadata and operator view presets
-- build bottom dock as bundle switcher, not raw layer buttons
-- build bundle drawer with summary + per-bundle layer controls
-- keep layer toggles scoped inside the selected bundle only
+- introduced `layerRegistry`
+- introduced `bundleRegistry`
+- defined bundle metadata and operator view presets
+- replaced raw bottom toggles with bundle switching
+- built bundle drawer with summary + per-bundle layer controls
+- kept layer toggles scoped inside the selected bundle only
 
 ### Files
 
 - `apps/globe/src/layers/layerRegistry.ts`
 - `apps/globe/src/layers/bundleRegistry.ts`
 - `apps/globe/src/panels/layerControl.ts`
-- `apps/globe/src/panels/panelSystem.ts`
-- `apps/globe/src/core/bootstrap.ts`
 - `apps/globe/src/core/store.ts`
-
-### Exit Criteria
-
-- root route has bundle-first control with no raw checkbox wall
-- new data domains can plug in without rewriting the shell
+- `apps/globe/src/core/bootstrap.ts`
 
 ---
 
-## Phase 8 — Operator Panels
+## Phase 8 — Operator Panels `[Done: Initial]`
 
 ### Outcome
 
 Move from a map demo to a usable console.
 
-### Tasks
+### Completed
 
 - system bar
 - event snapshot
 - asset exposure
 - check these now
-- bundle summary panels
-- replay rail
+- maritime exposure
+- backend-owned bundle drawer summaries
 
-### Files
+### Remaining
 
-- `apps/globe/src/panels/systemBar.ts`
-- `apps/globe/src/panels/eventSnapshot.ts`
-- `apps/globe/src/panels/assetExposure.ts`
-- `apps/globe/src/panels/checkTheseNow.ts`
-- `apps/globe/src/panels/maritimeExposure.ts`
-- `apps/globe/src/panels/replayRail.ts`
-- `apps/globe/src/core/panelSystem.ts`
-
-### Exit Criteria
-
-- root route reads like an operations console, not a map viewer
-- panels summarize bundles instead of mirroring every individual layer
+- replay rail final binding
+- richer trust escalation visuals
+- more domain-specific operator drilldowns
 
 ---
 
-## Phase 9 — 3D Buildings Spike
+## Phase 9 — 3D Buildings Spike `[Next]`
 
 ### Outcome
 
@@ -285,88 +260,98 @@ Validate whether PLATEAU should be a first-class renderer path or a city-tier en
 - restrict load to city-tier viewports
 - test memory, z-order, picking, color updates
 
-### Files
-
-- `apps/globe/src/layers/buildings/index.ts`
-- targeted spike tests or manual verification notes
-
 ### Exit Criteria
 
 - explicit go / no-go on PLATEAU as a production V1 layer
 
 ---
 
-## Phase 10 — Infrastructure Layers
+## Phase 10 — Infrastructure Layers `[Active]`
 
 ### Outcome
 
 Turn the console into living infrastructure, not just seismic visualization.
 
-### Tasks
+### Already Completed
 
 - AIS layer contract and first live rendering
-- rail network contract and regional rendering
-- power topology contract and static rendering
-- medical + lifeline bundles can mount more layers without shell rewrites
+- maritime lightweight refresh path
+- bundle-domain scaffolding for future infrastructure families
+- seeded starter `power / water / built-environment` truth
+
+### Next Tasks
+
+- add rail adapter into `OperatorBundleDomainOverview`
+- add power adapter into `OperatorBundleDomainOverview`
+- add water adapter into `OperatorBundleDomainOverview`
+- add medical posture adapter into `OperatorBundleDomainOverview`
+- keep shell unchanged while new domains plug into existing bundle surfaces
 
 ### Files
 
 - `apps/globe/src/layers/ais/index.ts`
 - `apps/globe/src/layers/rail/index.ts`
 - `apps/globe/src/layers/power/index.ts`
-- `apps/globe/src/layers/layerRegistry.ts`
-- `apps/globe/src/layers/bundleRegistry.ts`
+- `apps/globe/src/ops/bundleDomainOverviews.ts`
+- `apps/globe/src/ops/bundleSummaries.ts`
 - supporting normalized feed contracts
 
 ---
 
-## Phase 11 — Replay And Scenario
+## Phase 11 — Replay And Scenario `[Partial]`
 
 ### Outcome
 
 Finish the product’s high-value interaction layer.
 
-### Tasks
+### Already Completed
 
-- bind replay rail to backend milestones
-- bind scenario controls to backend `scenarioDelta`
-- remove any view-layer interpretation of scenario consequences
+- backend-owned `replayMilestones`
+- backend-owned `scenarioDelta`
+- scenario shift producer path
 
-### Files
+### Next Tasks
 
-- `apps/globe/src/ops/scenarioDelta.ts`
-- `apps/globe/src/orchestration/scenarioOrchestrator.ts`
-- new shell panel bindings
+- bind replay rail to backend milestones only
+- bind scenario controls to backend `scenarioDelta` only
+- remove any remaining view-layer interpretation of scenario consequences
 
 ---
 
-## Phase 12 — Performance And Reliability
+## Phase 12 — Performance And Reliability `[Active]`
 
 ### Outcome
 
 Make the product operationally credible.
 
-### Tasks
+### Already Completed
 
-- stabilize deck.gl `data` references
+- stable test/build/deploy loop
+- clean-worktree Pages deploy flow
+- backend truth guardrails in shell bindings
+
+### Next Tasks
+
+- stabilize deck.gl `data` references everywhere
 - add `updateTriggers` where required
 - reduce unnecessary picking
-- add layer-level density policies
-- add bundle-level density policies
-- add cache and invalidation rules for scenario/replay outputs
+- add density policies per layer and bundle
+- add cache and invalidation rules for scenario / replay outputs
 - validate degraded realtime states in shell behavior
+- add performance instrumentation for operator mode
 
 ---
 
-## Immediate Start Order
+## Immediate Next Order
 
 If continuing implementation right now, do this next:
 
-1. lock bundle-first control architecture
-2. add `layerRegistry` and `bundleRegistry`
-3. move bottom controls from raw layer toggles to bundle switching
-4. add bundle summary panels
-5. continue infrastructure domains inside the registry model
+1. add rail domain adapter
+2. add power domain adapter
+3. add water or medical domain adapter
+4. bind replay rail only to backend milestone truth
+5. bind scenario surface only to backend `scenarioDelta`
+6. run PLATEAU spike only after the infrastructure/operator truth path is stable
 
 ---
 
@@ -376,4 +361,5 @@ If continuing implementation right now, do this next:
 - frontend renders, backend decides meaning
 - no renderer-specific logic inside `ops/`
 - no panel-specific logic inside backend read models
+- no raw layer toggle wall on the service shell
 - no Tokyo/Osaka hardcoding in new shared contracts

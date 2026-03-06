@@ -1,7 +1,7 @@
 # namazue.dev — Backend Architecture Companion
 
-**Status:** Active  
-**Date:** 2026-03-06  
+**Status:** Active
+**Date:** 2026-03-07
 **Primary Product Source:** `docs/current/DESIGN.md`
 
 ---
@@ -10,7 +10,7 @@
 
 `DESIGN.md` defines what `namazue.dev` is.
 
-This document defines what the backend must own so the frontend can implement the Japan-wide, viewport-driven console without re-inventing product logic in the view layer.
+This document defines what the backend already owns, what is now live, and what still needs to move from seeded scaffolding to feed-backed operational truth.
 
 In short:
 
@@ -27,136 +27,138 @@ The backend does **not** exist to publish raw earthquake data alone.
 It exists to publish backend-owned operational truth objects for a Japan-wide spatial console:
 
 - which earthquake matters right now
+- how trustworthy the current event picture is
 - what part of Japan is affected
-- which assets are exposed
+- which assets and infrastructure families are exposed
 - what operators should check first
-- how fresh the operational picture is
+- what each operator bundle currently means
 - what changed under replay or scenario shift
 
 The frontend should render these truths, not reconstruct them.
 
 ---
 
-## What Stays Valid From Current Backend
+## Live Backbone
 
-The current backend work remains valid and should be preserved:
+The current backend foundation is already materially beyond the original metro-first shell.
 
-- `engine/` GMPE computation
-- `ops/exposure.ts` intensity-to-asset severity logic
-- `ops/priorities.ts` exposure-to-priority ordering
-- `ops/serviceReadModel.ts` backend-owned service summary contract
-- `ops/serviceSelectors.ts` UI boundary selector
-- `realtimeStatus` contract
-- `replayMilestones` contract
-- `scenarioDelta` contract
+### 1. Canonical Event Truth Exists
 
-These are good foundations. The renderer and spatial shell changed, but the idea that the backend owns operational meaning is still correct.
+The backend now carries canonical event metadata and revision-aware truth:
 
----
+- source
+- revision
+- issued / received / observed timestamps
+- supersession chain
+- confidence
+- revision history
+- conflicting revision detection
+- divergence severity
+- magnitude / depth / location spread
+- tsunami / fault-type mismatch flags
 
-## What Must Change
+This truth is exposed through `eventTruth` and summarized again in `systemHealth`.
 
-### 1. Metro-Scoped Ops Must Become Japan-Scoped Ops
+Relevant files:
 
-Current `ops/types.ts` and `ops/assetCatalog.ts` still assume:
+- `apps/globe/src/data/eventEnvelope.ts`
+- `apps/globe/src/data/earthquakeStore.ts`
+- `apps/globe/src/ops/readModelTypes.ts`
+- `apps/globe/src/ops/serviceReadModel.ts`
 
-- `LaunchMetro = 'tokyo' | 'osaka'`
-- metro-local asset lists
-- metro-specific wording in priorities
+### 2. Service Read Model Is Backend-Owned
 
-That must become:
+The current `ServiceReadModel` already provides a usable operator truth bundle:
 
-- nationwide asset catalog
-- region metadata per asset
-- viewport-filterable asset subsets
-- metro-specific assumptions removed from the core domain
+- `currentEvent`
+- `eventTruth`
+- `viewport`
+- `nationalSnapshot`
+- `systemHealth`
+- `operationalOverview`
+- `bundleSummaries`
+- `nationalExposureSummary`
+- `visibleExposureSummary`
+- `nationalPriorityQueue`
+- `visiblePriorityQueue`
+- `freshnessStatus`
 
-Recommended direction:
+This is the correct contract surface. The frontend should keep consuming this boundary rather than rebuilding logic from raw state.
 
-```ts
-type OpsRegion =
-  | 'hokkaido'
-  | 'tohoku'
-  | 'kanto'
-  | 'chubu'
-  | 'kansai'
-  | 'chugoku'
-  | 'shikoku'
-  | 'kyushu';
+Relevant files:
 
-interface OpsAsset {
-  id: string;
-  region: OpsRegion;
-  class: 'port' | 'rail_hub' | 'hospital';
-  name: string;
-  lat: number;
-  lng: number;
-  tags: string[];
-  minZoom?: 'national' | 'regional' | 'city' | 'district';
-}
-```
+- `apps/globe/src/ops/readModelTypes.ts`
+- `apps/globe/src/ops/serviceReadModel.ts`
+- `apps/globe/src/ops/serviceSelectors.ts`
 
-### 2. Service Read Models Must Split National Truth From Viewport Truth
+### 3. Bundle Hierarchy Is Structured
 
-The current `serviceReadModel` is still shaped like a local service shell summary.
+Bundle summaries are no longer loose strings. They now expose operator-grade structured fields:
 
-The new product needs two backend levels:
+- `metric`
+- `detail`
+- `trust`
+- `counters`
+- `signals`
+- `domains[]`
 
-- national operational truth
-- viewport/focus operational truth
+`domains[]` gives each bundle its own backend-owned drilldown surface. For example, `lifelines` can now publish separate backend rows for `Rail`, `Power`, `Water`, and future `Telecom`.
 
-Recommended shape:
+Relevant files:
 
-```ts
-interface ServiceReadModelV2 {
-  currentEvent: EarthquakeEvent | null;
-  nationalSnapshot: OpsSnapshot | null;
-  visibleExposureSummary: OpsAssetExposure[];
-  priorityQueue: OpsPriority[];
-  freshnessStatus: RealtimeStatus;
-  replayMilestones: ReplayMilestone[];
-  scenarioDelta: ScenarioDelta | null;
-}
-```
+- `apps/globe/src/ops/bundleSummaries.ts`
+- `apps/globe/src/ops/bundleDomainOverviews.ts`
+- `apps/globe/src/ops/readModelTypes.ts`
 
-The selector boundary remains correct. The payload shape needs to evolve.
+### 4. Asset Semantics Are Centralized
 
-### 3. Viewport State Needs A Backend-Neutral Contract
+Asset-specific meaning is now defined in one place:
 
-The frontend will own camera movement, but the backend still needs a stable contract for:
+- icon
+- family label
+- counter label
+- bundle mapping
+- domain id
+- exposure labels
+- threshold bonuses
+- priority title generation
 
-- current zoom tier
-- active region
-- visible assets
-- asset density policy
+This keeps new infrastructure classes from scattering rules across exposure, priorities, panels, and layers.
 
-Recommended contract:
+Current future-ready classes:
 
-```ts
-type ZoomTier = 'national' | 'regional' | 'city' | 'district';
+- `power_substation`
+- `water_facility`
+- `telecom_hub`
+- `building_cluster`
 
-interface ViewportState {
-  center: { lat: number; lng: number };
-  zoom: number;
-  bounds: [west: number, south: number, east: number, north: number];
-  tier: ZoomTier;
-  activeRegion: OpsRegion | null;
-}
-```
+Relevant files:
 
-The backend should not own camera UX. It should own functions that consume this contract.
+- `apps/globe/src/ops/assetClassRegistry.ts`
+- `apps/globe/src/ops/exposure.ts`
+- `apps/globe/src/ops/priorities.ts`
+- `apps/globe/src/panels/assetExposure.ts`
+- `apps/globe/src/layers/assetLayer.ts`
 
-### 4. Priority Language Must Become Region-Aware, Not Metro-Aware
+### 5. Starter Assets Already Seed Richer Bundles
 
-Current priority generation still emits text like `Verify Tokyo port access`.
+The nationwide starter catalog is no longer limited to ports, rail hubs, and hospitals.
 
-That should become region- and asset-aware:
+It now includes seeded `power_substation`, `water_facility`, and `building_cluster` assets in major regions so the live console can publish richer `lifelines` and `built-environment` truth before full feed integrations land.
 
-- `Verify Shimizu port access`
-- `Inspect Tokaido corridor rail operations`
-- `Confirm Kanto hospital access posture`
+Relevant file:
 
-This is a backend responsibility because it is part of the operational truth object.
+- `apps/globe/src/ops/assetCatalog.ts`
+
+### 6. Frontend Already Consumes Backend Hierarchy
+
+The bundle drawer is no longer inventing local summaries.
+
+`layerControl.ts` now consumes backend bundle summaries directly, including `trust`, `counters`, `signals`, and `domains[]`.
+
+Relevant file:
+
+- `apps/globe/src/panels/layerControl.ts`
 
 ---
 
@@ -164,21 +166,24 @@ This is a backend responsibility because it is part of the operational truth obj
 
 ### Backend Owns
 
-- earthquake ingest and freshness
-- hazard/intensity computation
-- asset exposure calculation
+- event ingest and freshness
+- canonical event truth and revision history
+- hazard / intensity computation
+- asset exposure scoring
 - priority ordering
+- bundle summaries
+- bundle domain drilldowns
 - replay milestones
 - scenario deltas
-- nationwide asset catalog
-- selector/read-model boundary
+- nationwide asset catalog semantics
+- selector / read-model boundary
 
 ### Frontend Owns
 
 - MapLibre + Deck.gl rendering
 - viewport movement and interaction
+- bundle dock / drawer presentation
 - layer plugin composition
-- panel slot rendering
 - animation timing and visual expression
 
 ### Shared Contract Surface
@@ -186,92 +191,76 @@ This is a backend responsibility because it is part of the operational truth obj
 - `AppState`
 - `ViewportState`
 - `ServiceReadModel`
+- `EventTruth`
+- `SystemHealthSummary`
 - `OpsAsset`
 - `OpsAssetExposure`
 - `OpsPriority`
+- `OperatorBundleSummary`
+- `OperatorBundleDomain`
 - `ReplayMilestone`
 - `ScenarioDelta`
 
-The key rule is simple:
+The core rule remains:
 
 > frontend may choose what to show; backend decides what it means.
 
 ---
 
-## Data Feed Boundaries
+## What Still Needs To Evolve
 
-The new product direction introduces more runtime feeds. The backend should define ingestion boundaries early, even if the frontend renders them first.
+### 1. Feed-Backed Domain Overviews
 
-### Earthquakes
+The bundle/domain contract exists, but most non-maritime domains still rely on seeded starter assets rather than live normalized feeds.
 
-- existing worker + USGS fallback path remains primary
-- freshness and degraded mode already exist
+Next target domains:
 
-### AIS
+- rail
+- power
+- hospital / medical posture
+- water continuity
 
-- backend should define normalized vessel records and freshness
-- renderer can consume bbox-filtered subsets later
+The goal is to populate `OperatorBundleDomainOverview` with real domain adapters, not change the summary contract again.
 
-### Rail
+### 2. Canonical Source Merge Policy
 
-- backend should define line/segment/vehicle contracts
-- operational consequences should be asset- and corridor-aware
+`eventTruth` and `systemHealth` already expose conflicts and divergence.
 
-### Power
+What remains is a clean multi-source merge policy for:
 
-- backend should define substations, corridors, and static topology contracts
-- daily/static imports are fine for V1
+- server source
+- JMA source
+- USGS fallback
+- future auxiliary feeds
 
-This means the backend roadmap should prioritize **contracts first, feeds second, renderer third**.
+That policy should determine both selection confidence and operator trust posture.
 
----
+### 3. Remaining Metro Compatibility Fields
 
-## Recommended Refactor Order
+The product is now Japan-wide, but a few compatibility paths remain for older metro-era bootstraps.
 
-### Phase A. Preserve Existing Truth Objects
+Those should be removed gradually from:
 
-Do not delete:
+- optional metro asset metadata
+- legacy helper paths
+- any text or panel fallback still assuming a metro launch mode
 
-- `serviceReadModel`
-- `serviceSelectors`
-- `realtimeStatus`
+### 4. Replay / Scenario UI Binding
+
+The backend already owns:
+
 - `replayMilestones`
 - `scenarioDelta`
 
-These are the correct backbone.
+What remains is finishing shell bindings so replay and scenario surfaces consume only these backend outputs.
 
-### Phase B. Replace Metro Assumptions
+### 5. Static Infrastructure Data Strategy
 
-Refactor:
+As rail, power, water, and building data grow, the backend should stay tile-minded and normalized from the start:
 
-- `LaunchMetro`
-- metro-local asset catalog helpers
-- metro-specific priority wording
-
-### Phase C. Add Viewport Contracts
-
-Introduce:
-
-- `ViewportState`
-- zoom-tier helpers
-- visible-asset filtering helpers
-
-### Phase D. Expand Asset Catalog Nationwide
-
-Move from 6 demo assets to a real nationwide starter catalog:
-
-- ports
-- rail hubs
-- major hospitals
-
-### Phase E. Upgrade Read Models
-
-Publish:
-
-- national snapshot
-- visible exposure summary
-- regionalized priorities
-- scenario/replay outputs in one backend bundle
+- static nationwide data should prefer tiled or chunked delivery
+- live feeds should prefer normalized deltas
+- bundle summaries should remain renderer-agnostic
 
 ---
 
@@ -279,18 +268,20 @@ Publish:
 
 When continuing backend work, prefer these targets:
 
-- `apps/globe/src/ops/types.ts`
+- `apps/globe/src/ops/assetClassRegistry.ts`
 - `apps/globe/src/ops/assetCatalog.ts`
-- `apps/globe/src/ops/priorities.ts`
+- `apps/globe/src/ops/bundleDomainOverviews.ts`
+- `apps/globe/src/ops/bundleSummaries.ts`
 - `apps/globe/src/ops/serviceReadModel.ts`
 - `apps/globe/src/ops/serviceSelectors.ts`
-- `apps/globe/src/types.ts`
+- `apps/globe/src/data/eventEnvelope.ts`
+- `apps/globe/src/data/earthquakeStore.ts`
 
 Avoid pushing product logic into:
 
 - `apps/globe/src/namazue/*`
-- map rendering modules
-- panel rendering modules
+- raw map rendering modules
+- panel-local summary builders
 
 Those should consume backend contracts, not define them.
 
@@ -298,12 +289,17 @@ Those should consume backend contracts, not define them.
 
 ## Summary
 
-`DESIGN.md` changed the canvas from a metro console to a Japan-wide spatial console.
+`namazue.dev` is no longer a metro-specific shell with backend helper functions.
 
-That does **not** invalidate the backend direction. It narrows the real backend job:
+The backend now already owns:
 
-- keep backend-owned operational truth
-- remove metro assumptions
-- add viewport-aware contracts
-- expand assets nationwide
-- let the frontend render a richer map on top of stable backend meaning
+- canonical event truth
+- revision-aware system health
+- nationwide exposure and priority truth
+- structured bundle summaries
+- structured domain drilldowns
+- centralized asset-class semantics
+
+The next job is not to redesign these contracts again.
+
+The next job is to feed them with richer live rail, power, water, and medical data while keeping the frontend thin.

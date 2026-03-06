@@ -10,6 +10,16 @@ Companion current documents:
 - **`BACKLOG.md`** — execution order for backend work aligned to the new design
 - **`IMPLEMENTATION_PLAN.md`** — full-stack build order from contracts to layers to shell
 
+## Current Implementation State
+
+The live service already runs on a backend-owned operator truth model.
+
+- `ServiceReadModel` now carries `eventTruth`, `systemHealth`, national/visible exposures and priorities, and backend-owned bundle summaries
+- bundle summaries already expose `trust`, `counters`, `signals`, and structured `domains[]`
+- the bundle drawer consumes those backend summaries directly instead of inventing local UI copy
+- the nationwide starter asset catalog now includes ports, rail hubs, hospitals, power nodes, water facilities, and building clusters
+- AIS / maritime is live; rail, power, water, and medical are the next feed-backed bundle domains
+
 ## Key Decisions
 
 - **Renderer**: MapLibre GL JS + Deck.gl (not CesiumJS)
