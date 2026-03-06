@@ -337,6 +337,39 @@
   letter-spacing: 0.02em;
 }
 
+/* ── Scenario Tag (inside Event Snapshot panel) ────────────── */
+
+.nz-snap__scenario-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  margin: -12px -12px 8px -12px;
+  background: rgba(251, 191, 36, 0.15);
+  border-bottom: 2px solid rgba(251, 191, 36, 0.5);
+  border-radius: 10px 10px 0 0;
+  animation: nz-scenario-pulse 3s ease-in-out infinite;
+}
+
+.nz-snap__scenario-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.nz-snap__scenario-label {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--nz-priority);
+}
+
+.nz-panel--scenario {
+  border-color: rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.08);
+}
+
 .nz-snap__health {
   margin-top: 8px;
   padding: 6px 8px;
@@ -575,6 +608,146 @@
   border-color: var(--nz-info);
   color: var(--nz-info);
   background: rgba(125, 211, 252, 0.08);
+}
+
+/* ── Scenario Mode Button ─────────────────────────────────── */
+
+/* ── Scenario Watermark Overlay ───────────────────────────── */
+
+.nz-scenario-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: none;
+  overflow: hidden;
+}
+
+.nz-console--scenario .nz-scenario-overlay {
+  display: block;
+}
+
+.nz-scenario-overlay__watermark {
+  position: absolute;
+  font-family: var(--nz-font-mono);
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(251, 191, 36, 0.06);
+  white-space: nowrap;
+  transform: rotate(-35deg);
+  user-select: none;
+  pointer-events: none;
+}
+
+.nz-scenario-overlay__watermark:nth-child(1) {
+  top: 8%;
+  left: -5%;
+}
+
+.nz-scenario-overlay__watermark:nth-child(2) {
+  top: 35%;
+  left: 20%;
+}
+
+.nz-scenario-overlay__watermark:nth-child(3) {
+  top: 58%;
+  left: -10%;
+}
+
+.nz-scenario-overlay__watermark:nth-child(4) {
+  top: 82%;
+  left: 15%;
+}
+
+/* ── Scenario Top Banner ─────────────────────────────────── */
+
+.nz-scenario-banner {
+  position: absolute;
+  top: var(--nz-system-bar-height);
+  left: 0;
+  right: 0;
+  z-index: 9;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: rgba(251, 191, 36, 0.12);
+  border-bottom: 2px solid rgba(251, 191, 36, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--nz-font-mono);
+  user-select: none;
+  animation: nz-scenario-pulse 3s ease-in-out infinite;
+}
+
+.nz-console--scenario .nz-scenario-banner {
+  display: flex;
+}
+
+.nz-scenario-banner__icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.nz-scenario-banner__text {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--nz-priority);
+}
+
+.nz-scenario-banner__sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(251, 191, 36, 0.7);
+}
+
+@keyframes nz-scenario-pulse {
+  0%, 100% { background: rgba(251, 191, 36, 0.10); }
+  50% { background: rgba(251, 191, 36, 0.18); }
+}
+
+/* ── Scenario Mode — panel tag injection ──────────────────── */
+
+.nz-console--scenario .nz-panel__header::after {
+  content: 'SIMULATED';
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  margin-left: auto;
+  border-radius: 2px;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+/* ── Scenario Mode — system bar badge ─────────────────────── */
+
+.nz-scenario-sysbar-badge {
+  display: none;
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  color: #0a0e14;
+  background: var(--nz-priority);
+  animation: nz-badge-blink 2s ease-in-out infinite;
+}
+
+.nz-console--scenario .nz-scenario-sysbar-badge {
+  display: inline-block;
+}
+
+@keyframes nz-badge-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 /* ── Scenario Mode Button ─────────────────────────────────── */

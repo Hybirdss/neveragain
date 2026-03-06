@@ -121,6 +121,19 @@ function renderCalmState(readModel: ServiceReadModel, now: number): string {
   `;
 }
 
+function isScenarioEvent(event: EarthquakeEvent): boolean {
+  return event.id.startsWith('scenario-');
+}
+
+function renderScenarioTag(): string {
+  return `
+    <div class="nz-snap__scenario-tag">
+      <span class="nz-snap__scenario-icon">⚠</span>
+      <span class="nz-snap__scenario-label">シミュレーション / SIMULATION</span>
+    </div>
+  `;
+}
+
 function renderEventState(
   event: EarthquakeEvent,
   readModel: ServiceReadModel,
@@ -128,6 +141,7 @@ function renderEventState(
 ): string {
   const sev = severityClass(event.magnitude);
   const sevLabel = sev.toUpperCase();
+  const scenario = isScenarioEvent(event);
   const headline = readModel.nationalSnapshot?.headline;
   const truthLabel = formatTruthLabel(readModel);
   const revisionLabel = formatRevisionLabel(readModel);
@@ -139,9 +153,10 @@ function renderEventState(
   const jstTime = new Date(event.time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
 
   return `
-    <div class="nz-panel nz-panel--sev-${sev}" id="nz-event-snapshot">
+    <div class="nz-panel nz-panel--sev-${sev}${scenario ? ' nz-panel--scenario' : ''}" id="nz-event-snapshot">
+      ${scenario ? renderScenarioTag() : ''}
       <div class="nz-panel__header">
-        <span class="nz-panel__title">Event Truth</span>
+        <span class="nz-panel__title">${scenario ? 'Scenario' : 'Event Truth'}</span>
         <span class="nz-snap__status nz-snap__status--${sev}">${sevLabel}</span>
         <button class="nz-snap__dismiss" id="nz-snap-dismiss" title="Deselect (Esc)">×</button>
       </div>

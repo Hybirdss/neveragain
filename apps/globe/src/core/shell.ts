@@ -21,12 +21,26 @@ const SHELL_HTML = `
     <span class="nz-system-bar__sep"></span>
     <span class="nz-system-bar__heartbeat" id="nz-heartbeat"></span>
     <span class="nz-system-bar__status" id="nz-status">Initializing</span>
+    <span class="nz-scenario-sysbar-badge" id="nz-scenario-badge">SCENARIO</span>
     <span class="nz-system-bar__freshness" id="nz-freshness"></span>
     <button class="nz-system-bar__settings" id="nz-settings-btn" title="Settings (,)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     </button>
+  </div>
+
+  <div class="nz-scenario-overlay" id="nz-scenario-overlay">
+    <div class="nz-scenario-overlay__watermark">シミュレーション</div>
+    <div class="nz-scenario-overlay__watermark">SIMULATION</div>
+    <div class="nz-scenario-overlay__watermark">シミュレーション</div>
+    <div class="nz-scenario-overlay__watermark">SIMULATION</div>
+  </div>
+
+  <div class="nz-scenario-banner" id="nz-scenario-banner">
+    <span class="nz-scenario-banner__icon">⚠</span>
+    <span class="nz-scenario-banner__text">これはシミュレーションです — 実際の地震ではありません</span>
+    <span class="nz-scenario-banner__sub">THIS IS A SIMULATION — NOT A REAL EARTHQUAKE</span>
   </div>
 
   <div class="nz-rail nz-rail--left" id="nz-rail-left"></div>
@@ -48,6 +62,8 @@ export interface ShellElements {
   heartbeatEl: HTMLElement;
   freshnessEl: HTMLElement;
   settingsBtn: HTMLElement;
+  scenarioOverlay: HTMLElement;
+  scenarioBanner: HTMLElement;
   leftRail: HTMLElement;
   rightRail: HTMLElement;
   timelineHost: HTMLElement;
@@ -68,6 +84,8 @@ export function createShell(parent: HTMLElement): ShellElements {
     heartbeatEl: parent.querySelector('#nz-heartbeat')!,
     freshnessEl: parent.querySelector('#nz-freshness')!,
     settingsBtn: parent.querySelector('#nz-settings-btn')!,
+    scenarioOverlay: parent.querySelector('#nz-scenario-overlay')!,
+    scenarioBanner: parent.querySelector('#nz-scenario-banner')!,
     leftRail: parent.querySelector('#nz-rail-left')!,
     rightRail: parent.querySelector('#nz-rail-right')!,
     timelineHost: parent.querySelector('#nz-timeline-host')!,
