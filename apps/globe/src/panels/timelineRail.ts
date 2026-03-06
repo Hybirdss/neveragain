@@ -189,8 +189,32 @@ export function mountTimelineRail(
     });
   }
 
-  // Wheel scroll navigates between events (down=newer, up=older)
+  // Wheel scroll navigates between events on the timeline.
+  // deltaY > 0 (scroll down / right) = older events (forward in list)
+  // deltaY < 0 (scroll up / left) = newer events (backward in list)
+  // Also supports horizontal scroll (deltaX) for trackpads.
   let wheelCooldown = false;
+
+  function navigateEvent(direction: 1 | -1): void {
+    const events = consoleStore.get('events');
+    if (events.length === 0) return;
+
+    // Sort newest first (index 0 = most recent)
+    const sorted = [...events].sort((a, b) => b.time - a.time);
+    const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
+
+    if (!selectedId) {
+      onEventSelect(sorted[0]);
+      return;
+    }
+
+    const idx = sorted.findIndex((ev) => ev.id === selectedId);
+    const next = idx + direction;
+    if (next >= 0 && next < sorted.length) {
+      onEventSelect(sorted[next]);
+    }
+  }
+
   function handleWheel(e: WheelEvent): void {
     const tl = container.querySelector('.nz-tl');
     if (!tl) return;
@@ -199,34 +223,22 @@ export function mountTimelineRail(
     if (e.clientX < rect.left || e.clientX > rect.right ||
         e.clientY < rect.top || e.clientY > rect.bottom) return;
 
+    // Use whichever axis has larger delta (supports both scroll directions)
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(delta) < 5) return; // dead zone to avoid accidental triggers
+
     e.preventDefault();
+    e.stopPropagation();
+
     if (wheelCooldown) return;
     wheelCooldown = true;
-    setTimeout(() => { wheelCooldown = false; }, 120);
+    setTimeout(() => { wheelCooldown = false; }, 150);
 
-    const events = consoleStore.get('events');
-    if (events.length === 0) return;
-
-    const sorted = [...events].sort((a, b) => b.time - a.time);
-    const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
-
-    if (!selectedId) {
-      // Nothing selected — pick the most recent
-      onEventSelect(sorted[0]);
-      return;
-    }
-
-    const idx = sorted.findIndex((ev) => ev.id === selectedId);
-    if (e.deltaY > 0) {
-      // Scroll down → newer (toward index 0)
-      if (idx > 0) onEventSelect(sorted[idx - 1]);
-    } else {
-      // Scroll up → older (toward higher index)
-      if (idx < sorted.length - 1) onEventSelect(sorted[idx + 1]);
-    }
+    // Positive delta = scroll down/right = go to older events (direction +1 in sorted array)
+    navigateEvent(delta > 0 ? 1 : -1);
   }
 
-  container.addEventListener('wheel', handleWheel, { passive: false });
+  container.addEventListener('wheel', handleWheel, { passive: false, capture: true });
 
   let renderScheduled = false;
   const scheduleRender = (): void => {
@@ -263,7 +275,7 @@ export function mountTimelineRail(
       unsub1();
       unsub2();
       clearInterval(timer);
-      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('wheel', handleWheel, { capture: true });
     },
   };
 }
