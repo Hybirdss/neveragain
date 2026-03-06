@@ -20,6 +20,12 @@ import { createViewportManager } from './viewportManager';
 import { createShell } from './shell';
 import { parseDeepLink } from './deepLink';
 import {
+  createDefaultOperatorLatencyState,
+  markOperatorLatencyMilestone,
+  type OperatorLatencyMilestone,
+} from './operatorLatency';
+import { SECONDARY_SURFACES } from './bootstrapPhases';
+import {
   applyConsoleRealtimeError,
   deriveConsoleOperationalState,
   refreshConsoleBundleTruth,
@@ -112,6 +118,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   setLoadingProgress(10, 'Building console…');
   let lastFetchSource: RealtimeSource = 'server';
   let lastUpdatedAt = 0;
+  consoleStore.set('operatorLatency', createDefaultOperatorLatencyState(Date.now()));
 
   // 0. Parse deep link BEFORE MapLibre init (hash:true overwrites the URL hash)
   const deepLink = parseDeepLink();
@@ -137,54 +144,120 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   // 4. Compositor
   const compositor = createLayerCompositor(engine);
 
-  // 5. Panels — each gets its own wrapper so innerHTML won't clobber siblings
-  setLoadingProgress(30, 'Mounting panels…');
+  function markLatencyMilestone(milestone: OperatorLatencyMilestone): void {
+    consoleStore.set(
+      'operatorLatency',
+      markOperatorLatencyMilestone(
+        consoleStore.get('operatorLatency'),
+        milestone,
+        Date.now(),
+      ),
+    );
+  }
+
+  // 5. Phase A surfaces — mount only the minimum truth/action surfaces first
+  setLoadingProgress(30, 'Mounting first-truth surfaces…');
   const snapContainer = document.createElement('div');
   shell.leftRail.appendChild(snapContainer);
   const disposeSnapshot = mountEventSnapshot(snapContainer);
-
-  const feedContainer = document.createElement('div');
-  shell.leftRail.appendChild(feedContainer);
-  const disposeFeed = mountRecentFeed(feedContainer, (event) => {
-    selectEvent(event);
-  });
-
-  const expoContainer = document.createElement('div');
-  shell.leftRail.appendChild(expoContainer);
-  const disposeExpo = mountAssetExposure(expoContainer);
-
-  const maritimeContainer = document.createElement('div');
-  shell.leftRail.appendChild(maritimeContainer);
-  const disposeMaritime = mountMaritimeExposure(maritimeContainer);
-
   const disposeCheck = mountCheckTheseNow(shell.rightRail);
-  const disposeLayerControl = mountLayerControl(shell.bottomBar, shell.bottomDrawerHost);
-  const timeline = mountTimelineRail(shell.timelineHost, (event) => selectEvent(event));
+  markLatencyMilestone('firstActionQueueAt');
 
-  const faultContainer = document.createElement('div');
-  shell.rightRail.appendChild(faultContainer);
-  const disposeFaultCatalog = mountFaultCatalog(faultContainer, (fault) => {
-    const scenario = faultToEvent(fault);
-    selectEvent(scenario);
-  });
+  let disposeFeed: () => void = () => {};
+  let disposeExpo: () => void = () => {};
+  let disposeMaritime: () => void = () => {};
+  let disposeLayerControl: () => void = () => {};
+  let disposeFaultCatalog: () => void = () => {};
+  let timeline: ReturnType<typeof mountTimelineRail> | null = null;
+  let palette: ReturnType<typeof createCommandPalette> | null = null;
+  let kbHelp: ReturnType<typeof createKeyboardHelp> | null = null;
+  let notifications: ReturnType<typeof createNotificationQueue> | null = null;
+  let settings: ReturnType<typeof createSettingsPanel> | null = null;
+  let secondarySurfacesMounted = false;
 
   // Preferences (loaded early so notification queue + timeline can use them)
   let prefs = loadPreferences();
   consoleStore.set('showCoordinates', prefs.display.showCoordinates);
+  const handleSettingsClick = (): void => {
+    settings?.toggle();
+  };
+  shell.settingsBtn.addEventListener('click', handleSettingsClick);
 
-  // 5b. Command Palette (Cmd+K)
-  const palette = createCommandPalette(
-    (lat, lng, zoom) => {
-      engine.map.flyTo({ center: [lng, lat], zoom, duration: 1500 });
-    },
-    (event) => selectEvent(event),
-  );
+  function mountSecondarySurfaces(): void {
+    if (secondarySurfacesMounted) return;
+    secondarySurfacesMounted = true;
 
-  // 5c. Notification Queue
-  const notifications = createNotificationQueue(
-    (event) => selectEvent(event),
-    { enabled: prefs.notifications.enabled, minMagnitude: prefs.notifications.minMagnitude },
-  );
+    for (const surface of SECONDARY_SURFACES) {
+      switch (surface) {
+        case 'recent-feed': {
+          const feedContainer = document.createElement('div');
+          shell.leftRail.appendChild(feedContainer);
+          disposeFeed = mountRecentFeed(feedContainer, (event) => {
+            selectEvent(event);
+          });
+          break;
+        }
+        case 'asset-exposure': {
+          const expoContainer = document.createElement('div');
+          shell.leftRail.appendChild(expoContainer);
+          disposeExpo = mountAssetExposure(expoContainer);
+          break;
+        }
+        case 'maritime-exposure': {
+          const maritimeContainer = document.createElement('div');
+          shell.leftRail.appendChild(maritimeContainer);
+          disposeMaritime = mountMaritimeExposure(maritimeContainer);
+          break;
+        }
+        case 'fault-catalog': {
+          const faultContainer = document.createElement('div');
+          shell.rightRail.appendChild(faultContainer);
+          disposeFaultCatalog = mountFaultCatalog(faultContainer, (fault) => {
+            const scenario = faultToEvent(fault);
+            selectEvent(scenario);
+          });
+          break;
+        }
+        case 'layer-control':
+          disposeLayerControl = mountLayerControl(shell.bottomBar, shell.bottomDrawerHost);
+          break;
+        case 'timeline-rail':
+          timeline = mountTimelineRail(shell.timelineHost, (event) => selectEvent(event));
+          timeline.setRange(prefs.timeline.defaultRange);
+          break;
+        case 'settings-panel':
+          settings = createSettingsPanel((newPrefs: ConsolePreferences) => {
+            prefs = newPrefs;
+            notifications?.configure({
+              enabled: newPrefs.notifications.enabled,
+              minMagnitude: newPrefs.notifications.minMagnitude,
+            });
+            consoleStore.set('showCoordinates', newPrefs.display.showCoordinates);
+          });
+          break;
+        case 'command-palette':
+          palette = createCommandPalette(
+            (lat, lng, zoom) => {
+              engine.map.flyTo({ center: [lng, lat], zoom, duration: 1500 });
+            },
+            (event) => selectEvent(event),
+          );
+          break;
+        case 'keyboard-help':
+          kbHelp = createKeyboardHelp();
+          break;
+        case 'notification-queue':
+          notifications = createNotificationQueue(
+            (event) => selectEvent(event),
+            {
+              enabled: prefs.notifications.enabled,
+              minMagnitude: prefs.notifications.minMagnitude,
+            },
+          );
+          break;
+      }
+    }
+  }
 
   // 6a. Tooltip — hover details for all pickable layers
   engine.setTooltip((info) => {
@@ -284,20 +357,6 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     });
   }
 
-  // 7. Keyboard shortcuts
-  const kbHelp = createKeyboardHelp();
-
-  // 7a. Settings panel
-  const settings = createSettingsPanel((newPrefs: ConsolePreferences) => {
-    prefs = newPrefs;
-    notifications.configure({ enabled: newPrefs.notifications.enabled, minMagnitude: newPrefs.notifications.minMagnitude });
-    consoleStore.set('showCoordinates', newPrefs.display.showCoordinates);
-  });
-  shell.settingsBtn.addEventListener('click', () => settings.toggle());
-
-  // 7b. Apply initial preferences
-  timeline.setRange(prefs.timeline.defaultRange);
-
   const BUNDLE_KEYS: Record<string, 'seismic' | 'maritime' | 'lifelines' | 'medical' | 'built-environment'> = {
     '1': 'seismic',
     '2': 'maritime',
@@ -341,9 +400,9 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     if (!prefs.keyboard.enabled && e.key !== 'Escape') return;
 
     if (e.key === 'Escape') {
-      if (palette.isOpen()) return; // palette handles its own Escape
-      if (settings.isOpen()) { settings.close(); return; }
-      if (kbHelp.isOpen()) { kbHelp.close(); return; }
+      if (palette?.isOpen()) return; // palette handles its own Escape
+      if (settings?.isOpen()) { settings.close(); return; }
+      if (kbHelp?.isOpen()) { kbHelp.close(); return; }
       deselectEvent();
       return;
     }
@@ -353,13 +412,13 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
 
     if (e.key === '?') {
       e.preventDefault();
-      kbHelp.toggle();
+      kbHelp?.toggle();
       return;
     }
 
     if (e.key === ',') {
       e.preventDefault();
-      settings.toggle();
+      settings?.toggle();
       return;
     }
 
@@ -392,7 +451,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
 
     if (e.key === 't' || e.key === 'T') {
       e.preventDefault();
-      timeline.cycleRange();
+      timeline?.cycleRange();
       return;
     }
 
@@ -472,6 +531,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     lastUpdatedAt = result.updatedAt;
     consoleStore.set('events', result.events);
     syncOperationalTruth();
+    markLatencyMilestone('firstTruthAt');
   }
 
   function syncRealtimeError(error: unknown): void {
@@ -509,6 +569,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     setLoadingProgress(60, 'Map ready, fetching events…');
     compositor.start();
     aisManager.start();
+    markLatencyMilestone('firstUsefulMapAt');
 
     try {
       await fetchAndSync();
@@ -518,6 +579,8 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       syncRealtimeError(err);
       setLoadingProgress(90, 'Using cached data…');
     }
+
+    mountSecondarySurfaces();
 
     // Deep link: select event from URL (/event/{id})
     if (deepLink.eventId) {
@@ -551,6 +614,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     import.meta.hot.dispose(() => {
       clearInterval(pollTimer);
       document.removeEventListener('keydown', handleKeydown);
+      shell.settingsBtn.removeEventListener('click', handleSettingsClick);
       aisManager.stop();
       compositor.stop();
       disposeSnapshot();
@@ -559,12 +623,12 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       disposeMaritime();
       disposeCheck();
       disposeLayerControl();
-      timeline.dispose();
+      timeline?.dispose();
       disposeFaultCatalog();
-      palette.dispose();
-      kbHelp.dispose();
-      notifications.dispose();
-      settings.dispose();
+      palette?.dispose();
+      kbHelp?.dispose();
+      notifications?.dispose();
+      settings?.dispose();
       viewport.dispose();
       engine.dispose();
     });
