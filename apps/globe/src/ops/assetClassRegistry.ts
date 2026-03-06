@@ -16,6 +16,8 @@ export interface OpsAssetClassDefinition {
   bundleId: BundleBackedAssetFamily;
   familyLabel: string;
   counterLabel: string;
+  domainId: string;
+  exposureMetricLabel: string;
   exposureWeight: number;
   thresholdRules: OpsAssetThresholdRule[];
   tsunamiSensitive?: boolean;
@@ -31,6 +33,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'maritime',
     familyLabel: 'Ports',
     counterLabel: 'Ports',
+    domainId: 'ports',
+    exposureMetricLabel: 'port asset',
     exposureWeight: 14,
     thresholdRules: [],
     tsunamiSensitive: true,
@@ -44,6 +48,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'lifelines',
     familyLabel: 'Rail',
     counterLabel: 'Rail Hubs',
+    domainId: 'rail',
+    exposureMetricLabel: 'rail hub',
     exposureWeight: 12,
     thresholdRules: [
       {
@@ -62,6 +68,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'medical',
     familyLabel: 'Hospital',
     counterLabel: 'Sites',
+    domainId: 'hospital',
+    exposureMetricLabel: 'hospital site',
     exposureWeight: 11,
     thresholdRules: [
       {
@@ -80,6 +88,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'lifelines',
     familyLabel: 'Power',
     counterLabel: 'Power Nodes',
+    domainId: 'power',
+    exposureMetricLabel: 'power node',
     exposureWeight: 12,
     thresholdRules: [
       {
@@ -98,6 +108,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'lifelines',
     familyLabel: 'Water',
     counterLabel: 'Water Sites',
+    domainId: 'water',
+    exposureMetricLabel: 'water site',
     exposureWeight: 11,
     thresholdRules: [
       {
@@ -116,6 +128,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'lifelines',
     familyLabel: 'Telecom',
     counterLabel: 'Telecom Hubs',
+    domainId: 'telecom',
+    exposureMetricLabel: 'telecom hub',
     exposureWeight: 10,
     thresholdRules: [
       {
@@ -134,6 +148,8 @@ const CLASS_DEFINITIONS: Record<OpsAssetClass, OpsAssetClassDefinition> = {
     bundleId: 'built-environment',
     familyLabel: 'Urban Core',
     counterLabel: 'Building Clusters',
+    domainId: 'urban-core',
+    exposureMetricLabel: 'building cluster',
     exposureWeight: 9,
     thresholdRules: [
       {

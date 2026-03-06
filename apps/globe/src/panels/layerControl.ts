@@ -8,12 +8,17 @@ import {
 } from '../layers/bundleRegistry';
 import { getLayerDefinition, type BundleId, type LayerId } from '../layers/layerRegistry';
 import { consoleStore, type ConsoleState } from '../core/store';
-import type { OperatorBundleCounter, OperatorBundleSignal, OperatorBundleSummary } from '../ops/readModelTypes';
+import type {
+  OperatorBundleCounter,
+  OperatorBundleDomain,
+  OperatorBundleSignal,
+  OperatorBundleSummary,
+} from '../ops/readModelTypes';
 import { createEmptyServiceReadModel } from '../ops/serviceReadModel';
 
 export type BundleSummary = Pick<
   OperatorBundleSummary,
-  'title' | 'metric' | 'detail' | 'trust' | 'counters' | 'signals'
+  'title' | 'metric' | 'detail' | 'trust' | 'counters' | 'signals' | 'domains'
 >;
 
 export interface LayerControlRow {
@@ -56,6 +61,7 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
       trust: backendSummary.trust,
       counters: backendSummary.counters,
       signals: backendSummary.signals,
+      domains: backendSummary.domains,
     };
   }
 
@@ -67,6 +73,7 @@ export function buildBundleSummary(bundleId: BundleId, state: ConsoleState): Bun
     trust: 'pending',
     counters: [],
     signals: [],
+    domains: [],
   };
 }
 
@@ -105,6 +112,25 @@ function renderSignals(summary: BundleSummary): string {
   return `
     <div class="nz-bundle-signals">
       ${summary.signals.map(renderSignal).join('')}
+    </div>
+  `;
+}
+
+function renderDomain(domain: OperatorBundleDomain): string {
+  return `
+    <div class="nz-bundle-card">
+      <div class="nz-bundle-card__label">${domain.label}</div>
+      <div class="nz-bundle-card__metric">${domain.metric}</div>
+      <div class="nz-bundle-card__detail">${domain.detail}</div>
+      ${domain.signals.length > 0 ? `
+        <div class="nz-bundle-signals">
+          ${domain.signals.map(renderSignal).join('')}
+        </div>
+      ` : ''}
+      <div class="nz-bundle-summary-meta">
+        <span class="nz-bundle-trust nz-bundle-trust--${domain.trust}">${domain.trust}</span>
+        ${domain.counters.map(renderCounter).join('')}
+      </div>
     </div>
   `;
 }
@@ -212,6 +238,12 @@ function renderDrawer(state: ConsoleState, model: LayerControlModel): string {
             ${renderSignals(activeSummary)}
             ${renderSummaryMeta(activeSummary)}
           </div>
+          ${activeSummary.domains.length > 0 ? `
+            <div class="nz-bundle-card">
+              <div class="nz-bundle-card__label">Domain Breakdown</div>
+              ${activeSummary.domains.map(renderDomain).join('')}
+            </div>
+          ` : ''}
           <div class="nz-bundle-card">
             <div class="nz-bundle-card__label">Layers</div>
             <div class="nz-bundle-layer-list">

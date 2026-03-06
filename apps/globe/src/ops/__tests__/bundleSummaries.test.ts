@@ -318,12 +318,76 @@ describe('buildOperatorBundleSummaries', () => {
       { id: 'power-nodes', label: 'Power Nodes', value: 1, tone: 'critical' },
       { id: 'water-sites', label: 'Water Sites', value: 1, tone: 'priority' },
     ]);
+    expect(summaries.lifelines?.domains).toEqual([
+      {
+        id: 'rail',
+        label: 'Rail',
+        metric: '1 rail hub exposed',
+        detail: 'Tokyo Station requires operator verification.',
+        severity: 'watch',
+        availability: 'live',
+        trust: 'review',
+        counters: [
+          { id: 'rail-hubs', label: 'Rail Hubs', value: 1, tone: 'watch' },
+        ],
+        signals: [
+          { id: 'focus-assets', label: 'Focus Assets', value: 'Tokyo Station', tone: 'watch' },
+        ],
+      },
+      {
+        id: 'power',
+        label: 'Power',
+        metric: '1 power node exposed',
+        detail: 'Tokyo East Substation requires operator verification.',
+        severity: 'critical',
+        availability: 'live',
+        trust: 'review',
+        counters: [
+          { id: 'power-nodes', label: 'Power Nodes', value: 1, tone: 'critical' },
+        ],
+        signals: [
+          { id: 'focus-assets', label: 'Focus Assets', value: 'Tokyo East Substation', tone: 'critical' },
+        ],
+      },
+      {
+        id: 'water',
+        label: 'Water',
+        metric: '1 water site exposed',
+        detail: 'Toyosu Water Purification Center requires operator verification.',
+        severity: 'priority',
+        availability: 'live',
+        trust: 'review',
+        counters: [
+          { id: 'water-sites', label: 'Water Sites', value: 1, tone: 'priority' },
+        ],
+        signals: [
+          { id: 'focus-assets', label: 'Focus Assets', value: 'Toyosu Water Purification Center', tone: 'priority' },
+        ],
+      },
+    ]);
     expect(summaries.lifelines?.signals).toEqual([
       { id: 'corridor-focus', label: 'Corridor Focus', value: 'Tokyo East Substation, Toyosu Water Purification Center', tone: 'critical' },
       { id: 'domain-mix', label: 'Domain Mix', value: 'Rail + Power + Water', tone: 'critical' },
     ]);
     expect(summaries['built-environment']?.counters).toEqual([
       { id: 'building-clusters', label: 'Building Clusters', value: 1, tone: 'watch' },
+    ]);
+    expect(summaries['built-environment']?.domains).toEqual([
+      {
+        id: 'urban-core',
+        label: 'Urban Core',
+        metric: '1 building cluster exposed',
+        detail: 'Marunouchi Core requires operator verification.',
+        severity: 'watch',
+        availability: 'live',
+        trust: 'review',
+        counters: [
+          { id: 'building-clusters', label: 'Building Clusters', value: 1, tone: 'watch' },
+        ],
+        signals: [
+          { id: 'focus-assets', label: 'Focus Assets', value: 'Marunouchi Core', tone: 'watch' },
+        ],
+      },
     ]);
     expect(summaries['built-environment']?.signals).toEqual([
       { id: 'urban-focus', label: 'Urban Focus', value: 'Marunouchi Core', tone: 'watch' },

@@ -85,6 +85,18 @@ export interface OperatorBundleSignal {
   tone: OpsSeverity;
 }
 
+export interface OperatorBundleDomain {
+  id: string;
+  label: string;
+  metric: string;
+  detail: string;
+  severity: OpsSeverity;
+  availability: 'live' | 'planned';
+  trust: OperatorBundleTrust;
+  counters: OperatorBundleCounter[];
+  signals: OperatorBundleSignal[];
+}
+
 export interface OperatorBundleSummary {
   bundleId: OperatorBundleId;
   title: string;
@@ -95,6 +107,7 @@ export interface OperatorBundleSummary {
   trust: OperatorBundleTrust;
   counters: OperatorBundleCounter[];
   signals: OperatorBundleSignal[];
+  domains: OperatorBundleDomain[];
 }
 
 export interface OperatorBundleDomainOverview {
@@ -105,6 +118,7 @@ export interface OperatorBundleDomainOverview {
   trust: OperatorBundleTrust;
   counters: OperatorBundleCounter[];
   signals: OperatorBundleSignal[];
+  domains?: OperatorBundleDomain[];
 }
 
 export type OperatorBundleDomainOverviews = Partial<Record<OperatorBundleId, OperatorBundleDomainOverview>>;

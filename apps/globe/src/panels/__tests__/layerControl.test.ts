@@ -82,6 +82,19 @@ describe('layerControl bundle summaries', () => {
             signals: [
               { id: 'focus-region', label: 'Focus Region', value: 'Kanto', tone: 'priority' },
             ],
+            domains: [
+              {
+                id: 'impact',
+                label: 'Impact',
+                metric: '3 assets affected',
+                detail: 'Kanto pressure remains elevated.',
+                severity: 'priority',
+                availability: 'live',
+                trust: 'review',
+                counters: [],
+                signals: [],
+              },
+            ],
           },
         },
       },
@@ -95,6 +108,19 @@ describe('layerControl bundle summaries', () => {
     ]);
     expect(summary.signals).toEqual([
       { id: 'focus-region', label: 'Focus Region', value: 'Kanto', tone: 'priority' },
+    ]);
+    expect(summary.domains).toEqual([
+      {
+        id: 'impact',
+        label: 'Impact',
+        metric: '3 assets affected',
+        detail: 'Kanto pressure remains elevated.',
+        severity: 'priority',
+        availability: 'live',
+        trust: 'review',
+        counters: [],
+        signals: [],
+      },
     ]);
   });
 
@@ -115,6 +141,19 @@ describe('layerControl bundle summaries', () => {
             signals: [
               { id: 'medical-focus', label: 'Medical Focus', value: 'University of Tokyo Hospital, St. Luke Hospital', tone: 'priority' },
             ],
+            domains: [
+              {
+                id: 'hospital',
+                label: 'Hospital',
+                metric: '2 hospital sites exposed',
+                detail: 'Tokyo hospital access requires verification.',
+                severity: 'priority',
+                availability: 'live',
+                trust: 'confirmed',
+                counters: [],
+                signals: [],
+              },
+            ],
           },
         },
       },
@@ -125,6 +164,19 @@ describe('layerControl bundle summaries', () => {
     expect(summary.trust).toBe('confirmed');
     expect(summary.signals).toEqual([
       { id: 'medical-focus', label: 'Medical Focus', value: 'University of Tokyo Hospital, St. Luke Hospital', tone: 'priority' },
+    ]);
+    expect(summary.domains).toEqual([
+      {
+        id: 'hospital',
+        label: 'Hospital',
+        metric: '2 hospital sites exposed',
+        detail: 'Tokyo hospital access requires verification.',
+        severity: 'priority',
+        availability: 'live',
+        trust: 'confirmed',
+        counters: [],
+        signals: [],
+      },
     ]);
   });
 
@@ -147,6 +199,19 @@ describe('layerControl bundle summaries', () => {
             signals: [
               { id: 'lifeline-focus', label: 'Lifeline Focus', value: 'Tokaido, Tokyo Grid East', tone: 'critical' },
             ],
+            domains: [
+              {
+                id: 'rail',
+                label: 'Rail',
+                metric: '2 rail corridors under review',
+                detail: 'Tokaido corridor requires verification.',
+                severity: 'critical',
+                availability: 'live',
+                trust: 'review',
+                counters: [],
+                signals: [],
+              },
+            ],
           },
         },
       },
@@ -156,6 +221,19 @@ describe('layerControl bundle summaries', () => {
     expect(summary.trust).toBe('review');
     expect(summary.signals).toEqual([
       { id: 'lifeline-focus', label: 'Lifeline Focus', value: 'Tokaido, Tokyo Grid East', tone: 'critical' },
+    ]);
+    expect(summary.domains).toEqual([
+      {
+        id: 'rail',
+        label: 'Rail',
+        metric: '2 rail corridors under review',
+        detail: 'Tokaido corridor requires verification.',
+        severity: 'critical',
+        availability: 'live',
+        trust: 'review',
+        counters: [],
+        signals: [],
+      },
     ]);
   });
 
@@ -171,6 +249,7 @@ describe('layerControl bundle summaries', () => {
     expect(summary.metric).toContain('No medical access posture shift');
     expect(summary.detail).toContain('standing by');
     expect(summary.trust).toBe('pending');
+    expect(summary.domains).toEqual([]);
   });
 
   it('builds a drawer model with presets, bundles, and effective layer state', () => {
