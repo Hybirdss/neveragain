@@ -1,18 +1,16 @@
 {
-  "name": "@namazue/ops",
+  "name": "@namazue/contracts",
   "private": true,
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./types": "./types.ts",
-    "./data/eventEnvelope": "./data/eventEnvelope.ts",
-    "./engine/gmpe": "./engine/gmpe.ts",
-    "./ops/*": "./ops/*.ts"
+    "./console": "./console.ts",
+    "./replay": "./replay.ts",
+    "./scenario": "./scenario.ts"
   },
   "dependencies": {
-    "@namazue/contracts": "*",
     "@namazue/kernel": "*"
   },
   "devDependencies": {

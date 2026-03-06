@@ -1,0 +1,16 @@
+{
+  "name": "@namazue/kernel",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./ops": "./ops.ts",
+    "./revisions": "./revisions.ts",
+    "./seismic": "./seismic.ts"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

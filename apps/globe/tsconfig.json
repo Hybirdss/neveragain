@@ -13,6 +13,16 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "paths": {
+      "@namazue/contracts": ["../../packages/contracts/index.ts"],
+      "@namazue/contracts/*": ["../../packages/contracts/*"],
+      "@namazue/db": ["../../packages/db/index.ts"],
+      "@namazue/db/*": ["../../packages/db/*"],
+      "@namazue/kernel": ["../../packages/kernel/index.ts"],
+      "@namazue/kernel/*": ["../../packages/kernel/*"],
+      "@namazue/ops": ["../../packages/ops/index.ts"],
+      "@namazue/ops/*": ["../../packages/ops/*"]
+    },
 
     /* Linting */
     "strict": true,

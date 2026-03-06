@@ -1,7 +1,9 @@
 import { Hono, type Context } from 'hono';
 import { and, desc, gte, lte } from 'drizzle-orm';
 import { earthquakes } from '@namazue/db';
-import { deriveZoomTier, type FaultType, type ViewportState } from '@namazue/ops';
+import { deriveZoomTier } from '@namazue/ops';
+import type { ConsoleSnapshot } from '@namazue/contracts';
+import type { FaultType, ViewportState } from '@namazue/kernel';
 
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
@@ -139,7 +141,7 @@ opsRoute.get('/console', async (c) => {
     viewport,
   });
 
-  return c.json({
+  const response: ConsoleSnapshot = {
     events,
     ...snapshot,
     intensityGrid: snapshot.intensityGrid
@@ -152,5 +154,7 @@ opsRoute.get('/console', async (c) => {
       source: 'server',
       updatedAt: now,
     },
-  });
+  };
+
+  return c.json(response);
 });

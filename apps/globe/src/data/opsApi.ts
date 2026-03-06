@@ -1,6 +1,5 @@
-import type { RealtimeStatus, ServiceReadModel } from '@namazue/ops/ops/readModelTypes';
-import type { OpsAssetExposure, OpsPriority, ViewportState } from '@namazue/ops/ops/types';
-import type { EarthquakeEvent, IntensityGrid } from '@namazue/ops/types';
+import type { ConsoleSnapshot } from '@namazue/contracts';
+import type { IntensityGrid, ViewportState } from '@namazue/kernel';
 
 const FETCH_TIMEOUT_MS = 8_000;
 
@@ -10,38 +9,8 @@ const API_BASE = (() => {
   return '';
 })();
 
-interface SerializedIntensityGrid extends Omit<IntensityGrid, 'data'> {
-  data: number[];
-}
-
-interface ConsoleSnapshotResponse {
-  events: EarthquakeEvent[];
-  mode: 'calm' | 'event';
-  selectedEvent: EarthquakeEvent | null;
-  intensityGrid: SerializedIntensityGrid | null;
-  exposures: OpsAssetExposure[];
-  priorities: OpsPriority[];
-  readModel: ServiceReadModel;
-  realtimeStatus: RealtimeStatus;
-  sourceMeta: {
-    source: RealtimeStatus['source'];
-    updatedAt: number;
-  };
-}
-
-export interface FetchConsoleSnapshotResult {
-  events: EarthquakeEvent[];
-  mode: 'calm' | 'event';
-  selectedEvent: EarthquakeEvent | null;
+export interface FetchConsoleSnapshotResult extends Omit<ConsoleSnapshot, 'intensityGrid'> {
   intensityGrid: IntensityGrid | null;
-  exposures: OpsAssetExposure[];
-  priorities: OpsPriority[];
-  readModel: ServiceReadModel;
-  realtimeStatus: RealtimeStatus;
-  sourceMeta: {
-    source: RealtimeStatus['source'];
-    updatedAt: number;
-  };
 }
 
 async function fetchWithTimeout<T>(url: string): Promise<T> {
@@ -56,7 +25,7 @@ async function fetchWithTimeout<T>(url: string): Promise<T> {
   }
 }
 
-function deserializeGrid(grid: SerializedIntensityGrid | null): IntensityGrid | null {
+function deserializeGrid(grid: ConsoleSnapshot['intensityGrid']): IntensityGrid | null {
   if (!grid) {
     return null;
   }
@@ -86,7 +55,7 @@ export async function fetchConsoleSnapshot(input: {
   }
 
   const base = API_BASE || '';
-  const data = await fetchWithTimeout<ConsoleSnapshotResponse>(`${base}/api/ops/console?${params}`);
+  const data = await fetchWithTimeout<ConsoleSnapshot>(`${base}/api/ops/console?${params}`);
 
   return {
     ...data,

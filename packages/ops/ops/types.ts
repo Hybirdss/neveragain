@@ -1,13 +1,21 @@
+import type {
+  OpsAssetExposure,
+  OpsPriority,
+  OpsRegion,
+  ZoomTier,
+} from '@namazue/kernel';
+
+export { OPS_REGIONS, OPS_SEVERITIES, ZOOM_TIERS } from '@namazue/kernel';
+export type {
+  OpsAssetExposure,
+  OpsPriority,
+  OpsRegion,
+  OpsSeverity,
+  ViewportState,
+  ZoomTier,
+} from '@namazue/kernel';
+
 export type LaunchMetro = 'tokyo' | 'osaka';
-export type OpsRegion =
-  | 'hokkaido'
-  | 'tohoku'
-  | 'kanto'
-  | 'chubu'
-  | 'kansai'
-  | 'chugoku'
-  | 'shikoku'
-  | 'kyushu';
 export type OpsAssetClass =
   | 'port'
   | 'rail_hub'
@@ -16,16 +24,6 @@ export type OpsAssetClass =
   | 'water_facility'
   | 'telecom_hub'
   | 'building_cluster';
-export type OpsSeverity = 'clear' | 'watch' | 'priority' | 'critical';
-export type ZoomTier = 'national' | 'regional' | 'city' | 'district';
-
-export interface ViewportState {
-  center: { lat: number; lng: number };
-  zoom: number;
-  bounds: [west: number, south: number, east: number, north: number];
-  tier: ZoomTier;
-  activeRegion: OpsRegion | null;
-}
 
 export interface OpsAsset {
   id: string;
@@ -44,22 +42,6 @@ export type OpsFocus =
   | { type: 'event'; earthquakeId: string }
   | { type: 'asset'; assetId: string }
   | { type: 'scenario'; earthquakeId: string };
-
-export interface OpsAssetExposure {
-  assetId: string;
-  severity: OpsSeverity;
-  score: number;
-  summary: string;
-  reasons: string[];
-}
-
-export interface OpsPriority {
-  id: string;
-  assetId: string | null;
-  severity: OpsSeverity;
-  title: string;
-  rationale: string;
-}
 
 export interface OpsScenarioShift {
   magnitudeDelta: number;

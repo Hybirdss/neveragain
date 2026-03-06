@@ -7,14 +7,9 @@ import {
   createEmptyServiceReadModel,
   OPS_ASSETS,
   selectOperationalFocusEvent,
-  type EarthquakeEvent,
-  type IntensityGrid,
-  type RealtimeSource,
-  type RealtimeStatus,
-  type ServiceReadModel,
-  type TsunamiAssessment,
-  type ViewportState,
 } from '@namazue/ops';
+import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '@namazue/contracts';
+import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment, ViewportState } from '@namazue/kernel';
 
 const STALE_AFTER_MS = 60_000;
 
@@ -27,7 +22,7 @@ export interface BuildConsoleSnapshotInput {
   viewport: ViewportState;
 }
 
-export interface ConsoleSnapshot {
+export interface BuiltConsoleSnapshot {
   mode: 'calm' | 'event';
   selectedEvent: EarthquakeEvent | null;
   intensityGrid: IntensityGrid | null;
@@ -131,7 +126,7 @@ function buildIntensityGridForEvent(event: EarthquakeEvent | null): IntensityGri
   );
 }
 
-export function buildConsoleSnapshot(input: BuildConsoleSnapshotInput): ConsoleSnapshot {
+export function buildConsoleSnapshot(input: BuildConsoleSnapshotInput): BuiltConsoleSnapshot {
   const realtimeStatus = deriveRealtimeStatus({
     source: input.source,
     updatedAt: input.updatedAt,

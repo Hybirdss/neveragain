@@ -1,5 +1,30 @@
-import type { OpsState, ViewportState } from './ops/types';
+import type { OpsState } from './ops/types';
 import type {
+  RealtimeStatus,
+  ReplayMilestone,
+  ScenarioDelta,
+  ServiceReadModel,
+} from './ops/readModelTypes';
+import type {
+  EarthquakeEvent,
+  FaultType,
+  IntensityGrid,
+  JmaClass,
+  PrefectureImpact,
+  TsunamiAssessment,
+  ViewportState,
+} from '@namazue/kernel';
+
+export type {
+  EarthquakeEvent,
+  FaultType,
+  IntensityGrid,
+  JmaClass,
+  PrefectureImpact,
+  TsunamiAssessment,
+  ViewportState,
+} from '@namazue/kernel';
+export type {
   RealtimeStatus,
   ReplayMilestone,
   ScenarioDelta,
@@ -69,16 +94,6 @@ export interface Prefecture {
   population: number;
 }
 
-export interface PrefectureImpact {
-  id: string;
-  name: string;
-  nameEn: string;
-  maxIntensity: number;
-  jmaClass: JmaClass;
-  population: number;
-  exposedPopulation: number;  // Population in JMA 4+ zone
-}
-
 // ============================================================
 // Hazard Comparison Grid (Feature 4: J-SHIS comparison)
 // ============================================================
@@ -115,28 +130,6 @@ export interface LandslideGrid {
 }
 
 // ============================================================
-// Earthquake Event (data-pipeline → all modules)
-// ============================================================
-
-export type FaultType = 'crustal' | 'interface' | 'intraslab';
-
-export interface EarthquakeEvent {
-  id: string;
-  lat: number;
-  lng: number;
-  depth_km: number;
-  magnitude: number;
-  time: number; // Unix timestamp (ms)
-  faultType: FaultType;
-  tsunami: boolean;
-  place: {
-    text: string;
-    lang?: string;
-    regionCode?: string;
-  };
-}
-
-// ============================================================
 // GMPE Engine (seismic-engine → globe-viz, dashboard-ui)
 // ============================================================
 
@@ -152,21 +145,6 @@ export interface GmpeResult {
   pgv_surface: number;  // PGV at Vs30=400 m/s (cm/s), = pgv600 × 1.41
   jmaIntensity: number; // Continuous JMA instrumental intensity
   jmaClass: JmaClass;   // Discrete JMA display level
-}
-
-export type JmaClass = '0' | '1' | '2' | '3' | '4' | '5-' | '5+' | '6-' | '6+' | '7';
-
-// ============================================================
-// Intensity Grid (seismic-engine → globe-viz)
-// ============================================================
-
-export interface IntensityGrid {
-  data: Float32Array;  // Flat array of JMA intensities, row-major
-  cols: number;        // Grid columns (longitude direction)
-  rows: number;        // Grid rows (latitude direction)
-  center: { lat: number; lng: number };
-  radiusDeg: number;   // Half-span in degrees from center (latitude)
-  radiusLngDeg?: number; // Half-span in lng degrees (defaults to radiusDeg if omitted)
 }
 
 // ============================================================
@@ -227,17 +205,6 @@ export interface PlateauCityConfig {
 // ── Navigation State ──────────────────────────────────────
 
 export type PanelTab = 'map' | 'live' | 'detail';
-
-// ── Tsunami Assessment (computed once per selection) ─────────
-
-export interface TsunamiAssessment {
-  risk: 'high' | 'moderate' | 'low' | 'none';
-  confidence: 'high' | 'medium';
-  factors: string[];
-  locationType: 'offshore' | 'near_coast' | 'inland';
-  coastDistanceKm: number | null;
-  faultType: string;
-}
 
 // ── AI Analysis State ──────────────────────────────────────
 

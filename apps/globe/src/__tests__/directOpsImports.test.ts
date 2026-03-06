@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { CONSOLE_CONTRACT_VERSION, REPLAY_MILESTONE_KINDS } from '@namazue/contracts';
+import type { ConsoleSnapshot, ReplayMilestone, ScenarioDelta, ServiceReadModel } from '@namazue/contracts';
+import { OPS_REGIONS, ZOOM_TIERS } from '@namazue/kernel';
+import type { EarthquakeEvent, IntensityGrid, ViewportState } from '@namazue/kernel';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -72,5 +76,22 @@ describe('globe direct ops imports', () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it('can import core read-model contracts from dedicated workspace packages', () => {
+    expect(CONSOLE_CONTRACT_VERSION).toBe('v1');
+    expect(REPLAY_MILESTONE_KINDS).toContain('event_locked');
+    expect(OPS_REGIONS).toContain('kanto');
+    expect(ZOOM_TIERS).toContain('city');
+    expectTypeOf<ConsoleSnapshot['events']>().toEqualTypeOf<EarthquakeEvent[]>();
+    expectTypeOf<ConsoleSnapshot['selectedEvent']>().toEqualTypeOf<EarthquakeEvent | null>();
+    expectTypeOf<ConsoleSnapshot['intensityGrid']>().toMatchTypeOf<{ data: number[] } | null>();
+    expectTypeOf<ConsoleSnapshot['readModel']>().toEqualTypeOf<ServiceReadModel>();
+    expectTypeOf<ServiceReadModel['viewport']>().toMatchTypeOf<ViewportState | null>();
+    expectTypeOf<IntensityGrid['data']>().toEqualTypeOf<Float32Array>();
+    expectTypeOf<ReplayMilestone['kind']>().toEqualTypeOf<
+      'event_locked' | 'impact_ready' | 'tsunami_ready' | 'exposure_ready' | 'priorities_published'
+    >();
+    expectTypeOf<ScenarioDelta['changeSummary']>().toEqualTypeOf<string[]>();
   });
 });

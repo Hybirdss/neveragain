@@ -1,8 +1,15 @@
-import type { EarthquakeEvent } from '../types';
+import type {
+  CanonicalEventConfidence,
+  CanonicalEventSource,
+  EarthquakeEvent,
+  RevisionDivergenceSeverity,
+} from '@namazue/kernel';
 
-export type CanonicalEventSource = 'server' | 'usgs' | 'jma' | 'historical' | 'scenario';
-export type CanonicalEventConfidence = 'high' | 'medium' | 'low';
-export type RevisionDivergenceSeverity = 'none' | 'minor' | 'material';
+export type {
+  CanonicalEventConfidence,
+  CanonicalEventSource,
+  RevisionDivergenceSeverity,
+} from '@namazue/kernel';
 
 export interface CanonicalEventEnvelope {
   id: string;
