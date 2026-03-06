@@ -6,6 +6,7 @@ These are the only product/design documents that should drive new work.
 
 - `product/earthquake-ops-os-design.md`
 - `product/earthquake-ops-os-implementation-plan.md`
+- `product/live-development-todo.md`
 
 ## Design Review Surface
 

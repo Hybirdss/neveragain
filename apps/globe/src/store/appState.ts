@@ -12,6 +12,7 @@
  */
 
 import type { AppState } from '../types';
+import { getMetroAssets } from '../ops/assetCatalog';
 
 // ============================================================
 // Generic Store
@@ -125,6 +126,14 @@ const initialState: AppState = {
   viewState: { type: 'idle' },
   activePanel: 'map',
   selectedEvent: null,
+  ops: {
+    metro: 'tokyo',
+    focus: { type: 'calm' },
+    assets: getMetroAssets('tokyo'),
+    exposures: [],
+    priorities: [],
+    scenarioShift: null,
+  },
   tsunamiAssessment: null,
   intensityGrid: null,
   intensitySource: 'none',

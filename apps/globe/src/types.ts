@@ -1,3 +1,5 @@
+import type { OpsState } from './ops/types';
+
 /**
  * Namazue — Shared Type Contracts
  *
@@ -310,6 +312,7 @@ export interface AppState {
   viewState: ViewState;
   activePanel: PanelTab;
   selectedEvent: EarthquakeEvent | null;
+  ops: OpsState;
   tsunamiAssessment: TsunamiAssessment | null;
   intensityGrid: IntensityGrid | null;
   intensitySource: IntensitySource;
