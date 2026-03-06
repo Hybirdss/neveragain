@@ -77,9 +77,9 @@ export const LAYER_FACTORIES: LayerFactory[] = [
   f({
     id: 'ais',
     order: 300,
-    deps: ['vessels', 'selectedEvent'],
+    deps: ['vessels', 'selectedEvent', 'viewport'],
     create(state: ConsoleState) {
-      return createAisLayers(state.vessels, state.selectedEvent);
+      return createAisLayers(state.vessels, state.selectedEvent, state.viewport);
     },
   }),
   f({

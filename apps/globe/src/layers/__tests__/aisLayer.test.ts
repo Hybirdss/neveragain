@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeMaritimeExposure,
+  filterVisibleVessels,
   formatVesselTooltip,
 } from '../aisLayer';
 import type { Vessel } from '../../data/aisManager';
 import { buildMaritimeOverview } from '../../ops/maritimeTelemetry';
 import type { EarthquakeEvent } from '../../types';
+import type { ViewportState } from '../../core/viewportManager';
 
 const selectedEvent: EarthquakeEvent = {
   id: 'eq-ais',
@@ -79,5 +81,21 @@ describe('aisLayer', () => {
     expect(overview.underwayCount).toBe(2);
     expect(overview.summary).toContain('2 tracked');
     expect(overview.summary).toContain('1 high-priority');
+  });
+
+  it('filters rendered vessels to the active viewport while keeping nearby traffic', () => {
+    const viewport: ViewportState = {
+      center: { lat: 35.5, lng: 140.1 },
+      zoom: 9,
+      bounds: [138.5, 33.5, 141.5, 36.5],
+      tier: 'regional',
+      pitch: 0,
+      bearing: 0,
+    };
+
+    const visible = filterVisibleVessels(vessels, viewport);
+
+    expect(visible).toHaveLength(1);
+    expect(visible[0]?.mmsi).toBe('431000001');
   });
 });

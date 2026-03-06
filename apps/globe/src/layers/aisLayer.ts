@@ -21,6 +21,7 @@ import type { Layer } from '@deck.gl/core';
 import type { Vessel, VesselType } from '../data/aisManager';
 import type { EarthquakeEvent } from '../types';
 import { isHighPriorityVessel } from '../ops/maritimeTelemetry';
+import type { ViewportState } from '../core/viewportManager';
 
 type RGBA = [number, number, number, number];
 
@@ -167,25 +168,61 @@ interface TrailDatum {
   path: [number, number][];
 }
 
+function expandBounds(
+  bounds: ViewportState['bounds'],
+  paddingDeg: number,
+): ViewportState['bounds'] {
+  return [
+    bounds[0] - paddingDeg,
+    bounds[1] - paddingDeg,
+    bounds[2] + paddingDeg,
+    bounds[3] + paddingDeg,
+  ];
+}
+
+function boundsPaddingForTier(viewport: ViewportState): number {
+  switch (viewport.tier) {
+    case 'national': return 2.5;
+    case 'regional': return 1.2;
+    case 'city': return 0.5;
+    case 'district': return 0.2;
+  }
+}
+
+export function filterVisibleVessels(
+  vessels: Vessel[],
+  viewport: ViewportState,
+): Vessel[] {
+  const [west, south, east, north] = expandBounds(viewport.bounds, boundsPaddingForTier(viewport));
+  return vessels.filter((vessel) =>
+    vessel.lng >= west &&
+    vessel.lng <= east &&
+    vessel.lat >= south &&
+    vessel.lat <= north,
+  );
+}
+
 export function createAisLayers(
   vessels: Vessel[],
   selectedEvent: EarthquakeEvent | null,
+  viewport?: ViewportState,
 ): Layer[] {
-  if (vessels.length === 0) return [];
+  const renderVessels = viewport ? filterVisibleVessels(vessels, viewport) : vessels;
+  if (renderVessels.length === 0) return [];
 
   const radius = selectedEvent ? impactRadiusKm(selectedEvent.magnitude) : 0;
 
   // Precompute impact zone membership for performance
   const inZone = new Set<string>();
   if (selectedEvent && radius > 0) {
-    for (const v of vessels) {
+    for (const v of renderVessels) {
       const dist = haversineKm(v.lat, v.lng, selectedEvent.lat, selectedEvent.lng);
       if (dist <= radius) inZone.add(v.mmsi);
     }
   }
 
   // Trails for moving vessels only
-  const trailData: TrailDatum[] = vessels
+  const trailData: TrailDatum[] = renderVessels
     .filter((v) => v.trail.length >= 3 && v.sog > 0.5)
     .map((v) => ({ path: v.trail }));
 
@@ -202,7 +239,7 @@ export function createAisLayers(
 
   const vesselLayer = new IconLayer<Vessel>({
     id: 'ais-vessels',
-    data: vessels,
+    data: renderVessels,
     pickable: true,
     autoHighlight: true,
     highlightColor: [125, 211, 252, 200],

@@ -30,6 +30,22 @@ export interface AisManager {
   stop(): void;
 }
 
+export type AisCoverageProfileId = 'japan-core' | 'japan-wide' | 'northwest-pacific';
+
+export interface AisCoverageProfile {
+  id: AisCoverageProfileId;
+  label: string;
+  boundingBoxes: Array<[[number, number], [number, number]]>;
+  laneIds: string[];
+  demoFleetScale: number;
+}
+
+export interface CreateAisManagerOptions {
+  apiKey?: string | null;
+  profileId?: AisCoverageProfileId;
+  demoFleetScale?: number;
+}
+
 // ── Shipping Lane Definitions ─────────────────────────────────
 
 interface ShippingLane {
@@ -110,6 +126,41 @@ const LANES: ShippingLane[] = [
     count: 8,
     spread: 0.04,
     types: ['cargo', 'fishing', 'fishing', 'cargo'],
+  },
+  {
+    id: 'kuroshio-offshore',
+    waypoints: [[139.80, 32.20], [141.50, 33.80], [143.80, 35.70], [146.20, 38.20]],
+    count: 14,
+    spread: 0.09,
+    types: ['cargo', 'tanker', 'cargo', 'other'],
+  },
+  {
+    id: 'nansei-okinawa',
+    waypoints: [[127.20, 26.00], [128.60, 26.50], [130.00, 27.30], [131.40, 28.10]],
+    count: 12,
+    spread: 0.04,
+    types: ['cargo', 'tanker', 'cargo', 'passenger'],
+  },
+  {
+    id: 'east-china-sea',
+    waypoints: [[126.20, 30.80], [128.40, 31.80], [130.60, 32.90], [132.20, 33.70]],
+    count: 12,
+    spread: 0.06,
+    types: ['cargo', 'tanker', 'cargo', 'fishing'],
+  },
+  {
+    id: 'hokuriku-japan-sea',
+    waypoints: [[136.20, 36.20], [137.60, 37.30], [139.10, 38.70], [140.40, 40.10]],
+    count: 10,
+    spread: 0.05,
+    types: ['cargo', 'fishing', 'cargo'],
+  },
+  {
+    id: 'okhotsk',
+    waypoints: [[142.20, 43.90], [144.10, 44.40], [146.00, 44.80], [148.20, 45.10]],
+    count: 8,
+    spread: 0.05,
+    types: ['cargo', 'fishing', 'other'],
   },
   {
     id: 'sanriku-fishing',
@@ -218,6 +269,91 @@ interface InternalVessel extends Vessel {
 const MAX_TRAIL = 15;
 const UPDATE_INTERVAL = 3000;
 
+const ALL_LANE_IDS = LANES.map((lane) => lane.id);
+const CORE_LANE_IDS = [
+  'tokyo-bay',
+  'ise-bay',
+  'osaka-kobe',
+  'seto-inland',
+  'kanmon-strait',
+  'hakata',
+  'tsugaru-strait',
+  'sanriku-fishing',
+] satisfies string[];
+
+const AIS_COVERAGE_PROFILES: Record<AisCoverageProfileId, AisCoverageProfile> = {
+  'japan-core': {
+    id: 'japan-core',
+    label: 'Japan Core',
+    boundingBoxes: [
+      [[24, 122], [46, 150]],
+    ],
+    laneIds: CORE_LANE_IDS,
+    demoFleetScale: 1,
+  },
+  'japan-wide': {
+    id: 'japan-wide',
+    label: 'Japan Wide',
+    boundingBoxes: [
+      [[24, 122], [34.5, 133]],
+      [[30, 131], [38.5, 147]],
+      [[34, 128], [46.5, 142]],
+      [[40.5, 140], [47.5, 151]],
+    ],
+    laneIds: ALL_LANE_IDS,
+    demoFleetScale: 2,
+  },
+  'northwest-pacific': {
+    id: 'northwest-pacific',
+    label: 'Northwest Pacific',
+    boundingBoxes: [
+      [[22, 122], [31, 132]],
+      [[28, 128], [38, 146]],
+      [[34, 130], [47.5, 148]],
+      [[38, 142], [48, 156]],
+    ],
+    laneIds: ALL_LANE_IDS,
+    demoFleetScale: 3,
+  },
+};
+
+function parseCoverageProfileId(value: string | undefined): AisCoverageProfileId {
+  const normalized = value?.trim();
+  switch (normalized) {
+    case 'japan-core':
+    case 'japan-wide':
+    case 'northwest-pacific':
+      return normalized;
+    default:
+      return 'japan-wide';
+  }
+}
+
+function clampDemoScale(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(6, Math.round(value!)));
+}
+
+export function getAisCoverageProfile(profileId: AisCoverageProfileId): AisCoverageProfile {
+  return AIS_COVERAGE_PROFILES[profileId];
+}
+
+export function resolveAisManagerConfig(
+  options: CreateAisManagerOptions = {},
+): {
+  apiKey: string | null;
+  profile: AisCoverageProfile;
+  demoFleetScale: number;
+} {
+  const profileId = options.profileId ?? parseCoverageProfileId(AIS_COVERAGE_PROFILE_ID);
+  const profile = getAisCoverageProfile(profileId);
+  return {
+    apiKey: (options.apiKey ?? AISSTREAM_KEY ?? null)?.trim() || null,
+    profile,
+    demoFleetScale: clampDemoScale(options.demoFleetScale ?? AIS_DEMO_SCALE, profile.demoFleetScale),
+  };
+}
+
 // ── Fleet Generation ──────────────────────────────────────────
 
 let nameCounters: Record<VesselType, number>;
@@ -232,16 +368,19 @@ function pickName(type: VesselType): string {
   return suffix > 0 ? `${pool[idx]} ${suffix + 1}` : pool[idx];
 }
 
-function generateFleet(): InternalVessel[] {
+function generateFleet(profile: AisCoverageProfile, demoFleetScale: number): InternalVessel[] {
   const fleet: InternalVessel[] = [];
   nameCounters = { cargo: 0, tanker: 0, passenger: 0, fishing: 0, other: 0 };
   let mmsiBase = 431000000; // Japan MMSI range
+  const laneById = new Map(LANES.map((lane) => [lane.id, lane]));
 
-  for (let li = 0; li < LANES.length; li++) {
-    const lane = LANES[li];
+  for (let li = 0; li < profile.laneIds.length; li++) {
+    const lane = laneById.get(profile.laneIds[li]);
+    if (!lane) continue;
     const rng = seededRandom(li * 1000 + 42);
+    const vesselCount = Math.max(1, Math.round(lane.count * demoFleetScale));
 
-    for (let si = 0; si < lane.count; si++) {
+    for (let si = 0; si < vesselCount; si++) {
       const type = lane.types[si % lane.types.length];
       const progress = rng();
       const [baseLng, baseLat] = interpolateLane(lane.waypoints, progress);
@@ -271,6 +410,17 @@ function generateFleet(): InternalVessel[] {
   }
 
   return fleet;
+}
+
+export function generateDemoFleet(
+  options: Pick<CreateAisManagerOptions, 'profileId' | 'demoFleetScale'> = {},
+): Vessel[] {
+  const config = resolveAisManagerConfig({
+    profileId: options.profileId,
+    demoFleetScale: options.demoFleetScale,
+    apiKey: null,
+  });
+  return generateFleet(config.profile, config.demoFleetScale);
 }
 
 // ── Fleet Advancement ─────────────────────────────────────────
@@ -326,7 +476,6 @@ function advanceFleet(fleet: InternalVessel[]): void {
 // ── AISstream.io WebSocket ─────────────────────────────────────
 
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
-const JAPAN_BBOX: [[number, number], [number, number]] = [[24, 122], [46, 150]];
 const FLUSH_INTERVAL = 2000; // push updates every 2s to avoid thrashing store
 
 // AISstream message types
@@ -364,6 +513,7 @@ function classifyShipType(navStatus: number, name: string): VesselType {
 
 function createLiveAisManager(
   apiKey: string,
+  profile: AisCoverageProfile,
   onUpdate: (vessels: Vessel[]) => void,
 ): AisManager {
   let ws: WebSocket | null = null;
@@ -381,7 +531,7 @@ function createLiveAisManager(
       console.log('[AIS] WebSocket connected');
       ws!.send(JSON.stringify({
         APIKey: apiKey,
-        BoundingBoxes: [JAPAN_BBOX],
+        BoundingBoxes: profile.boundingBoxes,
         FilterMessageTypes: ['PositionReport'],
       }));
     };
@@ -473,6 +623,8 @@ function createLiveAisManager(
 // ── Demo Fallback ─────────────────────────────────────────────
 
 function createDemoAisManager(
+  profile: AisCoverageProfile,
+  demoFleetScale: number,
   onUpdate: (vessels: Vessel[]) => void,
 ): AisManager {
   let fleet: InternalVessel[] = [];
@@ -481,7 +633,7 @@ function createDemoAisManager(
   return {
     start() {
       if (timer) return;
-      fleet = generateFleet();
+      fleet = generateFleet(profile, demoFleetScale);
       onUpdate(fleet);
 
       timer = setInterval(() => {
@@ -500,14 +652,19 @@ function createDemoAisManager(
 // ── Public Interface ──────────────────────────────────────────
 
 const AISSTREAM_KEY = (import.meta.env.VITE_AISSTREAM_KEY as string | undefined)?.trim();
+const AIS_COVERAGE_PROFILE_ID = (import.meta.env.VITE_AIS_COVERAGE_PROFILE as string | undefined)?.trim();
+const AIS_DEMO_SCALE = Number(import.meta.env.VITE_AIS_DEMO_SCALE ?? '');
 
 export function createAisManager(
   onUpdate: (vessels: Vessel[]) => void,
+  options: CreateAisManagerOptions = {},
 ): AisManager {
-  if (AISSTREAM_KEY) {
-    console.log('[AIS] Using live AISstream.io feed');
-    return createLiveAisManager(AISSTREAM_KEY, onUpdate);
+  const config = resolveAisManagerConfig(options);
+
+  if (config.apiKey) {
+    console.log(`[AIS] Using live AISstream.io feed (${config.profile.label})`);
+    return createLiveAisManager(config.apiKey, config.profile, onUpdate);
   }
-  console.log('[AIS] No API key, using synthetic fleet');
-  return createDemoAisManager(onUpdate);
+  console.log(`[AIS] No API key, using synthetic fleet (${config.profile.label} x${config.demoFleetScale})`);
+  return createDemoAisManager(config.profile, config.demoFleetScale, onUpdate);
 }
