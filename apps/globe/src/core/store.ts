@@ -18,6 +18,10 @@ import {
   type OperatorViewId,
 } from '../layers/bundleRegistry';
 import type { BundleId, LayerId } from '../layers/layerRegistry';
+import {
+  createDefaultOperatorLatencyState,
+  type OperatorLatencyState,
+} from './operatorLatency';
 
 // ── Console State ──────────────────────────────────────────────
 
@@ -43,6 +47,7 @@ export interface ConsoleState {
   bundleDrawerOpen: boolean;
   panelsVisible: boolean;
   showCoordinates: boolean;
+  operatorLatency: OperatorLatencyState;
 }
 
 // ── Store Implementation ───────────────────────────────────────
@@ -160,6 +165,7 @@ const initialState: ConsoleState = {
   bundleDrawerOpen: false,
   panelsVisible: true,
   showCoordinates: true,
+  operatorLatency: createDefaultOperatorLatencyState(),
 };
 
 export const consoleStore = new ConsoleStore(initialState);
