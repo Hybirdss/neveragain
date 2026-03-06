@@ -1,276 +1,465 @@
-# namazue.dev Earthquake Ops OS Design
+# namazue.dev Earthquake Operations Console Design
 
 **Date:** 2026-03-06
-**Status:** Approved in session
+**Status:** Approved in session after interactive refinement
 **Product Brand:** `namazue.dev`
-**Working Repository:** `neveragain`
+**Repository:** `neveragain`
 
-## Product Core
+## North Star
 
-`namazue.dev` is not an earthquake information app.
+`namazue.dev` is not an earthquake app.
 
-It is a spatial intelligence system that reconstructs how an earthquake changes city and infrastructure operations, then helps operators decide what to inspect first.
-
-The product should answer four questions within 30 seconds of opening the app:
-
-1. What happened?
-2. Where is the real impact?
-3. Which assets are exposed?
-4. What should be checked now?
+It is a calm, high-trust, operator-first spatial console that turns earthquakes into operational consequences, then lets the user test how those consequences change.
 
 The product category is:
 
 `earthquake-to-operations intelligence`
 
+The product promise is:
+
+`real event -> impact field -> asset exposure -> operational priorities -> replay -> scenario shift`
+
+## Signature Moment
+
+The defining moment of the product is not the globe itself.
+
+The defining moment is:
+
+`a live earthquake is converted into immediate operational impact`
+
+The user should see, almost instantly:
+
+- what happened
+- where the impact is concentrated
+- which assets are exposed
+- what should be checked now
+
+Everything else in the product supports that moment:
+
+- replay
+- asset drilldown
+- scenario shift
+- analyst reasoning
+
+## Product Position
+
+The product should feel like:
+
+- Palantir-grade operational seriousness
+- Apple-grade clarity and restraint
+- WorldView-grade spatial immersion
+
+It must not feel like:
+
+- a news app
+- a consumer safety app
+- a flashy sci-fi dashboard
+- a chatbot with a map attached
+
 ## Primary User
 
-The first release is optimized for operators who need rapid situational judgment, not passive viewers.
+The first release is built for operators who need rapid judgment.
 
 Primary users:
 
-- port and coastal operations teams
-- rail or transit operations staff
-- facility and infrastructure managers
-- public-sector risk and resilience teams
+- coastal and port operations teams
+- rail operations and transit control teams
+- hospital and emergency access planners
+- public-sector resilience and risk teams
 
 Secondary users:
 
 - analysts
-- media and public users who need an intelligible operating picture
+- media and public users who want a reliable operating picture
 
-## Product Position
+## Launch Scope
 
-The inspiration is the operational feel of products like WorldView, but the core value is not a beautiful globe. The durable value is a decision system:
+The first product is intentionally narrow.
 
-`live event -> impact reconstruction -> asset exposure -> operational priorities -> replay -> simulation`
+Launch wedge:
 
-This means the app must feel closer to an operator console than a dashboard or news map.
+`Tokyo-first earthquake operations console`
 
-## System Shape
+Tokyo is the default city because it combines:
 
-The system is built from five layers.
+- dense critical infrastructure
+- clear coastal exposure
+- rail, port, and hospital overlap
+- globally legible stakes
+- strong demo impact
 
-### 1. Event Layer
+Osaka is the next city, not the starting city.
 
-Raw and normalized earthquake events:
+## Default Operating Mode
 
-- origin time
-- epicenter
-- magnitude
-- depth
-- fault type
-- tsunami flags and related updates
-- aftershock relationships
+The product should never look empty.
 
-Current code already contains much of this layer in `apps/worker/src/routes/events.ts`, `apps/globe/src/data/earthquakeStore.ts`, and the worker ingest pipeline.
+When no major event is active, the product enters:
 
-### 2. Impact Layer
+`calm mode`
 
-Physical interpretation of the event:
+Calm mode means:
 
-- estimated intensity field
-- wave propagation
-- tsunami risk
-- aftershock posture
-- coastal or inland severity framing
+- Tokyo metro remains visible
+- key assets remain visible
+- the console reads as ready, not blank
+- the user can enter replay or scenario tools immediately
 
-Current code already has a strong starting point here in the GMPE pipeline, presentation summaries, and tsunami assessment logic.
+The system message in calm mode should communicate that no critical operational earthquake event is active, while still offering useful entry points:
 
-### 3. Asset Layer
+- recent major event replay
+- scenario shift
+- city asset overview
+- layer inspection
 
-Operational entities placed into the impact field:
+This makes the product feel like an always-on console, not a feed that is only useful during breaking events.
 
-- ports
-- rail lines and rail hubs
-- hospitals
+## First-Screen Architecture
 
-This layer does not exist yet in a product-ready way and must be added as a first-class model, not a visual afterthought.
+The first screen must be extremely clean.
 
-### 4. Decision Layer
+The user should not land in a dense control room.
+They should land in a quiet, composed snapshot that opens into depth.
 
-Derived operational priorities:
+The first screen consists of four blocks.
 
-- what should be checked first
-- which assets are highest-risk
-- which conditions justify escalation
-- what the likely next-hour risk looks like
+### 1. Event Snapshot
 
-This layer is the product moat. It should be driven by deterministic rules and domain models first, with AI used to explain or summarize, not invent truth.
+One event is always the current focus.
 
-### 5. Replay / Simulation Layer
+The snapshot answers:
 
-Time and counterfactual controls:
+- what happened
+- when
+- what operating condition changed
 
-- replay event evolution minute by minute
-- inspect what was knowable at each time
-- modify a small set of inputs such as magnitude, depth, or origin point
-- compare baseline vs alternate scenario
+This is not a consumer summary card.
+It is the top-level system interpretation.
 
-This layer is what turns the product from a viewer into an operations system.
+### 2. Asset Exposure
 
-## First Release Scope
-
-The first release should not attempt to be a universal crisis platform.
-
-The first wedge is:
-
-`Tokyo / Osaka coastal metro earthquake ops`
-
-This scope is strong because it combines:
-
-- dense earthquake history
-- coastline exposure
-- port and rail importance
-- high demo impact
-- plausible public data availability
-
-The minimum viable release includes six capabilities.
-
-### 1. Live Event Brief
-
-One primary event is auto-selected and summarized in operator language rather than news language.
-
-### 2. Impact Map
-
-The spatial view focuses on intensity and operating conditions, not markers alone:
-
-- intensity field
-- wave progression
-- coastal risk
-- selected asset overlays
-
-### 3. Asset Exposure
-
-Only three asset classes ship first:
+The first release includes three asset classes:
 
 - ports
-- rail
+- rail hubs
 - hospitals
 
-Each asset should visibly inherit event exposure rather than merely coexist with the map.
+These appear as operating assets, not decorative points.
 
-### 4. Ops Priorities
+The system should surface the most exposed assets first and make it clear why they are elevated.
 
-The right-hand operating panel should always produce a short ordered list of what to inspect now.
+### 3. Check These Now
 
 This is the core product behavior.
 
-### 5. Timeline Replay
+The console must always be able to generate an ordered set of actions or checks such as:
 
-Users can scrub through event and update progression to see how the picture evolved.
+- verify port access condition
+- inspect rail hub operations
+- confirm hospital access posture
 
-### 6. What-if Simulation
+If the system cannot produce a clear ordered list, it is not yet the right product.
 
-Users can modify a small set of parameters and see changed exposure and priorities.
+### 4. Replay Rail
 
-This can be intentionally narrow in v1:
+The bottom interaction surface is a replay rail, not a generic timeline widget.
+
+It should help the user answer:
+
+- how the event developed
+- what was knowable at each point
+- when priorities changed
+
+## Depth Model
+
+The product becomes more powerful as the user goes deeper, but the first view stays disciplined.
+
+### Layer 1: Snapshot
+
+This is the first-screen layer.
+
+It shows:
+
+- current event
+- top exposed assets
+- top priorities
+- next-hour posture
+
+### Layer 2: Operational Drilldown
+
+This opens when the user focuses an event or asset.
+
+It shows:
+
+- why a given asset is exposed
+- how the impact field overlaps the asset
+- what supporting facts justify the current priority
+
+### Layer 3: Analyst / Scenario
+
+This is the deep layer.
+
+It shows:
+
+- replay
+- scenario shift
+- reasoning
+- evidence
+- export and reporting paths
+
+The core design rule is:
+
+`overview outside, depth inside`
+
+## Interaction Model
+
+The product should feel like one console, not a set of pages.
+
+Navigation should happen by focus, not by route changes.
+
+The user flow is:
+
+1. start from calm mode or a live focused event
+2. select an event or asset
+3. drill into operational consequences
+4. open scenario shift if needed
+
+The right-side panel is not just a detail panel.
+It is the current focus context for whatever the user has selected.
+
+That means:
+
+- event selected -> event context
+- port selected -> port context
+- hospital selected -> hospital context
+- scenario active -> delta context
+
+The governing interaction rule is:
+
+`navigation by focus, not by page`
+
+## Flagship Interaction
+
+The flagship interaction is:
+
+`Scenario Shift`
+
+This is not the first thing on screen.
+It appears after the user selects or focuses an event.
+
+The interaction starts with a single controlled change:
 
 - magnitude
 - depth
 - epicenter offset
 
-## Product Experience
+The system then recomputes:
 
-The first impression should be a calm control room, not a cinematic consumer app.
+- impact field
+- asset exposure
+- operational priorities
 
-### Main Layout
+And it explains the change in one short line:
 
-- center: 3D globe or metro-centered spatial view
-- left-top: event brief
-- right: ops priorities and exposed assets
-- bottom: replay timeline
+- why port risk increased
+- why a rail hub moved higher in the queue
+- why hospital exposure changed
 
-### Interaction Principles
+This is the moment where the product stops feeling like a viewer and starts feeling like a simulation system.
 
-- meaning before data
-- operator calm over spectacle
-- depth on demand
-- physical truth before AI narration
+## Spatial View
 
-### Spatial View Principles
+The camera philosophy is:
 
-The map should privilege operating layers over decorative event markers:
+`metro-first, globe-second`
 
-- intensity surfaces
-- coastal danger framing
-- asset overlays
-- affected corridors
-- sensor or reference points when relevant
+The default view begins over Tokyo metro at a scale where coastlines and the three launch asset classes are meaningful.
 
-### AI Role
+Only after the user widens the context should the product expand toward:
 
-AI should explain and compress.
-AI should not be the source of truth for event state, exposure state, or operational priority state.
+- greater Tokyo
+- national view
+- wider Pacific view
+
+The map should emphasize operating layers over decorative event pins:
+
+- intensity fields
+- coastal posture
+- rail / port / hospital overlays
+- corridor stress
+- selected evidence points when useful
+
+## Visual Language
+
+The system should look like a next-generation maritime and metro operations console.
+
+Visual direction:
+
+- deep navy foundation
+- cold metal neutrals
+- amber and red reserved for meaningful escalation
+- low-gloss surfaces
+- thin precise lines
+- dense, deliberate typography
+- restrained motion
+
+The visual mix should be:
+
+- 80% cold naval / aviation control room
+- 20% premium future-facing polish
+
+It should never drift into:
+
+- neon sci-fi
+- gamer HUD
+- glass-card overload
+- consumer dashboard aesthetics
+
+## Tone And Voice
+
+The system voice is:
+
+- calm
+- precise
+- high-trust
+- operator-first
+
+It should sound like a trusted operations analyst, not a chatbot and not a news anchor.
+
+Good examples:
+
+- `Operational impact elevated across coastal Tokyo`
+- `3 assets require immediate inspection`
+- `Port disruption likelihood increased`
+- `Hospital access risk changed under scenario shift`
+
+AI should appear only as an embedded analyst layer.
+
+Recommended labels:
+
+- `Analyst Note`
+- `Reasoning`
+- `Why this changed`
+- `Suggested checks`
+
+Avoid:
+
+- `Chat`
+- `Ask AI`
+- `Assistant`
+- `Copilot`
+
+## The Holy Shit Sequence
+
+The product should be intentionally staged around a sequence that produces immediate conviction.
+
+### 1. Calm Mode
+
+Tokyo is shown as a quiet but active operating space.
+
+### 2. Event Lock
+
+A live or sample earthquake becomes the active event.
+The impact field forms over the metro.
+
+### 3. Asset Illumination
+
+Ports, rail hubs, and hospitals illuminate with different severities.
+
+### 4. Priority Formation
+
+`Check These Now` becomes populated with a short ordered list.
+
+### 5. Replay Scrub
+
+The user scrubs time and sees what was knowable at each moment.
+
+### 6. Scenario Shift
+
+The user modifies the event and immediately sees changed consequences.
+
+That sequence should make the user think:
+
+`this is not a map, this is a machine for understanding operational reality`
+
+## System Shape
+
+The architecture is still built around five layers.
+
+### 1. Event Layer
+
+- earthquake ingest
+- event normalization
+- update lineage
+- aftershock relationships
+
+### 2. Impact Layer
+
+- intensity field
+- wave propagation
+- tsunami assessment
+- geographic severity framing
+
+### 3. Asset Layer
+
+- ports
+- rail hubs
+- hospitals
+
+### 4. Decision Layer
+
+- deterministic priorities
+- escalation posture
+- next-hour checks
+
+### 5. Replay / Simulation Layer
+
+- timeline replay
+- knowable-state reconstruction
+- scenario shift
 
 ## Rebuild Strategy
 
-The right strategy is not to throw everything away.
-
-The correct strategy is:
+The right strategy is:
 
 `keep the physics, replace the product`
 
-### Keep
+Keep:
 
-- `apps/globe/src/engine/*`
-- `apps/globe/src/data/earthquakeStore.ts`
-- worker ingest and event delivery path
-- normalized analysis pipeline in `packages/db/*`
-- 3D rendering foundation in the globe app
+- worker ingest and event delivery
+- GMPE and impact generation
+- tsunami heuristics
+- Cesium rendering base
+- existing timeline and presentation scaffolding where useful
 
-### Replace or Reframe
+Replace or reframe:
 
-- event-list-first information hierarchy
-- detail-panel-first product logic
-- current shell layout and top-level narrative
-- direct UI dependence on raw event or analysis payload shape
-- absence of asset, exposure, and priority models
-
-### New Product Models
-
-- `Event`
-- `ImpactField`
-- `Asset`
-- `Exposure`
-- `Priority`
-- `Scenario`
-
-These models should become the shared vocabulary of the rebuilt app.
-
-## Current Code Constraints
-
-The current codebase is strongest in event ingestion and impact estimation.
-
-It is weakest in:
-
-- product-level information architecture
-- domain models for assets and priorities
-- a replay-first operator workflow
-- scenario modeling
-- UI shell cohesion
-
-The current `AppState` and presentation helpers are useful transitional scaffolding, but they should evolve from earthquake-summary view models into operations-oriented world state.
+- event-list-first shell
+- dashboard-first layout
+- detail-panel-centered flow
+- consumer-style earthquake summaries as the primary surface
+- lack of asset and priority models
 
 ## Non-Goals For V1
 
-- global all-hazards support
-- chat-first workflow
-- speculative multi-agency command features
-- every infrastructure class at once
-- excessive cinematic motion or visual noise
+- global all-hazards platform
+- chatbot-first workflow
+- every infrastructure domain at once
+- agency-specific workflow engines
+- cinematic over-design
 
 ## Success Criteria
 
 The first release succeeds when:
 
-1. a user can understand the operational meaning of an earthquake in under 30 seconds
-2. exposed ports, rail, and hospitals are visible without extra searching
-3. the product produces a clear ordered list of what to inspect now
-4. replay makes it obvious how the situation evolved over time
-5. a narrow what-if mode changes both exposure and priorities in a believable way
+1. the first screen clearly reads as an operating console, not a dashboard
+2. Tokyo starts in calm mode and never feels empty
+3. a live or sample event immediately produces exposed assets and ordered checks
+4. the flagship scenario shift visibly changes consequences in real time
+5. the system sounds precise and trustworthy across the whole experience
 
 ## Design Summary
 
-`namazue.dev` should become an earthquake operations intelligence system for coastal metros.
+`namazue.dev` should launch as a Tokyo-first earthquake operations console.
 
-The first release is not a broad simulation platform. It is a sharply focused operations board with strong physics, clear asset exposure, deterministic priorities, replay, and limited scenario control.
+It must be visually restrained, operationally legible, and deep enough to let the user move from a calm snapshot into replay and scenario testing without ever leaving a single focused spatial console.
