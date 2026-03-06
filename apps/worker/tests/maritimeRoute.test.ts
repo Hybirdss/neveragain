@@ -33,6 +33,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
                     attempted_live: true,
                     upstream_phase: 'connect-timeout',
                     messages_received: 0,
+                    transport: 'websocket-constructor',
                     socket_opened: false,
                     subscription_sent: false,
                     close_code: null,
@@ -62,6 +63,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
         attempted_live: boolean;
         upstream_phase: string;
         messages_received: number;
+        transport: string | null;
         socket_opened: boolean | null;
         subscription_sent: boolean | null;
         close_code: number | null;
@@ -81,6 +83,7 @@ test('maritime route forwards maritime queries to the durable object hub', async
   assert.equal(payload.provenance.diagnostics.attempted_live, true);
   assert.equal(payload.provenance.diagnostics.upstream_phase, 'connect-timeout');
   assert.equal(payload.provenance.diagnostics.messages_received, 0);
+  assert.equal(payload.provenance.diagnostics.transport, 'websocket-constructor');
   assert.equal(payload.provenance.diagnostics.socket_opened, false);
   assert.equal(payload.provenance.diagnostics.subscription_sent, false);
   assert.equal(payload.provenance.diagnostics.close_code, null);

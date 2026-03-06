@@ -29,6 +29,7 @@ export interface MaritimeProviderDiagnostics {
   attemptedLive: boolean;
   upstreamPhase: MaritimeUpstreamPhase;
   messagesReceived: number;
+  transport?: 'fetch-upgrade' | 'websocket-constructor';
   socketOpened?: boolean;
   subscriptionSent?: boolean;
   closeCode?: number;

@@ -11,6 +11,7 @@ test('maritime provider falls back to synthetic snapshots when no AIS key is con
   assert.equal(snapshot.fallbackReason, 'not-configured');
   assert.equal(snapshot.diagnostics.attemptedLive, false);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'not-configured');
+  assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
   assert.equal(snapshot.profile.id, 'japan-wide');
   assert.ok(snapshot.totalTracked > 122);
 });
@@ -68,6 +69,59 @@ test('maritime provider can build a live snapshot from AISstream websocket messa
   assert.equal(snapshot.vessels[0]?.lat, 35.2);
 });
 
+test('maritime provider prefers fetch-upgrade websocket clients when available', async () => {
+  const socket = new FakeWebSocket('wss://stream.aisstream.io/v0/stream');
+  let fetchCalls = 0;
+  const provider = createMaritimeSnapshotProvider(
+    {
+      AISSTREAM_API_KEY: 'test-key',
+      AISSTREAM_COLLECTION_WINDOW_MS: 10,
+    },
+    {
+      fetchImpl: async (url, init) => {
+        fetchCalls += 1;
+        assert.equal(String(url), 'https://stream.aisstream.io/v0/stream');
+        assert.equal(init?.headers instanceof Headers ? init.headers.get('Upgrade') : null, 'websocket');
+        return {
+          webSocket: socket as unknown as WebSocket,
+        } as Response;
+      },
+      webSocketFactory: () => {
+        throw new Error('constructor path should not run');
+      },
+    },
+  );
+
+  const snapshotPromise = provider.loadProfileSnapshot('japan-wide', 6_000);
+  await Promise.resolve();
+  socket.emitOpen();
+  socket.emitMessage(JSON.stringify({
+    MessageType: 'PositionReport',
+    MetaData: {
+      MMSI: 431000222,
+      ShipName: 'FETCH TEST',
+      time_utc: '2026-03-07T00:00:06Z',
+    },
+    Message: {
+      PositionReport: {
+        Latitude: 34.7,
+        Longitude: 135.3,
+        Cog: 45,
+        Sog: 8,
+        NavigationalStatus: 0,
+      },
+    },
+  }));
+
+  const snapshot = await snapshotPromise;
+  assert.equal(fetchCalls, 1);
+  assert.equal(snapshot.source, 'live');
+  assert.equal(snapshot.diagnostics.transport, 'fetch-upgrade');
+  assert.equal(snapshot.diagnostics.socketOpened, true);
+  assert.equal(snapshot.diagnostics.subscriptionSent, true);
+  assert.equal(snapshot.vessels[0]?.name, 'FETCH TEST');
+});
+
 test('maritime provider falls back to synthetic snapshots when AISstream fails', async () => {
   const provider = createMaritimeSnapshotProvider(
     {
@@ -86,6 +140,7 @@ test('maritime provider falls back to synthetic snapshots when AISstream fails',
   assert.equal(snapshot.fallbackReason, 'upstream-error');
   assert.equal(snapshot.diagnostics.attemptedLive, true);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'upstream-error');
+  assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
   assert.match(snapshot.diagnostics.lastError ?? '', /socket unavailable/);
   assert.ok(snapshot.totalTracked > 122);
 });
@@ -107,6 +162,7 @@ test('maritime provider falls back when AISstream never opens', async () => {
   assert.equal(snapshot.fallbackReason, 'connect-timeout');
   assert.equal(snapshot.diagnostics.attemptedLive, true);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'connect-timeout');
+  assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
   assert.equal(snapshot.diagnostics.messagesReceived, 0);
   assert.ok(snapshot.totalTracked > 122);
 });
@@ -139,6 +195,7 @@ test('maritime provider marks sockets that close before open as upstream handsha
   assert.equal(snapshot.fallbackReason, 'upstream-error');
   assert.equal(snapshot.diagnostics.attemptedLive, true);
   assert.equal(snapshot.diagnostics.upstreamPhase, 'closed-before-open');
+  assert.equal(snapshot.diagnostics.transport, 'websocket-constructor');
   assert.equal(snapshot.diagnostics.socketOpened, false);
   assert.equal(snapshot.diagnostics.subscriptionSent, false);
   assert.equal(snapshot.diagnostics.closeCode, 1006);
@@ -160,6 +217,8 @@ class FakeWebSocket {
   send(message: string): void {
     this.sentMessages.push(message);
   }
+
+  accept(): void {}
 
   close(): void {}
 

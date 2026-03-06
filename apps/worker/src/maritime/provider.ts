@@ -3,10 +3,12 @@ import type { Env } from '../index.ts';
 import type { MaritimeFallbackReason, MaritimeProviderDiagnostics, MaritimeSnapshotProvider } from './service.ts';
 
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
+const AISSTREAM_FETCH_URL = 'https://stream.aisstream.io/v0/stream';
 const DEFAULT_COLLECTION_WINDOW_MS = 1_500;
 const MAX_TRAIL = 15;
 
 interface CreateMaritimeSnapshotProviderDependencies {
+  fetchImpl?: typeof fetch;
   webSocketFactory?: (url: string) => WebSocket;
   connectTimeoutMs?: number;
 }
@@ -41,6 +43,7 @@ export function createMaritimeSnapshotProvider(
   }
 
   const collectionWindowMs = normalizeCollectionWindowMs(env.AISSTREAM_COLLECTION_WINDOW_MS);
+  const fetchImpl = dependencies.fetchImpl ?? (typeof WebSocketPair !== 'undefined' ? fetch.bind(globalThis) : undefined);
   const webSocketFactory = dependencies.webSocketFactory ?? ((url: string) => new WebSocket(url));
   const connectTimeoutMs = dependencies.connectTimeoutMs ?? Math.max(2_500, collectionWindowMs * 2);
 
@@ -53,6 +56,7 @@ export function createMaritimeSnapshotProvider(
           profileId,
           now,
           collectionWindowMs,
+          fetchImpl,
           webSocketFactory,
           connectTimeoutMs,
         });
@@ -67,6 +71,7 @@ export function createMaritimeSnapshotProvider(
             attemptedLive: true,
             upstreamPhase: 'no-live-data',
             messagesReceived: snapshot.diagnostics.messagesReceived,
+            transport: snapshot.diagnostics.transport,
             socketOpened: snapshot.diagnostics.socketOpened,
             subscriptionSent: snapshot.diagnostics.subscriptionSent,
           },
@@ -105,6 +110,7 @@ async function collectAisstreamSnapshot(input: {
   profileId: AisCoverageProfileId;
   now: number;
   collectionWindowMs: number;
+  fetchImpl?: typeof fetch;
   webSocketFactory: (url: string) => WebSocket;
   connectTimeoutMs: number;
 }): Promise<{
@@ -120,76 +126,107 @@ async function collectAisstreamSnapshot(input: {
   let messagesReceived = 0;
   let socketOpened = false;
   let subscriptionSent = false;
+  let transport: MaritimeProviderDiagnostics['transport'] = input.fetchImpl ? 'fetch-upgrade' : 'websocket-constructor';
 
   await new Promise<void>((resolve, reject) => {
-    const socket = input.webSocketFactory(AISSTREAM_URL);
-    let settled = false;
-    let openTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-      finish(new Error('AISstream websocket connect timeout'));
-    }, input.connectTimeoutMs);
-    let collectionTimer: ReturnType<typeof setTimeout> | null = null;
+    const attachSocket = (socket: WebSocket) => {
+      let settled = false;
+      let openTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        finish(new Error('AISstream websocket connect timeout'));
+      }, input.connectTimeoutMs);
+      let collectionTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (openTimer) {
-        clearTimeout(openTimer);
-        openTimer = null;
-      }
-      if (collectionTimer) {
-        clearTimeout(collectionTimer);
-        collectionTimer = null;
-      }
-      try {
-        socket.close();
-      } catch {
-        // ignore socket close errors
-      }
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        if (openTimer) {
+          clearTimeout(openTimer);
+          openTimer = null;
+        }
+        if (collectionTimer) {
+          clearTimeout(collectionTimer);
+          collectionTimer = null;
+        }
+        try {
+          socket.close();
+        } catch {
+          // ignore socket close errors
+        }
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+
+      socket.addEventListener('open', () => {
+        socketOpened = true;
+        socket.send(JSON.stringify({
+          APIKey: input.apiKey,
+          BoundingBoxes: profile.boundingBoxes,
+          FilterMessageTypes: ['PositionReport'],
+        }));
+        subscriptionSent = true;
+        if (openTimer) {
+          clearTimeout(openTimer);
+          openTimer = null;
+        }
+        collectionTimer = setTimeout(() => finish(), input.collectionWindowMs);
+      });
+
+      socket.addEventListener('message', (event) => {
+        const vessel = parseAisstreamMessage(event, input.now, vessels.get.bind(vessels));
+        if (!vessel) return;
+        messagesReceived += 1;
+        vessels.set(vessel.mmsi, vessel);
+      });
+
+      socket.addEventListener('error', () => {
+        finish(new Error('AISstream websocket error'));
+      });
+
+      socket.addEventListener('close', (event) => {
+        const closeCode = extractNumericField(event, 'code');
+        const closeReason = extractStringField(event, 'reason');
+        if (!socketOpened) {
+          const closeSuffix = [
+            closeCode ? `code=${closeCode}` : null,
+            closeReason ? `reason=${closeReason}` : null,
+          ].filter(Boolean).join(' ');
+          finish(new Error(`AISstream websocket closed before open${closeSuffix ? ` ${closeSuffix}` : ''}`));
+          return;
+        }
+        finish();
+      });
     };
 
-    socket.addEventListener('open', () => {
-      socketOpened = true;
-      socket.send(JSON.stringify({
-        APIKey: input.apiKey,
-        BoundingBoxes: profile.boundingBoxes,
-        FilterMessageTypes: ['PositionReport'],
-      }));
-      subscriptionSent = true;
-      if (openTimer) {
-        clearTimeout(openTimer);
-        openTimer = null;
-      }
-      collectionTimer = setTimeout(() => finish(), input.collectionWindowMs);
-    });
+    const openViaConstructor = () => {
+      transport = 'websocket-constructor';
+      attachSocket(input.webSocketFactory(AISSTREAM_URL));
+    };
 
-    socket.addEventListener('message', (event) => {
-      const vessel = parseAisstreamMessage(event, input.now, vessels.get.bind(vessels));
-      if (!vessel) return;
-      messagesReceived += 1;
-      vessels.set(vessel.mmsi, vessel);
-    });
+    if (!input.fetchImpl) {
+      openViaConstructor();
+      return;
+    }
 
-    socket.addEventListener('error', () => {
-      finish(new Error('AISstream websocket error'));
-    });
-
-    socket.addEventListener('close', (event) => {
-      const closeCode = extractNumericField(event, 'code');
-      const closeReason = extractStringField(event, 'reason');
-      if (!socketOpened) {
-        const closeSuffix = [
-          closeCode ? `code=${closeCode}` : null,
-          closeReason ? `reason=${closeReason}` : null,
-        ].filter(Boolean).join(' ');
-        finish(new Error(`AISstream websocket closed before open${closeSuffix ? ` ${closeSuffix}` : ''}`));
+    void input.fetchImpl(AISSTREAM_FETCH_URL, {
+      headers: new Headers({
+        Upgrade: 'websocket',
+      }),
+    }).then((response) => {
+      const socket = response.webSocket;
+      if (!socket) {
+        openViaConstructor();
         return;
       }
-      finish();
+      transport = 'fetch-upgrade';
+      if (typeof socket.accept === 'function') {
+        socket.accept();
+      }
+      attachSocket(socket);
+    }).catch(() => {
+      openViaConstructor();
     });
   });
 
@@ -199,6 +236,7 @@ async function collectAisstreamSnapshot(input: {
       attemptedLive: true,
       upstreamPhase: 'completed',
       messagesReceived,
+      transport,
       socketOpened,
       subscriptionSent,
     },
@@ -231,6 +269,7 @@ function buildFallbackDiagnostics(
       attemptedLive: false,
       upstreamPhase: 'not-configured',
       messagesReceived: 0,
+      transport: 'websocket-constructor',
       socketOpened: false,
       subscriptionSent: false,
     };
@@ -245,6 +284,7 @@ function buildFallbackDiagnostics(
       ? 'closed-before-open'
       : fallbackReason,
     messagesReceived: 0,
+    transport: 'websocket-constructor',
     socketOpened: false,
     subscriptionSent: false,
     closeCode,
