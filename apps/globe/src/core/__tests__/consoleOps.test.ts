@@ -89,6 +89,42 @@ describe('deriveConsoleOperationalState', () => {
     expect(result.readModel.viewport?.activeRegion).toBe('kanto');
   });
 
+  it('surfaces richer lifeline and built-environment truth from the starter catalog during Tokyo-scale events', () => {
+    const result = deriveConsoleOperationalState({
+      now,
+      events: [
+        createEvent('severe', 7.0, now - 4 * 60_000, {
+          lat: 35.64,
+          lng: 139.82,
+          tsunami: true,
+          place: { text: 'Tokyo Bay operator corridor' },
+        }),
+      ],
+      currentSelectedEventId: null,
+      source: 'server',
+      updatedAt: now,
+      viewport: {
+        center: { lat: 35.68, lng: 139.79 },
+        zoom: 10.1,
+        bounds: [139.2, 35.2, 140.2, 35.95],
+        tier: 'regional',
+        pitch: 0,
+        bearing: 0,
+      },
+    });
+
+    expect(result.readModel.bundleSummaries.lifelines?.metric).not.toContain('1 lifeline site');
+    expect(result.readModel.bundleSummaries.lifelines?.counters).toContainEqual({
+      id: 'lifeline-sites',
+      label: 'Lifeline Sites',
+      value: expect.any(Number),
+      tone: expect.any(String),
+    });
+    expect((result.readModel.bundleSummaries.lifelines?.counters.find((counter) => counter.id === 'lifeline-sites')?.value ?? 0)).toBeGreaterThan(1);
+    expect(result.readModel.bundleSummaries['built-environment']?.availability).toBe('live');
+    expect(result.readModel.bundleSummaries['built-environment']?.metric).toContain('building cluster');
+  });
+
   it('preserves the current read model while degrading freshness on realtime errors', () => {
     const derived = deriveConsoleOperationalState({
       now,

@@ -37,4 +37,12 @@ describe('ops asset catalog', () => {
     expect(kantoAssets.length).toBeGreaterThanOrEqual(3);
     expect(kantoAssets.every((asset) => asset.region === 'kanto')).toBe(true);
   });
+
+  it('includes starter assets for future lifeline and built-environment classes', () => {
+    const classes = new Set(OPS_ASSETS.map((asset) => asset.class));
+
+    expect(classes.has('power_substation')).toBe(true);
+    expect(classes.has('water_facility')).toBe(true);
+    expect(classes.has('building_cluster')).toBe(true);
+  });
 });
