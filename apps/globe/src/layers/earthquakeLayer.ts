@@ -1,17 +1,20 @@
 /**
  * Earthquake Layer — ScatterplotLayer for seismic events.
  *
+ * Performance rules (deck.gl official guidance):
+ * - data ref must be STABLE — same array object when data hasn't changed
+ * - accessors (getRadius, getColor) must NOT depend on animation state
+ * - animation uses radiusScale (uniform prop, ~0 cost at 60fps)
+ * - updateTriggers only fire on real data changes (selectedId, data swap)
+ *
  * Visual rules:
  * - Size scales with magnitude (exponential)
  * - Color encodes depth: shallow=warm, deep=cool
- * - Recent events pulse (radiusScale animation, virtually free at 60fps)
- * - Selected event gets bright highlight ring
+ * - Selected event: bright ice blue highlight ring
  */
 
 import { ScatterplotLayer } from '@deck.gl/layers';
 import type { EarthquakeEvent } from '../types';
-
-// ── Color by depth ─────────────────────────────────────────────
 
 type RGBA = [number, number, number, number];
 
@@ -23,26 +26,14 @@ function depthColor(depth_km: number): RGBA {
   return [148, 163, 184, 140];                       // very deep: slate
 }
 
-// ── Magnitude to pixel radius ──────────────────────────────────
-
 function magToRadius(mag: number): number {
-  // Exponential scaling: M3=3px, M5=12px, M7=48px, M9=192px
   return Math.max(2, 3 * Math.pow(2, mag - 3));
 }
 
-// ── Layer Factory ──────────────────────────────────────────────
-
-export interface EarthquakeLayerOptions {
-  events: EarthquakeEvent[];
-  selectedId: string | null;
-  pulsePhase: number; // 0..1 oscillation for recent events
-}
-
-export function createEarthquakeLayer(opts: EarthquakeLayerOptions): ScatterplotLayer<EarthquakeEvent> {
-  const { events, selectedId, pulsePhase } = opts;
-  const now = Date.now();
-  const recentCutoff = now - 6 * 3600_000; // 6 hours
-
+export function createEarthquakeLayer(
+  events: EarthquakeEvent[],
+  selectedId: string | null,
+): ScatterplotLayer<EarthquakeEvent> {
   return new ScatterplotLayer<EarthquakeEvent>({
     id: 'earthquakes',
     data: events,
@@ -51,41 +42,29 @@ export function createEarthquakeLayer(opts: EarthquakeLayerOptions): Scatterplot
     filled: true,
     radiusUnits: 'pixels',
     lineWidthUnits: 'pixels',
+    // radiusScale is animated externally by compositor — uniform, ~0 cost
+    radiusScale: 1,
 
     getPosition: (d) => [d.lng, d.lat],
-
-    getRadius: (d) => {
-      const base = magToRadius(d.magnitude);
-      // Recent events pulse
-      if (d.time > recentCutoff) {
-        return base * (1 + 0.3 * pulsePhase);
-      }
-      return base;
-    },
+    getRadius: (d) => magToRadius(d.magnitude),
 
     getFillColor: (d) => {
-      if (d.id === selectedId) return [125, 211, 252, 255]; // ice blue highlight
+      if (d.id === selectedId) return [125, 211, 252, 255];
       return depthColor(d.depth_km);
     },
 
     getLineColor: (d) => {
       if (d.id === selectedId) return [125, 211, 252, 255];
-      if (d.time > recentCutoff) return [255, 255, 255, 100];
-      return [255, 255, 255, 40];
+      return [255, 255, 255, 50];
     },
 
-    getLineWidth: (d) => (d.id === selectedId ? 2 : 1),
+    getLineWidth: (d) => (d.id === selectedId ? 2.5 : 0.5),
 
+    // CRITICAL: only trigger GPU buffer rebuild on actual data changes
     updateTriggers: {
-      getRadius: [pulsePhase, recentCutoff],
       getFillColor: [selectedId],
-      getLineColor: [selectedId, recentCutoff],
+      getLineColor: [selectedId],
       getLineWidth: [selectedId],
     },
-
-    transitions: {
-      getRadius: { duration: 150, easing: (t: number) => t },
-    },
-
   });
 }

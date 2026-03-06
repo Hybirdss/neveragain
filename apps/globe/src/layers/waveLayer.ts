@@ -2,27 +2,24 @@
  * Wave Layer — P-wave and S-wave propagation rings.
  *
  * THE signature visual of namazue.dev.
- * When an earthquake occurs, concentric rings expand from the epicenter:
- *   - P-wave: thin cyan ring, moves fast (6 km/s)
- *   - S-wave: thick amber ring, moves slower (3.5 km/s)
- *   - Both fade as they expand
  *
- * Uses ScatterplotLayer with stroke-only rendering.
- * radiusScale animation is virtually free at 60fps (uniform prop).
+ * Performance approach:
+ * - ONE ScatterplotLayer for P-wave rings, ONE for S-wave rings
+ * - Stable data arrays (only rebuild when wave sources change)
+ * - Ring expansion via radiusScale uniform (virtually free at 60fps)
+ * - Fading via getLineColor with updateTriggers only on data change
+ *
+ * The trick: each ring datum stores its radius at the CURRENT elapsed time.
+ * Since all rings from the same source share the same scale factor,
+ * we pre-compute radii and update the data array only when needed.
  */
 
 import { ScatterplotLayer } from '@deck.gl/layers';
 
-// ── Constants ──────────────────────────────────────────────────
-
-const VP_KM_S = 6.0;   // P-wave velocity
-const VS_KM_S = 3.5;   // S-wave velocity
-const KM_PER_DEG = 111; // approximate
-
-const MAX_RADIUS_KM = 800;  // stop expanding after this
-const FADE_START_KM = 300;  // start fading at this radius
-
-// ── Types ──────────────────────────────────────────────────────
+const VP_KM_S = 6.0;
+const VS_KM_S = 3.5;
+const MAX_RADIUS_KM = 800;
+const FADE_START_KM = 300;
 
 export interface WaveSource {
   id: string;
@@ -30,112 +27,114 @@ export interface WaveSource {
   lng: number;
   depth_km: number;
   magnitude: number;
-  originTime: number; // Unix ms
+  originTime: number;
 }
 
-interface WaveRing {
+interface WaveRingDatum {
   position: [number, number];
-  radius: number; // degrees
-  opacity: number;
+  radiusMeters: number;
+  color: [number, number, number, number];
 }
 
-// ── Wave State Computation ─────────────────────────────────────
-
-function computeWaveRing(
+function computeRing(
   source: WaveSource,
   velocityKmS: number,
   elapsedSec: number,
-): WaveRing | null {
+  baseColor: [number, number, number],
+  maxAlpha: number,
+): WaveRingDatum | null {
   if (elapsedSec <= 0) return null;
-
-  // Surface distance traveled
   const surfaceKm = velocityKmS * elapsedSec;
   if (surfaceKm > MAX_RADIUS_KM) return null;
 
-  // Account for depth: wave starts underground
   const totalKm = Math.sqrt(surfaceKm * surfaceKm + source.depth_km * source.depth_km);
-  const radiusDeg = totalKm / KM_PER_DEG;
+  const radiusMeters = totalKm * 1000;
 
-  // Fade out as ring expands
   let opacity = 1.0;
   if (surfaceKm > FADE_START_KM) {
     opacity = Math.max(0, 1 - (surfaceKm - FADE_START_KM) / (MAX_RADIUS_KM - FADE_START_KM));
   }
-  // Also scale opacity with magnitude (bigger eq = more visible ring)
-  const magScale = Math.min(1, (source.magnitude - 3) / 4); // M3=0, M7=1
+  const magScale = Math.min(1, (source.magnitude - 3) / 4);
   opacity *= Math.max(0.3, magScale);
 
   return {
     position: [source.lng, source.lat],
-    radius: radiusDeg,
-    opacity,
+    radiusMeters,
+    color: [baseColor[0], baseColor[1], baseColor[2], Math.round(opacity * maxAlpha)],
   };
 }
 
-// ── Layer Factory ──────────────────────────────────────────────
+// Pre-allocated arrays to avoid GC pressure
+let pWaveData: WaveRingDatum[] = [];
+let sWaveData: WaveRingDatum[] = [];
 
-export function createWaveLayers(
-  sources: WaveSource[],
-  currentTime: number,
-): ScatterplotLayer[] {
-  const layers: ScatterplotLayer[] = [];
+/**
+ * Recompute wave ring data for current time.
+ * Called at controlled intervals (not every frame).
+ */
+export function updateWaveData(sources: WaveSource[], currentTime: number): void {
+  const pRings: WaveRingDatum[] = [];
+  const sRings: WaveRingDatum[] = [];
 
   for (const source of sources) {
     const elapsedSec = (currentTime - source.originTime) / 1000;
     if (elapsedSec < 0 || elapsedSec > MAX_RADIUS_KM / VS_KM_S + 10) continue;
 
-    // P-wave ring
-    const pRing = computeWaveRing(source, VP_KM_S, elapsedSec);
-    if (pRing) {
-      layers.push(
-        new ScatterplotLayer({
-          id: `wave-p-${source.id}`,
-          data: [pRing],
-          pickable: false,
-          stroked: true,
-          filled: false,
-          radiusUnits: 'common',
-          lineWidthUnits: 'pixels',
+    const p = computeRing(source, VP_KM_S, elapsedSec, [125, 211, 252], 160);
+    if (p) pRings.push(p);
 
-          getPosition: (d: WaveRing) => d.position,
-          getRadius: (d: WaveRing) => d.radius * KM_PER_DEG * 1000, // meters
-          getLineColor: (d: WaveRing) => [125, 211, 252, Math.round(d.opacity * 160)], // cyan
-          getLineWidth: 1.5,
+    const s = computeRing(source, VS_KM_S, elapsedSec, [251, 191, 36], 220);
+    if (s) sRings.push(s);
+  }
 
-          updateTriggers: {
-            getRadius: [elapsedSec],
-            getLineColor: [elapsedSec],
-          },
+  pWaveData = pRings;
+  sWaveData = sRings;
+}
 
-        }),
-      );
-    }
+/**
+ * Create the two wave layers. Call after updateWaveData().
+ */
+export function createWaveLayers(): ScatterplotLayer[] {
+  const layers: ScatterplotLayer[] = [];
 
-    // S-wave ring
-    const sRing = computeWaveRing(source, VS_KM_S, elapsedSec);
-    if (sRing) {
-      layers.push(
-        new ScatterplotLayer({
-          id: `wave-s-${source.id}`,
-          data: [sRing],
-          pickable: false,
-          stroked: true,
-          filled: false,
-          radiusUnits: 'common',
-          lineWidthUnits: 'pixels',
+  if (pWaveData.length > 0) {
+    layers.push(new ScatterplotLayer<WaveRingDatum>({
+      id: 'wave-p',
+      data: pWaveData,
+      pickable: false,
+      stroked: true,
+      filled: false,
+      radiusUnits: 'meters',
+      lineWidthUnits: 'pixels',
+      getPosition: (d) => d.position,
+      getRadius: (d) => d.radiusMeters,
+      getLineColor: (d) => d.color,
+      getLineWidth: 1.5,
+      updateTriggers: {
+        getRadius: [pWaveData],
+        getLineColor: [pWaveData],
+      },
+    }));
+  }
 
-          getPosition: (d: WaveRing) => d.position,
-          getRadius: (d: WaveRing) => d.radius * KM_PER_DEG * 1000,
-          getLineColor: (d: WaveRing) => [251, 191, 36, Math.round(d.opacity * 200)], // amber
-          getLineWidth: 3,
-
-          updateTriggers: {
-            getRadius: [elapsedSec],
-            getLineColor: [elapsedSec],
-          },
-        }),
-      );
-    }
+  if (sWaveData.length > 0) {
+    layers.push(new ScatterplotLayer<WaveRingDatum>({
+      id: 'wave-s',
+      data: sWaveData,
+      pickable: false,
+      stroked: true,
+      filled: false,
+      radiusUnits: 'meters',
+      lineWidthUnits: 'pixels',
+      getPosition: (d) => d.position,
+      getRadius: (d) => d.radiusMeters,
+      getLineColor: (d) => d.color,
+      getLineWidth: 3,
+      updateTriggers: {
+        getRadius: [sWaveData],
+        getLineColor: [sWaveData],
+      },
+    }));
   }
 
   return layers;

@@ -1,0 +1,88 @@
+import { describe, expect, it } from 'vitest';
+
+import type { RealtimeStatus, ServiceReadModel } from '../../ops/readModelTypes';
+import { buildSystemBarState } from '../systemBar';
+
+const realtimeStatus: RealtimeStatus = {
+  source: 'server',
+  state: 'fresh',
+  updatedAt: Date.parse('2026-03-06T10:00:00.000Z'),
+  staleAfterMs: 60_000,
+};
+
+const readModel: ServiceReadModel = {
+  currentEvent: {
+    id: 'eq-1',
+    lat: 35.6,
+    lng: 139.7,
+    depth_km: 28,
+    magnitude: 7.1,
+    time: Date.parse('2026-03-06T09:58:00.000Z'),
+    faultType: 'interface',
+    tsunami: true,
+    place: { text: 'Sagami corridor' },
+  },
+  eventTruth: {
+    source: 'server',
+    revision: 'r2',
+    issuedAt: Date.parse('2026-03-06T09:58:10.000Z'),
+    receivedAt: Date.parse('2026-03-06T09:58:40.000Z'),
+    observedAt: Date.parse('2026-03-06T09:58:00.000Z'),
+    supersedes: 'r1',
+    confidence: 'high',
+    revisionCount: 2,
+    sources: ['server', 'usgs'],
+    hasConflictingRevision: true,
+  },
+  viewport: {
+    center: { lat: 35.6, lng: 139.7 },
+    zoom: 9.2,
+    bounds: [138.8, 34.9, 140.1, 36.1],
+    tier: 'regional',
+    activeRegion: 'kanto',
+  },
+  nationalSnapshot: null,
+  nationalExposureSummary: [],
+  visibleExposureSummary: [],
+  nationalPriorityQueue: [],
+  visiblePriorityQueue: [],
+  freshnessStatus: realtimeStatus,
+};
+
+describe('buildSystemBarState', () => {
+  it('surfaces active region and revision conflict in the system bar state', () => {
+    const state = buildSystemBarState({
+      mode: 'event',
+      eventCount: 4,
+      readModel,
+      realtimeStatus,
+    });
+
+    expect(state.regionLabel).toBe('Kanto');
+    expect(state.statusText).toContain('Event active');
+    expect(state.statusText).toContain('4 events');
+    expect(state.statusText).toContain('server fresh');
+    expect(state.statusText).toContain('conflict');
+    expect(state.statusMode).toBe('event');
+  });
+
+  it('falls back to Japan-wide calm wording when no viewport or truth is available', () => {
+    const state = buildSystemBarState({
+      mode: 'calm',
+      eventCount: 0,
+      readModel: null,
+      realtimeStatus: {
+        source: 'usgs',
+        state: 'degraded',
+        updatedAt: 0,
+        staleAfterMs: 60_000,
+        message: 'fallback active',
+      },
+    });
+
+    expect(state.regionLabel).toBe('Japan');
+    expect(state.statusText).toContain('System calm');
+    expect(state.statusText).toContain('usgs degraded');
+    expect(state.statusMode).toBe('calm');
+  });
+});

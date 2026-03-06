@@ -5,8 +5,10 @@
  * but with a state shape designed for the Japan-wide console.
  */
 
-import type { EarthquakeEvent } from '../types';
-import type { ViewportState, ZoomTier } from './viewportManager';
+import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
+import type { ViewportState } from './viewportManager';
+import type { OpsAssetExposure, OpsPriority } from '../ops/types';
+import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
 
 // ── Console State ──────────────────────────────────────────────
 
@@ -17,6 +19,12 @@ export interface ConsoleState {
   viewport: ViewportState;
   selectedEvent: EarthquakeEvent | null;
   events: EarthquakeEvent[];
+  exposures: OpsAssetExposure[];
+  priorities: OpsPriority[];
+  readModel: ServiceReadModel | null;
+  realtimeStatus: RealtimeStatus;
+  intensityGrid: IntensityGrid | null;
+  faults: ActiveFault[];
   layerVisibility: Record<string, boolean>;
   panelsVisible: boolean;
 }
@@ -65,7 +73,7 @@ const defaultViewport: ViewportState = {
   center: { lat: 35.68, lng: 139.69 },
   zoom: 5.5,
   bounds: [122, 24, 150, 46],
-  tier: 'national' as ZoomTier,
+  tier: 'national',
   pitch: 0,
   bearing: 0,
 };
@@ -75,6 +83,17 @@ const initialState: ConsoleState = {
   viewport: defaultViewport,
   selectedEvent: null,
   events: [],
+  exposures: [],
+  priorities: [],
+  readModel: null,
+  realtimeStatus: {
+    source: 'server',
+    state: 'stale',
+    updatedAt: 0,
+    staleAfterMs: 60_000,
+  },
+  intensityGrid: null,
+  faults: [],
   layerVisibility: {
     earthquakes: true,
     intensity: true,

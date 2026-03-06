@@ -389,6 +389,206 @@
   color: var(--nz-text-muted);
 }
 
+.nz-bottom-bar__layers {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.nz-layer-btn {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--nz-panel-border);
+  background: transparent;
+  color: var(--nz-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.nz-layer-btn:hover {
+  border-color: var(--nz-text-secondary);
+  color: var(--nz-text-secondary);
+}
+
+.nz-layer-btn--on {
+  border-color: var(--nz-info);
+  color: var(--nz-info);
+  background: rgba(125, 211, 252, 0.08);
+}
+
+/* ── Check These Now Panel ─────────────────────────────────── */
+
+.nz-check__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-priority);
+  font-weight: 600;
+}
+
+.nz-check__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-check__item {
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.nz-check__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nz-check__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.nz-check__rank {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--nz-text-muted);
+  width: 14px;
+}
+
+.nz-check__severity {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.nz-check__severity--watch {
+  color: var(--nz-watch);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.nz-check__severity--priority {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-check__severity--critical {
+  color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.nz-check__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  margin-bottom: 2px;
+}
+
+.nz-check__rationale {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  line-height: 1.4;
+}
+
+.nz-check__empty {
+  font-size: 11px;
+  color: var(--nz-calm);
+  padding: 4px 0;
+  font-family: var(--nz-font-mono);
+  font-weight: 500;
+}
+
+/* ── Asset Exposure Panel ──────────────────────────────────── */
+
+.nz-expo__count {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+}
+
+.nz-expo__clear {
+  font-size: 11px;
+  color: var(--nz-calm);
+  font-family: var(--nz-font-mono);
+  font-weight: 500;
+}
+
+.nz-expo__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-expo__item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.nz-expo__icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.nz-expo__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.nz-expo__name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nz-expo__sev {
+  font-family: var(--nz-font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.nz-expo__sev--watch {
+  color: var(--nz-watch);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.nz-expo__sev--priority {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-expo__sev--critical {
+  color: var(--nz-critical);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.nz-expo__summary {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  line-height: 1.35;
+  margin-top: 1px;
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 
 @media (max-width: 1024px) {

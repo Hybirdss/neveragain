@@ -10,6 +10,7 @@
  */
 
 import { consoleStore } from '../core/store';
+import type { ServiceReadModel } from '../ops/readModelTypes';
 import type { EarthquakeEvent } from '../types';
 
 function formatTimeAgo(timestamp: number): string {
@@ -27,7 +28,39 @@ function severityClass(mag: number): string {
   return 'info';
 }
 
-function renderCalmState(): string {
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatTruthLabel(readModel: ServiceReadModel | null): string | null {
+  if (!readModel?.eventTruth) {
+    return null;
+  }
+  return `${capitalize(readModel.eventTruth.source)} truth · ${capitalize(readModel.eventTruth.confidence)} confidence`;
+}
+
+function formatRevisionLabel(readModel: ServiceReadModel | null): string | null {
+  if (!readModel?.eventTruth) {
+    return null;
+  }
+
+  const conflictLabel = readModel.eventTruth.hasConflictingRevision
+    ? ' · Conflict detected'
+    : '';
+  return `${readModel.eventTruth.revisionCount} revisions${conflictLabel}`;
+}
+
+function formatFreshnessLabel(readModel: ServiceReadModel | null, now: number): string {
+  const freshness = readModel?.freshnessStatus;
+  if (!freshness || freshness.updatedAt <= 0) {
+    return 'Data pending';
+  }
+  const age = formatTimeAgo(Math.min(freshness.updatedAt, now));
+  return `Data ${freshness.state}${age ? ` · ${age}` : ''}`;
+}
+
+function renderCalmState(readModel: ServiceReadModel | null, now: number): string {
+  const freshness = formatFreshnessLabel(readModel, now);
   return `
     <div class="nz-panel" id="nz-event-snapshot">
       <div class="nz-panel__header">
@@ -37,14 +70,25 @@ function renderCalmState(): string {
       <div class="nz-snap__headline">No significant seismic activity</div>
       <div class="nz-snap__meta">
         <span class="nz-snap__metric">Monitoring active</span>
+        <span class="nz-snap__metric">${freshness}</span>
       </div>
     </div>
   `;
 }
 
-function renderEventState(event: EarthquakeEvent): string {
+function renderEventState(
+  event: EarthquakeEvent,
+  readModel: ServiceReadModel | null,
+  now: number,
+): string {
   const sev = severityClass(event.magnitude);
   const sevLabel = sev.toUpperCase();
+  const headline = readModel?.nationalSnapshot?.headline;
+  const truthLabel = formatTruthLabel(readModel);
+  const revisionLabel = formatRevisionLabel(readModel);
+  const freshnessLabel = formatFreshnessLabel(readModel, now);
+  const metaLines = [truthLabel, revisionLabel, freshnessLabel].filter((value): value is string => Boolean(value));
+  const metaMarkup = metaLines.map((line) => `<div class="nz-snap__metric">${line}</div>`).join('');
 
   return `
     <div class="nz-panel" id="nz-event-snapshot">
@@ -67,11 +111,29 @@ function renderEventState(event: EarthquakeEvent): string {
           <span class="nz-snap__metric-label">Elapsed</span>
         </div>
       </div>
+      ${headline ? `<div class="nz-snap__metric">${headline}</div>` : ''}
+      ${metaMarkup ? `<div class="nz-snap__meta">${metaMarkup}</div>` : ''}
       <div class="nz-snap__coords">
         ${event.lat.toFixed(3)}°N ${event.lng.toFixed(3)}°E
       </div>
     </div>
   `;
+}
+
+export function renderEventSnapshotMarkup(input: {
+  mode: 'calm' | 'event';
+  selectedEvent: EarthquakeEvent | null;
+  readModel: ServiceReadModel | null;
+  now?: number;
+}): string {
+  const event = input.readModel?.currentEvent ?? input.selectedEvent;
+  const now = input.now ?? Date.now();
+
+  if (input.mode === 'event' && event) {
+    return renderEventState(event, input.readModel, now);
+  }
+
+  return renderCalmState(input.readModel, now);
 }
 
 // ── Mount / Bind ───────────────────────────────────────────────
@@ -80,18 +142,19 @@ export function mountEventSnapshot(container: HTMLElement): () => void {
   function render(): void {
     const selected = consoleStore.get('selectedEvent');
     const mode = consoleStore.get('mode');
-
-    if (mode === 'event' && selected) {
-      container.innerHTML = renderEventState(selected);
-    } else {
-      container.innerHTML = renderCalmState();
-    }
+    const readModel = consoleStore.get('readModel');
+    container.innerHTML = renderEventSnapshotMarkup({
+      mode,
+      selectedEvent: selected,
+      readModel,
+    });
   }
 
   render();
 
   const unsub1 = consoleStore.subscribe('selectedEvent', render);
   const unsub2 = consoleStore.subscribe('mode', render);
+  const unsub3 = consoleStore.subscribe('readModel', render);
 
   // Refresh time labels every 30s
   const timer = setInterval(render, 30_000);
@@ -99,6 +162,7 @@ export function mountEventSnapshot(container: HTMLElement): () => void {
   return () => {
     unsub1();
     unsub2();
+    unsub3();
     clearInterval(timer);
   };
 }

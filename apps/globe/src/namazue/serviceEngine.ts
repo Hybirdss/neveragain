@@ -87,6 +87,12 @@ interface USGSResponse {
   features: USGSFeature[];
 }
 
+export interface FetchEventsResult {
+  events: EarthquakeEvent[];
+  source: 'server' | 'usgs';
+  updatedAt: number;
+}
+
 // ── Fetch Layer ─────────────────────────────────────────────────
 
 async function fetchWithTimeout<T>(url: string): Promise<T> {
@@ -164,15 +170,32 @@ async function fetchFromUsgs(): Promise<EarthquakeEvent[]> {
     .map(usgsFeatureToEq);
 }
 
-export async function fetchEvents(): Promise<EarthquakeEvent[]> {
+export async function fetchEventsWithMeta(): Promise<FetchEventsResult> {
+  const updatedAt = Date.now();
   if (!API_BASE) {
-    return fetchFromUsgs();
+    return {
+      events: await fetchFromUsgs(),
+      source: 'usgs',
+      updatedAt,
+    };
   }
   try {
-    return await fetchFromApi();
+    return {
+      events: await fetchFromApi(),
+      source: 'server',
+      updatedAt,
+    };
   } catch {
-    return fetchFromUsgs();
+    return {
+      events: await fetchFromUsgs(),
+      source: 'usgs',
+      updatedAt,
+    };
   }
+}
+
+export async function fetchEvents(): Promise<EarthquakeEvent[]> {
+  return (await fetchEventsWithMeta()).events;
 }
 
 // ── Compute Layer ───────────────────────────────────────────────

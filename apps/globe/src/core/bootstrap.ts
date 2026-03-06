@@ -1,64 +1,241 @@
 /**
  * Console Bootstrap — Wires map engine, viewport, layers, and panels.
  *
- * This is the entry point for the new spatial console (service route).
  * Boot sequence:
- *   1. Shell DOM
+ *   1. Shell + loading progress
  *   2. Map engine (MapLibre + deck.gl)
  *   3. Viewport manager
- *   4. Layer compositor (animation loop)
- *   5. Panels (event snapshot, recent feed)
- *   6. Data fetch + poll
+ *   4. Layer compositor
+ *   5. Panels (snapshot, feed, exposure, check-these-now)
+ *   6. Picking (earthquake dots, fault lines, empty space)
+ *   7. Keyboard (Tab=panels, Escape=deselect)
+ *   8. Data fetch + ops compute + poll
  */
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './console.css';
 
 import { createMapEngine } from './mapEngine';
-import { createViewportManager } from './viewportManager';
+import { createViewportManager, type ViewportState } from './viewportManager';
 import { createShell } from './shell';
+import { deriveConsoleOperationalState } from './consoleOps';
 import { consoleStore } from './store';
+import { buildSystemBarState } from './systemBar';
 import { createLayerCompositor } from '../layers/layerCompositor';
 import { mountEventSnapshot } from '../panels/eventSnapshot';
 import { mountRecentFeed } from '../panels/recentFeed';
-import { fetchEvents } from '../namazue/serviceEngine';
+import { mountCheckTheseNow } from '../panels/checkTheseNow';
+import { mountAssetExposure } from '../panels/assetExposure';
+import { fetchEventsWithMeta } from '../namazue/serviceEngine';
+import type { RealtimeSource } from '../ops/readModelTypes';
+import type { ActiveFault, EarthquakeEvent, FaultType } from '../types';
+
+// ── Loading Progress ────────────────────────────────────────
+
+function setLoadingProgress(pct: number, label: string): void {
+  const bar = document.getElementById('loading-bar');
+  const status = document.getElementById('loading-status');
+  if (bar) bar.style.width = `${pct}%`;
+  if (status) status.textContent = label;
+}
+
+function dismissLoading(): void {
+  const el = document.getElementById('loading-screen');
+  if (el) {
+    el.classList.add('exit');
+    setTimeout(() => el.remove(), 700);
+  }
+}
+
+// ── Fault → Scenario Event ──────────────────────────────────
+
+function faultToEvent(fault: ActiveFault): EarthquakeEvent {
+  let latSum = 0;
+  let lngSum = 0;
+  for (const [lng, lat] of fault.segments) {
+    latSum += lat;
+    lngSum += lng;
+  }
+  const n = fault.segments.length;
+  return {
+    id: `scenario-${fault.id}`,
+    lat: latSum / n,
+    lng: lngSum / n,
+    depth_km: fault.depthKm,
+    magnitude: fault.estimatedMw,
+    time: Date.now(),
+    faultType: fault.faultType as FaultType,
+    tsunami: fault.faultType === 'interface' && fault.estimatedMw >= 8.0,
+    place: { text: `${fault.name} (${fault.nameEn})` },
+  };
+}
+
+// ── Static Data Loaders ─────────────────────────────────────
+
+async function loadFaultData(): Promise<void> {
+  try {
+    const res = await fetch('/data/active-faults.json');
+    if (!res.ok) return;
+    const faults: ActiveFault[] = await res.json();
+    consoleStore.set('faults', faults);
+  } catch {
+    // Non-critical
+  }
+}
+
+// ── Main Bootstrap ──────────────────────────────────────────
 
 export async function bootstrapConsole(root: HTMLElement): Promise<void> {
-  // 1. Build DOM shell
+  setLoadingProgress(10, 'Building console…');
+  let lastFetchSource: RealtimeSource = 'server';
+  let lastUpdatedAt = 0;
+
+  // 1. Shell
   const shell = createShell(root);
 
-  // 2. Init map engine
+  // 2. Map engine
+  setLoadingProgress(20, 'Initializing map…');
   const engine = createMapEngine(shell.mapContainer);
 
-  // 3. Viewport manager — syncs map camera to store
+  // 3. Viewport
   const viewport = createViewportManager(engine.map);
   viewport.subscribe((state) => {
     consoleStore.set('viewport', state);
     updateBottomBar(state);
+    if (consoleStore.get('events').length > 0) {
+      syncOperationalTruth();
+    }
   });
 
-  // 4. Layer compositor — animation loop
+  // 4. Compositor
   const compositor = createLayerCompositor(engine);
 
-  // 5. Panels
-  const disposeSnapshot = mountEventSnapshot(shell.leftRail);
+  // 5. Panels — each gets its own wrapper so innerHTML won't clobber siblings
+  setLoadingProgress(30, 'Mounting panels…');
+  const snapContainer = document.createElement('div');
+  shell.leftRail.appendChild(snapContainer);
+  const disposeSnapshot = mountEventSnapshot(snapContainer);
 
-  // Create a container for the feed inside left rail (appended after snapshot)
   const feedContainer = document.createElement('div');
   shell.leftRail.appendChild(feedContainer);
   const disposeFeed = mountRecentFeed(feedContainer, (event) => {
+    selectEvent(event);
+  });
+
+  const expoContainer = document.createElement('div');
+  shell.leftRail.appendChild(expoContainer);
+  const disposeExpo = mountAssetExposure(expoContainer);
+
+  const disposeCheck = mountCheckTheseNow(shell.rightRail);
+
+  // 6. Picking — earthquakes, faults, empty space
+  engine.onClick((info) => {
+    if (info.layer?.id === 'earthquakes' && info.object) {
+      selectEvent(info.object as EarthquakeEvent);
+    } else if (info.layer?.id === 'active-faults' && info.object) {
+      const fault = info.object as ActiveFault;
+      const scenario = faultToEvent(fault);
+      selectEvent(scenario);
+    } else if (info.layer?.id === 'asset-markers' && info.object) {
+      // Future: asset focus
+    } else if (!info.object) {
+      deselectEvent();
+    }
+  });
+
+  function syncOperationalTruth(selectedOverride?: EarthquakeEvent | null): void {
+    const baseEvents = consoleStore.get('events');
+    const events = selectedOverride && !baseEvents.some((entry) => entry.id === selectedOverride.id)
+      ? [selectedOverride, ...baseEvents]
+      : baseEvents;
+
+    const result = deriveConsoleOperationalState({
+      now: Date.now(),
+      events,
+      currentSelectedEventId: selectedOverride?.id ?? consoleStore.get('selectedEvent')?.id ?? null,
+      source: lastFetchSource,
+      updatedAt: lastUpdatedAt || Date.now(),
+      viewport: consoleStore.get('viewport'),
+    });
+
+    consoleStore.set('mode', result.mode);
+    consoleStore.set('selectedEvent', result.selectedEvent);
+    consoleStore.set('intensityGrid', result.intensityGrid);
+    consoleStore.set('exposures', result.exposures);
+    consoleStore.set('priorities', result.priorities);
+    consoleStore.set('readModel', result.readModel);
+    consoleStore.set('realtimeStatus', result.realtimeStatus);
+    updateSystemBar(result.mode, consoleStore.get('events').length);
+  }
+
+  function selectEvent(event: EarthquakeEvent): void {
     consoleStore.set('selectedEvent', event);
-    consoleStore.set('mode', 'event');
-    // Fly to event
+    syncOperationalTruth(event);
     engine.map.flyTo({
       center: [event.lng, event.lat],
       zoom: Math.max(engine.map.getZoom(), 7),
       duration: 1500,
     });
+  }
+
+  function deselectEvent(): void {
+    consoleStore.set('selectedEvent', null);
+    consoleStore.set('intensityGrid', null);
+    consoleStore.set('exposures', []);
+    consoleStore.set('priorities', []);
+    consoleStore.set('readModel', {
+      currentEvent: null,
+      eventTruth: null,
+      viewport: null,
+      nationalSnapshot: null,
+      nationalExposureSummary: [],
+      visibleExposureSummary: [],
+      nationalPriorityQueue: [],
+      visiblePriorityQueue: [],
+      freshnessStatus: consoleStore.get('realtimeStatus'),
+    });
+    consoleStore.set('mode', 'calm');
+  }
+
+  // 7. Keyboard shortcuts
+  function handleKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      deselectEvent();
+      return;
+    }
+    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const visible = !consoleStore.get('panelsVisible');
+      consoleStore.set('panelsVisible', visible);
+      shell.root.toggleAttribute('data-panels-hidden', !visible);
+    }
+  }
+  document.addEventListener('keydown', handleKeydown);
+
+  // 8. System bar — mode + event count
+  consoleStore.subscribe('mode', (mode) => {
+    updateSystemBar(mode, consoleStore.get('events').length);
+  });
+  consoleStore.subscribe('events', (events) => {
+    updateSystemBar(consoleStore.get('mode'), events.length);
   });
 
-  // 6. Bottom bar info
-  function updateBottomBar(vp: typeof viewport extends { getState(): infer R } ? R : never): void {
+  function updateSystemBar(mode: string, eventCount: number): void {
+    const state = buildSystemBarState({
+      mode: mode === 'event' ? 'event' : 'calm',
+      eventCount,
+      readModel: consoleStore.get('readModel'),
+      realtimeStatus: consoleStore.get('realtimeStatus'),
+    });
+
+    shell.regionEl.textContent = state.regionLabel;
+    shell.statusEl.textContent = state.statusText;
+    shell.statusEl.setAttribute('data-mode', state.statusMode);
+  }
+
+  // 9. Bottom bar — viewport info + layer toggles
+  function updateBottomBar(vp: ViewportState): void {
+    const vis = consoleStore.get('layerVisibility');
     shell.bottomBar.innerHTML = `
       <div class="nz-bottom-bar__info">
         <span class="nz-bottom-bar__zoom">z${vp.zoom.toFixed(1)}</span>
@@ -67,73 +244,65 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
           ${vp.center.lat.toFixed(3)}° ${vp.center.lng.toFixed(3)}°
         </span>
       </div>
+      <div class="nz-bottom-bar__layers">
+        <button class="nz-layer-btn${vis.faults ? ' nz-layer-btn--on' : ''}" data-layer="faults">Faults</button>
+        <button class="nz-layer-btn${vis.intensity ? ' nz-layer-btn--on' : ''}" data-layer="intensity">Intensity</button>
+        <button class="nz-layer-btn${vis.earthquakes ? ' nz-layer-btn--on' : ''}" data-layer="earthquakes">Quakes</button>
+      </div>
     `;
+    // Bind toggle clicks
+    shell.bottomBar.querySelectorAll<HTMLButtonElement>('.nz-layer-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const layer = btn.dataset.layer!;
+        const current = consoleStore.get('layerVisibility');
+        consoleStore.set('layerVisibility', { ...current, [layer]: !current[layer] });
+        updateBottomBar(consoleStore.get('viewport'));
+      });
+    });
   }
 
-  // 7. Tab key toggles all panels
-  function handleKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      const visible = !consoleStore.get('panelsVisible');
-      consoleStore.set('panelsVisible', visible);
-      if (visible) {
-        shell.root.removeAttribute('data-panels-hidden');
-      } else {
-        shell.root.setAttribute('data-panels-hidden', '');
-      }
-    }
+  // 11. Load fault data in parallel
+  setLoadingProgress(40, 'Loading fault data…');
+  loadFaultData();
+
+  // 12. Fetch + ops helper
+  async function fetchAndSync(): Promise<void> {
+    const result = await fetchEventsWithMeta();
+    lastFetchSource = result.source;
+    lastUpdatedAt = result.updatedAt;
+    consoleStore.set('events', result.events);
+    syncOperationalTruth();
   }
-  document.addEventListener('keydown', handleKeydown);
 
-  // 8. System bar mode sync
-  consoleStore.subscribe('mode', (mode) => {
-    shell.statusEl.textContent = mode === 'calm' ? 'System calm' : 'Event active';
-    shell.statusEl.setAttribute('data-mode', mode);
-  });
-
-  // 9. Start everything once map loads
+  // 13. Start on map load
   engine.map.once('load', async () => {
-    // Start animation loop
+    setLoadingProgress(60, 'Map ready, fetching events…');
     compositor.start();
 
-    // Dismiss loading screen
-    const loadingScreen = document.getElementById('loading-screen');
-    if (loadingScreen) {
-      loadingScreen.classList.add('exit');
-      setTimeout(() => loadingScreen.remove(), 700);
-    }
-
-    shell.statusEl.textContent = 'System calm';
-    updateBottomBar(viewport.getState());
-
-    // Fetch earthquake data
     try {
-      const events = await fetchEvents();
-      consoleStore.set('events', events);
-
-      // Check for significant recent event
-      const cutoff = Date.now() - 24 * 3600_000;
-      const significant = events.find((e) => e.time >= cutoff && e.magnitude >= 4.5);
-      if (significant) {
-        consoleStore.set('mode', 'event');
-        consoleStore.set('selectedEvent', significant);
-      }
+      await fetchAndSync();
+      setLoadingProgress(90, `${consoleStore.get('events').length} events loaded`);
     } catch (err) {
       console.error('[console] Initial fetch failed:', err);
+      setLoadingProgress(90, 'Using cached data…');
     }
+
+    setLoadingProgress(100, 'Ready');
+    updateSystemBar(consoleStore.get('mode'), consoleStore.get('events').length);
+    updateBottomBar(viewport.getState());
+    dismissLoading();
   });
 
-  // 10. Poll for updates
+  // 14. Poll
   const pollTimer = setInterval(async () => {
     try {
-      const events = await fetchEvents();
-      consoleStore.set('events', events);
+      await fetchAndSync();
     } catch {
-      // Silent retry on next poll
+      // Silent retry
     }
   }, 60_000);
 
-  // 11. HMR cleanup
+  // 15. HMR cleanup
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
       clearInterval(pollTimer);
@@ -141,6 +310,8 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       compositor.stop();
       disposeSnapshot();
       disposeFeed();
+      disposeExpo();
+      disposeCheck();
       viewport.dispose();
       engine.dispose();
     });

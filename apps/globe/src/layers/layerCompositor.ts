@@ -1,35 +1,42 @@
 /**
- * Layer Compositor — Orchestrates all deck.gl layers and the animation loop.
+ * Layer Compositor — Orchestrates deck.gl layers with proper performance.
  *
- * Manages the render cycle:
- * 1. Reads state from consoleStore
- * 2. Computes layer props per frame (for animations)
- * 3. Pushes composed layer array to MapEngine
+ * Performance budget per frame:
  *
- * Animation budget:
- * - radiusScale/uniform updates: ~0 cost, safe at 60fps
- * - accessor changes (getRadius with updateTriggers): moderate, throttled
- * - data object changes: expensive, only on real data updates
+ *   TIER 1 — Every frame (~0 cost):
+ *     radiusScale, opacity, currentTime (uniform props)
+ *
+ *   TIER 2 — Every 50ms (wave animation):
+ *     updateWaveData() — recomputes ring positions/opacity
+ *     Creates new layer instances with new data refs
+ *
+ *   TIER 3 — On data change only:
+ *     Earthquake data swap, selected event change
+ *     Triggers GPU buffer rebuild via updateTriggers
+ *
+ * Rules:
+ *   - NEVER change data ref unless data actually changed
+ *   - NEVER put animation state in accessors
+ *   - Accessor functions must be PURE and STABLE
  */
 
 import type { Layer } from '@deck.gl/core';
 import type { MapEngine } from '../core/mapEngine';
 import { consoleStore } from '../core/store';
 import { createEarthquakeLayer } from './earthquakeLayer';
-import { createWaveLayers, type WaveSource } from './waveLayer';
-import type { EarthquakeEvent } from '../types';
+import { updateWaveData, createWaveLayers, type WaveSource } from './waveLayer';
+import { createAssetLayers } from './assetLayer';
+import { createIntensityLayer } from './intensityLayer';
+import { createFaultLayer } from './faultLayer';
+import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
+import type { OpsAssetExposure } from '../ops/types';
 
-// ── Animation State ────────────────────────────────────────────
+// ── Wave Source Extraction ─────────────────────────────────────
 
-let animationFrame = 0;
-let lastUpdateTime = 0;
-const ACCESSOR_THROTTLE_MS = 100; // throttle accessor-heavy updates
-
-// ── Wave Sources ───────────────────────────────────────────────
-
-function toWaveSources(events: EarthquakeEvent[]): WaveSource[] {
+function extractWaveSources(events: EarthquakeEvent[]): WaveSource[] {
   const now = Date.now();
-  const waveCutoff = now - 300_000; // show waves for events < 5 min old
+  // Show waves for events in last 5 minutes (or selected event regardless)
+  const waveCutoff = now - 300_000;
 
   return events
     .filter((e) => e.time > waveCutoff && e.magnitude >= 4.0)
@@ -48,75 +55,124 @@ function toWaveSources(events: EarthquakeEvent[]): WaveSource[] {
 export interface LayerCompositor {
   start(): void;
   stop(): void;
-  /** Force a full layer rebuild (e.g. on data change) */
-  invalidate(): void;
 }
 
 export function createLayerCompositor(engine: MapEngine): LayerCompositor {
   let running = false;
   let frameId: number | null = null;
-  let cachedEvents: EarthquakeEvent[] = [];
-  let cachedWaveSources: WaveSource[] = [];
-  let needsFullRebuild = true;
 
-  // Subscribe to data changes
+  // Cached state — only changes on store updates
+  let eventData: EarthquakeEvent[] = [];
+  let selectedId: string | null = null;
+  let waveSources: WaveSource[] = [];
+  let exposures: OpsAssetExposure[] = [];
+  let intensityGrid: IntensityGrid | null = null;
+  let faults: ActiveFault[] = [];
+
+  // Layer instances — only recreated when needed
+  let earthquakeLayer: Layer | null = null;
+  let assetLayers: Layer[] = [];
+  let intensityLayer: Layer | null = null;
+  let faultLayer: Layer | null = null;
+  let dirtyEarthquake = true;
+  let dirtyAssets = true;
+  let dirtyIntensity = true;
+  let dirtyFaults = true;
+
+  // Timing
+  let lastWaveUpdate = 0;
+  const WAVE_UPDATE_INTERVAL = 50; // ms — smooth enough for wave expansion
+
+  // ── Store subscriptions ──────────────────────────────────────
+
   const unsubEvents = consoleStore.subscribe('events', (events) => {
-    cachedEvents = events;
-    cachedWaveSources = toWaveSources(events);
-    needsFullRebuild = true;
+    eventData = events;
+    waveSources = extractWaveSources(events);
+    dirtyEarthquake = true;
   });
 
-  const unsubSelected = consoleStore.subscribe('selectedEvent', () => {
-    needsFullRebuild = true;
+  const unsubSelected = consoleStore.subscribe('selectedEvent', (event) => {
+    selectedId = event?.id ?? null;
+    dirtyEarthquake = true;
   });
 
-  function composeLayers(now: number): Layer[] {
-    const layers: Layer[] = [];
+  const unsubExposures = consoleStore.subscribe('exposures', (exp) => {
+    exposures = exp;
+    dirtyAssets = true;
+  });
 
-    // Pulse phase: smooth sine wave, 2-second period
-    const pulsePhase = (Math.sin(now * Math.PI * 2 / 2000) + 1) / 2;
+  const unsubViewport = consoleStore.subscribe('viewport', () => {
+    dirtyAssets = true;
+  });
 
-    // 1. Earthquake dots
-    const selectedId = consoleStore.get('selectedEvent')?.id ?? null;
-    layers.push(
-      createEarthquakeLayer({
-        events: cachedEvents,
-        selectedId,
-        pulsePhase,
-      }),
-    );
+  const unsubIntensity = consoleStore.subscribe('intensityGrid', (grid) => {
+    intensityGrid = grid;
+    dirtyIntensity = true;
+  });
 
-    // 2. Wave propagation rings
-    const waveLayers = createWaveLayers(cachedWaveSources, now);
-    layers.push(...waveLayers);
+  const unsubFaults = consoleStore.subscribe('faults', (f) => {
+    faults = f;
+    dirtyFaults = true;
+  });
 
-    return layers;
-  }
+  // ── Render loop ──────────────────────────────────────────────
 
   function tick(): void {
     if (!running) return;
 
-    const now = performance.now();
-    const realNow = Date.now();
+    const now = Date.now();
+    const layers: Layer[] = [];
 
-    // Always render waves (uniform prop, zero cost)
-    // Throttle accessor-heavy layers
-    const shouldUpdateAccessors = needsFullRebuild || (now - lastUpdateTime > ACCESSOR_THROTTLE_MS);
+    // Layer visibility from store
+    const vis = consoleStore.get('layerVisibility');
 
-    if (shouldUpdateAccessors) {
-      lastUpdateTime = now;
-      needsFullRebuild = false;
+    // Layer order (bottom to top):
+    // 1. Faults  2. Intensity  3. Earthquakes  4. Assets  5. Waves
 
-      // Recompute wave sources periodically
-      if (animationFrame % 60 === 0) {
-        cachedWaveSources = toWaveSources(cachedEvents);
-      }
+    if (dirtyFaults) {
+      faultLayer = createFaultLayer(faults);
+      dirtyFaults = false;
+    }
+    if (faultLayer && vis.faults) {
+      layers.push(faultLayer);
     }
 
-    const layers = composeLayers(realNow);
-    engine.setLayers(layers);
+    if (dirtyIntensity) {
+      intensityLayer = createIntensityLayer(intensityGrid);
+      dirtyIntensity = false;
+    }
+    if (intensityLayer && vis.intensity) {
+      layers.push(intensityLayer);
+    }
 
-    animationFrame++;
+    if (dirtyEarthquake) {
+      earthquakeLayer = createEarthquakeLayer(eventData, selectedId);
+      dirtyEarthquake = false;
+    }
+    if (earthquakeLayer && vis.earthquakes) {
+      layers.push(earthquakeLayer);
+    }
+
+    if (dirtyAssets) {
+      const tier = consoleStore.get('viewport').tier;
+      assetLayers = createAssetLayers(tier, exposures);
+      dirtyAssets = false;
+    }
+    if (vis.earthquakes) {
+      layers.push(...assetLayers);
+    }
+
+    // TIER 2: Update wave ring positions at 50ms intervals
+    if (waveSources.length > 0) {
+      if (now - lastWaveUpdate >= WAVE_UPDATE_INTERVAL) {
+        updateWaveData(waveSources, now);
+        lastWaveUpdate = now;
+      }
+      layers.push(...createWaveLayers());
+    }
+
+    // Push to GPU
+    engine.setLayers(layers);
     frameId = requestAnimationFrame(tick);
   }
 
@@ -124,9 +180,17 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
     start() {
       if (running) return;
       running = true;
-      cachedEvents = consoleStore.get('events');
-      cachedWaveSources = toWaveSources(cachedEvents);
-      needsFullRebuild = true;
+      eventData = consoleStore.get('events');
+      selectedId = consoleStore.get('selectedEvent')?.id ?? null;
+      waveSources = extractWaveSources(eventData);
+      exposures = consoleStore.get('exposures');
+      intensityGrid = consoleStore.get('intensityGrid');
+      faults = consoleStore.get('faults');
+      dirtyEarthquake = true;
+      dirtyAssets = true;
+      dirtyIntensity = true;
+      dirtyFaults = true;
+      lastWaveUpdate = 0;
       tick();
     },
 
@@ -138,10 +202,10 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
       }
       unsubEvents();
       unsubSelected();
-    },
-
-    invalidate() {
-      needsFullRebuild = true;
+      unsubExposures();
+      unsubViewport();
+      unsubIntensity();
+      unsubFaults();
     },
   };
 }

@@ -17,7 +17,7 @@ const SHELL_HTML = `
   <div class="nz-system-bar" id="nz-system-bar">
     <span class="nz-system-bar__brand">namazue.dev</span>
     <span class="nz-system-bar__sep"></span>
-    <span class="nz-system-bar__region">Japan</span>
+    <span class="nz-system-bar__region" id="nz-region">Japan</span>
     <span class="nz-system-bar__sep"></span>
     <span class="nz-system-bar__status" id="nz-status">Initializing</span>
   </div>
@@ -32,6 +32,7 @@ export interface ShellElements {
   root: HTMLElement;
   mapContainer: HTMLElement;
   systemBar: HTMLElement;
+  regionEl: HTMLElement;
   statusEl: HTMLElement;
   leftRail: HTMLElement;
   rightRail: HTMLElement;
@@ -45,6 +46,7 @@ export function createShell(parent: HTMLElement): ShellElements {
     root: parent.querySelector('.nz-console')!,
     mapContainer: parent.querySelector('#nz-map')!,
     systemBar: parent.querySelector('#nz-system-bar')!,
+    regionEl: parent.querySelector('#nz-region')!,
     statusEl: parent.querySelector('#nz-status')!,
     leftRail: parent.querySelector('#nz-rail-left')!,
     rightRail: parent.querySelector('#nz-rail-right')!,

@@ -7,7 +7,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { MapboxOverlay } from '@deck.gl/mapbox';
-import type { Layer } from '@deck.gl/core';
+import type { Layer, PickingInfo } from '@deck.gl/core';
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
 
@@ -16,10 +16,13 @@ const DEFAULT_ZOOM = 5.5;
 const DEFAULT_PITCH = 0;
 const DEFAULT_BEARING = 0;
 
+export type PickHandler = (info: PickingInfo) => void;
+
 export interface MapEngine {
   map: maplibregl.Map;
   overlay: MapboxOverlay;
   setLayers(layers: Layer[]): void;
+  onClick(handler: PickHandler): void;
   dispose(): void;
 }
 
@@ -50,10 +53,15 @@ export function createMapEngine(container: HTMLElement): MapEngine {
   // Users can still rotate via keyboard or touch
   map.dragRotate.disable();
 
+  let clickHandler: PickHandler | null = null;
+
   const overlay = new MapboxOverlay({
     interleaved: true,
     layers: [],
-  });
+    onClick: (info) => {
+      if (clickHandler) clickHandler(info as PickingInfo);
+    },
+  } as ConstructorParameters<typeof MapboxOverlay>[0]);
 
   map.addControl(overlay);
 
@@ -72,5 +80,9 @@ export function createMapEngine(container: HTMLElement): MapEngine {
     map.remove();
   }
 
-  return { map, overlay, setLayers, dispose };
+  function onClick(handler: PickHandler): void {
+    clickHandler = handler;
+  }
+
+  return { map, overlay, setLayers, onClick, dispose };
 }
