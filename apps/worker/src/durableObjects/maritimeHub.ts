@@ -1,9 +1,15 @@
 import { parseAisCoverageProfileId } from '@namazue/db';
+import { desc, gte } from 'drizzle-orm';
 import type { Env } from '../index.ts';
 import { createMaritimeSnapshotProvider } from '../maritime/provider.ts';
-import { MaritimeSnapshotService, type MaritimeSnapshotQuery, type MaritimeSnapshotRecord, type MaritimeSnapshotStore } from '../maritime/service.ts';
+import { MaritimeSnapshotService, type MaritimeRuntimeGovernorPolicy, type MaritimeSnapshotQuery, type MaritimeSnapshotRecord, type MaritimeSnapshotStore } from '../maritime/service.ts';
+import { buildGovernorPolicyEnvelopeFromEvents } from '../governor/runtimeGovernor.ts';
+import { getSourcePolicy } from '../governor/policies.ts';
+import { createDb } from '../lib/db.ts';
+import { earthquakes } from '@namazue/db';
 
 const HUB_PATH = '/snapshot';
+const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 
 export class MaritimeHub {
   private readonly service: MaritimeSnapshotService;
@@ -16,6 +22,7 @@ export class MaritimeHub {
       provider: createMaritimeSnapshotProvider(env),
       store: new DurableObjectSnapshotStore(state),
       ttlMs: env.AIS_SNAPSHOT_TTL_MS,
+      resolveRuntimeGovernor: (query, now) => resolveMaritimeRuntimeGovernor(env, query, now),
     });
   }
 
@@ -40,6 +47,9 @@ export class MaritimeHub {
         provider: snapshot.provenance.provider,
         fallback_reason: snapshot.provenance.fallbackReason ?? null,
         refresh_in_flight: snapshot.provenance.refreshInFlight,
+        governor_state: snapshot.provenance.governorState,
+        policy_refresh_ms: snapshot.provenance.policyRefreshMs,
+        region_scope: serializeRegionScope(snapshot.provenance.regionScope),
         diagnostics: {
           attempted_live: snapshot.provenance.diagnostics.attemptedLive,
           upstream_phase: snapshot.provenance.diagnostics.upstreamPhase,
@@ -95,4 +105,59 @@ function parseSnapshotQuery(url: URL): MaritimeSnapshotQuery {
 
 function storageKey(profileId: string): string {
   return `snapshot:${profileId}`;
+}
+
+async function resolveMaritimeRuntimeGovernor(
+  env: Env,
+  query: MaritimeSnapshotQuery,
+  now: number,
+): Promise<MaritimeRuntimeGovernorPolicy> {
+  const db = createDb(env.DATABASE_URL);
+  const recentRows = await db.select({
+    magnitude: earthquakes.magnitude,
+    tsunami: earthquakes.tsunami,
+    lat: earthquakes.lat,
+    lng: earthquakes.lng,
+    time: earthquakes.time,
+  })
+    .from(earthquakes)
+    .where(gte(earthquakes.time, new Date(now - GOVERNOR_LOOKBACK_MS)))
+    .orderBy(desc(earthquakes.time))
+    .limit(25);
+
+  const envelope = buildGovernorPolicyEnvelopeFromEvents(
+    recentRows.map((row) => ({
+      ...row,
+      tsunami: Boolean(row.tsunami),
+    })),
+    {
+      now: new Date(now).toISOString(),
+      viewportBounds: query.bounds,
+    },
+  );
+  const policy = getSourcePolicy('maritime', envelope.activation.state);
+
+  return {
+    activation: envelope.activation,
+    refreshMs: policy.cadenceMode === 'poll' ? policy.refreshMs : env.AIS_SNAPSHOT_TTL_MS ?? 60_000,
+  };
+}
+
+function serializeRegionScope(regionScope: MaritimeRuntimeGovernorPolicy['activation']['regionScope']) {
+  if (regionScope.kind === 'national') {
+    return { kind: 'national' };
+  }
+
+  if (regionScope.kind === 'viewport') {
+    return {
+      kind: 'viewport',
+      region_ids: regionScope.regionIds,
+      bounds: regionScope.bounds,
+    };
+  }
+
+  return {
+    kind: 'regional',
+    region_ids: regionScope.regionIds,
+  };
 }

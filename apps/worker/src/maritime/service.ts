@@ -1,4 +1,6 @@
 import { filterVesselsByBounds, type AisCoverageProfile, type AisCoverageProfileId, type Vessel } from '@namazue/db';
+import { getSourcePolicy } from '../governor/policies.ts';
+import type { GovernorActivation, GovernorRegionScope } from '../governor/types.ts';
 
 export interface MaritimeSnapshotRecord {
   source: 'synthetic' | 'live';
@@ -80,14 +82,27 @@ export interface MaritimeSnapshotResponse {
     provider: MaritimeSnapshotProvider['provider'];
     fallbackReason?: MaritimeFallbackReason;
     refreshInFlight: boolean;
+    governorState: GovernorActivation['state'];
+    policyRefreshMs: number;
+    regionScope: GovernorRegionScope;
     diagnostics: MaritimeProviderDiagnostics;
   };
+}
+
+export interface MaritimeRuntimeGovernorPolicy {
+  activation: GovernorActivation;
+  refreshMs: number;
 }
 
 interface MaritimeSnapshotServiceOptions {
   provider: MaritimeSnapshotProvider;
   store: MaritimeSnapshotStore;
   ttlMs?: number;
+  resolveRuntimeGovernor?: (
+    query: MaritimeSnapshotQuery,
+    now: number,
+    cached: MaritimeSnapshotRecord | null,
+  ) => MaritimeRuntimeGovernorPolicy | Promise<MaritimeRuntimeGovernorPolicy>;
 }
 
 const DEFAULT_TTL_MS = 5_000;
@@ -96,18 +111,21 @@ export class MaritimeSnapshotService {
   private readonly provider: MaritimeSnapshotProvider;
   private readonly store: MaritimeSnapshotStore;
   private readonly ttlMs: number;
+  private readonly resolveRuntimeGovernor: NonNullable<MaritimeSnapshotServiceOptions['resolveRuntimeGovernor']>;
   private readonly refreshByProfile = new Map<string, Promise<MaritimeSnapshotRecord>>();
 
   constructor(options: MaritimeSnapshotServiceOptions) {
     this.provider = options.provider;
     this.store = options.store;
     this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.resolveRuntimeGovernor = options.resolveRuntimeGovernor ?? createDefaultRuntimeGovernorResolver(this.ttlMs);
   }
 
   async getSnapshot(query: MaritimeSnapshotQuery): Promise<MaritimeSnapshotResponse> {
     const now = query.now ?? Date.now();
     const cached = await this.store.get(query.profileId);
-    const cacheStatus = getCacheStatus(cached, now, this.ttlMs);
+    const runtimeGovernor = await this.resolveRuntimeGovernor(query, now, cached);
+    const cacheStatus = getCacheStatus(cached, now, runtimeGovernor.refreshMs);
 
     let record = cached;
     let refreshInFlight = false;
@@ -141,6 +159,9 @@ export class MaritimeSnapshotService {
         provider: record.source,
         fallbackReason: record.fallbackReason,
         refreshInFlight,
+        governorState: runtimeGovernor.activation.state,
+        policyRefreshMs: runtimeGovernor.refreshMs,
+        regionScope: runtimeGovernor.activation.regionScope,
         diagnostics: record.diagnostics,
       },
     };
@@ -184,4 +205,21 @@ function getCacheStatus(
 ): 'hit' | 'miss' | 'stale' {
   if (!record) return 'miss';
   return now - record.refreshedAt > ttlMs ? 'stale' : 'hit';
+}
+
+function createDefaultRuntimeGovernorResolver(ttlMs: number) {
+  return (): MaritimeRuntimeGovernorPolicy => {
+    const calmPolicy = getSourcePolicy('maritime', 'calm');
+
+    return {
+      activation: {
+        state: 'calm',
+        sourceClasses: ['event-truth'],
+        regionScope: { kind: 'national' },
+        activatedAt: new Date(0).toISOString(),
+        reason: 'no material seismic escalation detected',
+      },
+      refreshMs: calmPolicy.cadenceMode === 'poll' ? calmPolicy.refreshMs : ttlMs,
+    };
+  };
 }
