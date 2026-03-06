@@ -157,6 +157,20 @@ export interface GmpeResult {
 export type JmaClass = '0' | '1' | '2' | '3' | '4' | '5-' | '5+' | '6-' | '6+' | '7';
 
 // ============================================================
+// Rail Operation Status (ODPT/JR feeds → rail layer)
+// ============================================================
+
+export type RailOperationStatus = 'normal' | 'delayed' | 'suspended' | 'partial' | 'unknown';
+
+export interface RailLineStatus {
+  lineId: string;
+  status: RailOperationStatus;
+  cause?: string;
+  statusText?: string;
+  updatedAt: number;
+}
+
+// ============================================================
 // Intensity Grid (seismic-engine → globe-viz)
 // ============================================================
 

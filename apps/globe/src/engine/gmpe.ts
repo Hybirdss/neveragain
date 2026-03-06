@@ -195,20 +195,59 @@ export function vs30ToAmp(vs30: number): number {
 // Intensity Grid Computation
 // ============================================================
 
+// ── Finite-Fault Distance Correction ─────────────────────────
+//
+// Si & Midorikawa (1999) uses hypocentral distance (point-source),
+// which produces perfectly circular isoseismal contours. In reality,
+// large earthquakes rupture along a finite fault plane; points along
+// the fault trace are closer to the source than the epicentral
+// distance implies.
+//
+// We approximate the Joyner-Boore distance (R_JB) — the closest
+// horizontal distance to the surface projection of the fault plane —
+// by modeling the fault as a line source centered on the epicenter.
+//
+// Rupture length from Wells & Coppersmith (1994) "All" regression:
+//   log10(SRL_km) = -3.22 + 0.69 * Mw
+//   Table 2A, "All fault types" surface rupture length
+//
+// Reference: Wells, D.L. and Coppersmith, K.J. (1994).
+// "New empirical relationships among magnitude, rupture length,
+// rupture width, rupture area, and surface displacement."
+// Bulletin of the Seismological Society of America, 84(4), 974-1002.
+//
+// This approach is conceptually equivalent to using R_JB as in the
+// NGA-West2 GMPEs (Abrahamson et al., 2014; Boore et al., 2014;
+// Campbell & Bozorgnia, 2014), which all produce elongated
+// isoseismals for large events.
+
+const WC94_SRL_INTERCEPT = -3.22;
+const WC94_SRL_SLOPE = 0.69;
+
 /**
  * Compute a 2D grid of JMA intensity values centered on the epicenter.
  *
- * The grid spans [center - radiusDeg, center + radiusDeg] in both lat and lng
- * with a step of gridSpacingDeg. Each cell stores the continuous JMA intensity.
- * Data is stored in a Float32Array in row-major order (rows = latitude).
+ * The grid spans radiusDeg in latitude and a longitude-corrected extent
+ * so the coverage is physically circular. Each cell stores the continuous
+ * JMA intensity in a Float32Array in row-major order (rows = latitude).
+ *
+ * When strikeAngleDeg is provided, applies a finite-fault distance
+ * correction using Wells & Coppersmith (1994) rupture length. This
+ * replaces the epicentral distance with an approximate Joyner-Boore
+ * distance (closest distance to fault trace), producing elongated
+ * isoseismal contours consistent with observed intensity maps.
+ *
+ * A smooth circular edge fade prevents the rectangular grid boundary
+ * from being visible on the map.
  *
  * @param epicenter Epicenter coordinates { lat, lng } in degrees
  * @param Mw Moment magnitude
  * @param depth_km Focal depth in km
  * @param faultType Fault type classification
  * @param gridSpacingDeg Grid spacing in degrees (default 0.1)
- * @param radiusDeg Half-span of the grid from center in degrees (default 5)
+ * @param radiusDeg Half-span of the grid from center in lat degrees (default 5)
  * @param vs30Grid Optional Vs30 grid for per-cell site amplification
+ * @param strikeAngleDeg Optional fault strike angle in degrees from north (0=N, 90=E)
  * @returns IntensityGrid with Float32Array data
  */
 export function computeIntensityGrid(
@@ -219,15 +258,21 @@ export function computeIntensityGrid(
   gridSpacingDeg: number = 0.1,
   radiusDeg: number = 5,
   vs30Grid?: Vs30Grid,
+  strikeAngleDeg?: number,
 ): IntensityGrid {
+  // Longitude-corrected radius: 1° lng is shorter than 1° lat at non-equator
+  const cosEpiLat = Math.cos(epicenter.lat * DEG_TO_RAD);
+  const radiusLngDeg = radiusDeg / Math.max(0.1, cosEpiLat);
+
   const latMin = epicenter.lat - radiusDeg;
   const latMax = epicenter.lat + radiusDeg;
-  const lngMin = epicenter.lng - radiusDeg;
-  const lngMax = epicenter.lng + radiusDeg;
+  const lngMin = epicenter.lng - radiusLngDeg;
+  const lngMax = epicenter.lng + radiusLngDeg;
 
   // Calculate grid dimensions
   const rows = Math.floor((latMax - latMin) / gridSpacingDeg) + 1;
   const cols = Math.floor((lngMax - lngMin) / gridSpacingDeg) + 1;
+  const lngStep = (lngMax - lngMin) / Math.max(1, cols - 1);
 
   const data = new Float32Array(rows * cols);
 
@@ -237,7 +282,24 @@ export function computeIntensityGrid(
   const magTerm = 0.58 * mw - 1.29 + 0.0038 * depth_km + d;
   const nearSourceTerm = 0.0028 * Math.pow(10, 0.5 * mw);
   const depthSq = depth_km * depth_km;
-  const cosEpiLat = Math.cos(epicenter.lat * DEG_TO_RAD);
+
+  // ── Finite-fault setup (Wells & Coppersmith 1994) ──────────
+  // Rupture length: log10(SRL) = -3.22 + 0.69 * Mw
+  // M5.5 → ~4 km (negligible), M7.0 → ~41 km, M8.0 → ~200 km
+  const hasFiniteFault = strikeAngleDeg != null;
+  let strikeRad = 0;
+  let halfLength = 0;
+
+  if (hasFiniteFault) {
+    strikeRad = strikeAngleDeg * DEG_TO_RAD;
+    const ruptureLength = Math.pow(10, WC94_SRL_INTERCEPT + WC94_SRL_SLOPE * mw);
+    halfLength = ruptureLength / 2;
+  }
+
+  // ── Circular edge fade (visual smoothing, not a physical model) ──
+  const maxRadiusKm = radiusDeg * 111;
+  const fadeStartKm = maxRadiusKm * 0.82;
+  const fadeBandKm = maxRadiusKm - fadeStartKm;
 
   for (let row = 0; row < rows; row++) {
     const lat = latMin + row * gridSpacingDeg;
@@ -247,27 +309,66 @@ export function computeIntensityGrid(
     const sinSqDLat = Math.sin(dLatHalf) ** 2;
 
     for (let col = 0; col < cols; col++) {
-      const lng = lngMin + col * gridSpacingDeg;
+      const lng = lngMin + col * lngStep;
 
       // Haversine inline for performance
       const dLngHalf = (lng - epicenter.lng) * DEG_TO_RAD / 2;
       const a = sinSqDLat + cosEpiLat * cosLat * (Math.sin(dLngHalf) ** 2);
       const surfaceDist = 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
 
-      // Hypocentral distance
-      const X = Math.sqrt(surfaceDist * surfaceDist + depthSq);
+      // ── Circular edge fade ──
+      let edgeFade = 1;
+      if (surfaceDist > fadeStartKm) {
+        const fadeT = Math.min(1, (surfaceDist - fadeStartKm) / fadeBandKm);
+        edgeFade = Math.max(0, 1 - fadeT * fadeT);
+        if (edgeFade <= 0) {
+          data[row * cols + col] = 0;
+          continue;
+        }
+      }
+
+      // ── Finite-fault distance correction ──
+      // Model the fault as a line of length SRL centered on the epicenter,
+      // oriented along strikeAngleDeg. Compute closest distance from this
+      // cell to the fault trace (≈ Joyner-Boore distance).
+      let effectiveDist = surfaceDist;
+
+      if (hasFiniteFault && halfLength > 1 && surfaceDist > 0.5) {
+        // Decompose epicentral vector into along-strike / perpendicular
+        const dLatKm = (lat - epicenter.lat) * 111;
+        const dLngKm = (lng - epicenter.lng) * 111 * cosEpiLat;
+        const azimuth = Math.atan2(dLngKm, dLatKm); // bearing from north
+        const relAngle = azimuth - strikeRad;
+
+        const alongStrike = surfaceDist * Math.cos(relAngle);
+        const perpendicular = surfaceDist * Math.abs(Math.sin(relAngle));
+
+        // Closest point on fault trace (clamped to [-halfLength, +halfLength])
+        const clampedAlong = Math.max(-halfLength, Math.min(halfLength, alongStrike));
+        const faultTraceDist = Math.sqrt(
+          (alongStrike - clampedAlong) ** 2 + perpendicular * perpendicular,
+        );
+
+        // Use fault-trace distance, clamped to minimum 3 km
+        // to avoid near-field singularity (consistent with GMPE near-source term)
+        effectiveDist = Math.max(3, faultTraceDist);
+      }
+
+      // Hypocentral distance (surface distance + depth)
+      const X = Math.sqrt(effectiveDist * effectiveDist + depthSq);
 
       // GMPE: log10(PGV600)
-      // log10(PGV600) = magTerm - log10(X + nearSourceTerm) - 0.002 * X
       const pgv600 = Math.pow(10, magTerm - 0.002 * X) / (X + nearSourceTerm);
 
       // Surface PGV with Vs30 amplification (per-cell if grid available)
       const ampFactor = vs30Grid
         ? vs30ToAmp(lookupVs30(vs30Grid, lat, lng))
         : VS30_AMP_FACTOR;
-      const pgvSurface = pgv600 * ampFactor;
+      let pgvSurface = pgv600 * ampFactor;
 
-      // PGV -> JMA intensity (cached log10 for performance if we wanted, but Math.log10 is fast enough)
+      // Apply edge fade to PGV (before log transform to preserve physical meaning)
+      pgvSurface *= edgeFade;
+
       data[row * cols + col] = pgvSurface > 0 ? 2.43 + 1.82 * Math.log10(pgvSurface) : 0;
     }
   }
@@ -278,6 +379,7 @@ export function computeIntensityGrid(
     rows,
     center: { lat: epicenter.lat, lng: epicenter.lng },
     radiusDeg,
+    radiusLngDeg,
   };
 }
 

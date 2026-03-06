@@ -917,7 +917,8 @@
 }
 
 .nz-check__item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(125, 211, 252, 0.06);
+  cursor: pointer;
 }
 
 .nz-check__item-header {
@@ -2154,4 +2155,616 @@
     bottom: calc(var(--nz-bottom-bar-height) + 8px);
     max-height: 40vh;
   }
+}
+
+/* ── Enhanced Glassmorphism ──────────────────────────────────── */
+
+.nz-panel {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: nz-panel-enter 0.3s ease-out;
+}
+
+@keyframes nz-panel-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Panel Severity Gradients ────────────────────────────────── */
+
+.nz-panel--sev-critical {
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.14) 0%, var(--nz-panel-bg) 55%);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.nz-panel--sev-priority {
+  background: linear-gradient(145deg, rgba(251, 191, 36, 0.10) 0%, var(--nz-panel-bg) 55%);
+  border-color: rgba(251, 191, 36, 0.18);
+}
+
+.nz-panel--sev-watch {
+  background: linear-gradient(145deg, rgba(96, 165, 250, 0.08) 0%, var(--nz-panel-bg) 55%);
+  border-color: rgba(96, 165, 250, 0.15);
+}
+
+.nz-panel--sev-info {
+  background: linear-gradient(145deg, rgba(125, 211, 252, 0.06) 0%, var(--nz-panel-bg) 55%);
+}
+
+/* ── Magnitude Hero Display ──────────────────────────────────── */
+
+.nz-snap__mag-hero {
+  font-family: var(--nz-font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.nz-snap__mag-depth {
+  font-family: var(--nz-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--nz-text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.nz-snap__mag-hero--info { color: var(--nz-info); }
+.nz-snap__mag-hero--watch { color: var(--nz-watch); }
+.nz-snap__mag-hero--priority { color: var(--nz-priority); }
+.nz-snap__mag-hero--critical { color: var(--nz-critical); }
+
+/* ── Severity Gradient Bar ───────────────────────────────────── */
+
+.nz-snap__sev-bar {
+  height: 2px;
+  border-radius: 1px;
+  margin: 10px 0;
+  background: var(--nz-panel-border);
+}
+
+.nz-snap__sev-bar--info {
+  background: linear-gradient(90deg, var(--nz-info) 0%, transparent 80%);
+}
+
+.nz-snap__sev-bar--watch {
+  background: linear-gradient(90deg, var(--nz-watch) 0%, transparent 80%);
+}
+
+.nz-snap__sev-bar--priority {
+  background: linear-gradient(90deg, var(--nz-priority) 0%, transparent 80%);
+}
+
+.nz-snap__sev-bar--critical {
+  background: linear-gradient(90deg, var(--nz-critical) 0%, transparent 70%);
+}
+
+.nz-snap__tz {
+  font-size: 9px;
+  opacity: 0.5;
+  margin-left: 1px;
+}
+
+/* ── Check These Now — Severity Bars ─────────────────────────── */
+
+.nz-check__item {
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease, border-color 0.3s ease;
+}
+
+.nz-check__item--info { border-left-color: var(--nz-info); }
+.nz-check__item--watch { border-left-color: var(--nz-watch); }
+.nz-check__item--priority { border-left-color: var(--nz-priority); }
+.nz-check__item--critical { border-left-color: var(--nz-critical); }
+
+/* Stagger animation for priority items */
+.nz-check__item {
+  animation: nz-check-enter 0.35s ease-out backwards;
+}
+
+.nz-check__item:nth-child(1) { animation-delay: 0.0s; }
+.nz-check__item:nth-child(2) { animation-delay: 0.08s; }
+.nz-check__item:nth-child(3) { animation-delay: 0.16s; }
+.nz-check__item:nth-child(4) { animation-delay: 0.24s; }
+.nz-check__item:nth-child(5) { animation-delay: 0.32s; }
+.nz-check__item:nth-child(6) { animation-delay: 0.40s; }
+
+@keyframes nz-check-enter {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Count badge pulse */
+.nz-check__count {
+  transition: transform 0.2s ease;
+}
+
+/* ── System Bar Data Heartbeat ───────────────────────────────── */
+
+.nz-system-bar__heartbeat {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--nz-calm);
+  animation: nz-heartbeat 3s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes nz-heartbeat {
+  0%, 100% { opacity: 0.25; transform: scale(0.75); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.nz-system-bar__heartbeat[data-mode="event"] {
+  background: var(--nz-priority);
+  animation-duration: 1.5s;
+}
+
+/* ── Bundle Summary Trust Badges ─────────────────────────────── */
+
+.nz-bundle-trust {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.nz-bundle-trust--confirmed {
+  color: var(--nz-calm);
+  background: rgba(110, 231, 183, 0.12);
+}
+
+.nz-bundle-trust--review {
+  color: var(--nz-priority);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.nz-bundle-trust--pending {
+  color: var(--nz-text-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Exposure Items — Severity Enhancement ───────────────────── */
+
+.nz-expo__item {
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+  transition: border-color 0.3s ease, background 0.15s ease;
+}
+
+.nz-expo__item:hover {
+  background: rgba(125, 211, 252, 0.06);
+  cursor: pointer;
+}
+
+.nz-expo__item--critical { border-left-color: var(--nz-critical); }
+.nz-expo__item--priority { border-left-color: var(--nz-priority); }
+.nz-expo__item--watch { border-left-color: var(--nz-watch); }
+
+/* ── Feed Items — Active Glow ────────────────────────────────── */
+
+.nz-feed__item--active {
+  background: rgba(125, 211, 252, 0.08);
+  box-shadow: inset 2px 0 0 var(--nz-info);
+}
+
+/* ── Panel Header Separator ──────────────────────────────────── */
+
+.nz-panel__header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ── Responsive Tooltip Styles ───────────────────────────────── */
+
+.deck-tooltip {
+  font-family: var(--nz-font-ui) !important;
+  background: rgba(9, 13, 19, 0.95) !important;
+  border: 1px solid rgba(30, 37, 48, 0.8) !important;
+  border-radius: 8px !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  padding: 10px 12px !important;
+  color: var(--nz-text-primary) !important;
+  font-size: 12px !important;
+  max-width: 320px !important;
+}
+
+/* ── Metric Values — Mono Precision ──────────────────────────── */
+
+.nz-snap__metric-value {
+  font-family: var(--nz-font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--nz-text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* ── Severity Pulse Animation (for panels during sequence) ─── */
+
+@keyframes nz-sev-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.nz-panel--sev-critical .nz-snap__mag-hero {
+  animation: nz-sev-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Rail Status Badge Enhancement ───────────────────────────── */
+
+.nz-check__severity {
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* ── Panel Transition for Content Updates ────────────────────── */
+
+.nz-snap__metrics,
+.nz-snap__meta,
+.nz-check__list,
+.nz-expo__list {
+  transition: opacity 0.2s ease;
+}
+
+/* ── Map Attribution — Less Obtrusive ────────────────────────── */
+
+.maplibregl-ctrl-bottom-right {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.maplibregl-ctrl-bottom-right:hover {
+  opacity: 0.8;
+}
+
+/* ── CRT Scanline Overlay — SCIF monitor feel ──────────────── */
+.nz-console::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  mix-blend-mode: multiply;
+}
+
+/* ── Data Stream Ticker ────────────────────────────────────── */
+.nz-ticker {
+  position: relative;
+  overflow: hidden;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%);
+}
+
+.nz-ticker__track {
+  display: flex;
+  gap: 0;
+  animation: nz-ticker-scroll 60s linear infinite;
+}
+
+.nz-ticker__track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes nz-ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ── Intensity Legend ───────────────────────────────────────── */
+.nz-intensity-legend {
+  position: absolute;
+  bottom: calc(var(--nz-bottom-bar-height) + 16px);
+  right: calc(var(--nz-rail-width) + 24px);
+  z-index: 6;
+  background: var(--nz-panel-bg);
+  backdrop-filter: blur(var(--nz-panel-blur));
+  -webkit-backdrop-filter: blur(var(--nz-panel-blur));
+  border: 1px solid var(--nz-panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-secondary);
+  pointer-events: auto;
+  animation: nz-panel-enter 0.3s ease-out;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.nz-intensity-legend__title {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--nz-text-muted);
+  margin-bottom: 6px;
+}
+
+.nz-intensity-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+}
+
+.nz-intensity-legend__swatch {
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.nz-intensity-legend__label {
+  font-size: 10px;
+  min-width: 20px;
+}
+
+.nz-intensity-legend[hidden] {
+  display: none;
+}
+
+/* ── Data Freshness Indicators ─────────────────────────────── */
+.nz-freshness {
+  display: flex;
+  gap: 10px;
+  font-family: var(--nz-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  color: var(--nz-text-muted);
+}
+
+.nz-freshness__src {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.nz-freshness__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--nz-calm);
+}
+
+.nz-freshness__dot--stale {
+  background: var(--nz-priority);
+}
+
+.nz-freshness__dot--offline {
+  background: var(--nz-critical);
+}
+
+.nz-freshness__label {
+  text-transform: uppercase;
+}
+
+.nz-freshness__age {
+  opacity: 0.6;
+}
+
+/* ── Impact Intelligence Panel ─────────────────────────────── */
+
+.nz-intel__empty {
+  font-size: 11px;
+  color: var(--nz-text-muted);
+  padding: 4px 0;
+  font-family: var(--nz-font-mono);
+}
+
+.nz-intel__peak {
+  text-align: center;
+  padding: 12px 0 8px;
+}
+
+.nz-intel__peak-value {
+  font-family: var(--nz-font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nz-intel__peak-label {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+.nz-intel__infra {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid var(--nz-panel-border);
+}
+
+.nz-intel__infra-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.nz-intel__infra-icon {
+  font-size: 11px;
+  width: 16px;
+  text-align: center;
+}
+
+.nz-intel__infra-count {
+  font-family: var(--nz-font-mono);
+  font-weight: 600;
+  min-width: 16px;
+}
+
+.nz-intel__infra-count--critical {
+  color: var(--nz-critical);
+}
+
+.nz-intel__infra-count--priority {
+  color: var(--nz-priority);
+}
+
+.nz-intel__infra-count--calm {
+  color: var(--nz-calm);
+}
+
+.nz-intel__infra-label {
+  color: var(--nz-text-secondary);
+}
+
+.nz-intel__area {
+  padding: 8px 0;
+  border-top: 1px solid var(--nz-panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nz-intel__area-header {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.nz-intel__area-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.nz-intel__area-class {
+  font-family: var(--nz-font-mono);
+  font-weight: 600;
+  min-width: 20px;
+  text-align: right;
+  font-size: 10px;
+}
+
+.nz-intel__area-bar {
+  height: 6px;
+  border-radius: 3px;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.nz-intel__area-value {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-secondary);
+  min-width: 40px;
+  text-align: right;
+}
+
+.nz-intel__tsunami {
+  padding: 8px 0;
+  border-top: 1px solid var(--nz-panel-border);
+}
+
+.nz-intel__tsunami-header,
+.nz-intel__timeline-header {
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.nz-intel__eta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.nz-intel__eta-port {
+  flex: 1;
+}
+
+.nz-intel__eta-time {
+  font-family: var(--nz-font-mono);
+  font-weight: 600;
+  color: var(--nz-critical);
+}
+
+.nz-intel__eta-dist {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  color: var(--nz-text-muted);
+  min-width: 45px;
+  text-align: right;
+}
+
+.nz-intel__timeline {
+  padding: 8px 0;
+  border-top: 1px solid var(--nz-panel-border);
+}
+
+.nz-intel__timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  padding: 3px 0;
+  opacity: 0.4;
+}
+
+.nz-intel__timeline-item--triggered {
+  opacity: 1;
+}
+
+.nz-intel__timeline-item--elapsed {
+  opacity: 0.7;
+}
+
+.nz-intel__timeline-time {
+  font-family: var(--nz-font-mono);
+  font-size: 10px;
+  min-width: 40px;
+  color: var(--nz-text-muted);
+}
+
+.nz-intel__timeline-check {
+  color: var(--nz-calm);
+}
+
+.nz-intel__timeline-pending {
+  color: var(--nz-text-muted);
+}
+
+.nz-intel__timeline-label {
+  flex: 1;
+}
+
+.nz-intel__timeline-desc {
+  font-size: 10px;
+  color: var(--nz-text-muted);
 }

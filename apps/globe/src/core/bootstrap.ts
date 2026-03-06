@@ -34,16 +34,20 @@ import { mountRecentFeed } from '../panels/recentFeed';
 import { mountCheckTheseNow } from '../panels/checkTheseNow';
 import { mountAssetExposure } from '../panels/assetExposure';
 import { mountFaultCatalog } from '../panels/faultCatalog';
+import { mountImpactIntelligence } from '../panels/impactIntelligence';
 import { mountLayerControl } from '../panels/layerControl';
 import { mountMaritimeExposure } from '../panels/maritimeExposure';
 import { fetchEventsWithMeta } from '../namazue/serviceEngine';
 import { createAisManager } from '../data/aisManager';
+import { createRailStatusManager } from '../data/railStatusManager';
 import { formatVesselTooltip } from '../layers/aisLayer';
 import { formatFaultTooltip } from '../layers/faultLayer';
 import { createCommandPalette } from '../panels/commandPalette';
 import { createKeyboardHelp } from '../panels/keyboardHelp';
 import { createNotificationQueue } from '../panels/notificationQueue';
 import { mountTimelineRail } from '../panels/timelineRail';
+import { mountDataTicker } from '../panels/dataTicker';
+import { mountIntensityLegend } from '../panels/intensityLegend';
 import { createSettingsPanel } from '../panels/settingsPanel';
 import { loadPreferences, type ConsolePreferences } from './preferences';
 import { formatHospitalTooltip, type Hospital } from '../layers/hospitalLayer';
@@ -158,8 +162,19 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   const disposeMaritime = mountMaritimeExposure(maritimeContainer);
 
   const disposeCheck = mountCheckTheseNow(shell.rightRail);
+
+  const intelContainer = document.createElement('div');
+  shell.rightRail.appendChild(intelContainer);
+  const disposeIntel = mountImpactIntelligence(intelContainer);
+
   const disposeLayerControl = mountLayerControl(shell.bottomBar, shell.bottomDrawerHost);
+  const disposeTicker = mountDataTicker(shell.tickerEl);
   const timeline = mountTimelineRail(shell.timelineHost, (event) => selectEvent(event));
+
+  // Intensity legend — positioned absolutely on the console root
+  const legendContainer = document.createElement('div');
+  shell.root.appendChild(legendContainer);
+  const disposeLegend = mountIntensityLegend(legendContainer);
 
   const faultContainer = document.createElement('div');
   shell.rightRail.appendChild(faultContainer);
@@ -201,7 +216,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     if (info.layer?.id === 'rail' && info.object) {
       const route = info.object as RailRoute;
       const selected = consoleStore.get('selectedEvent');
-      return { html: formatRailTooltip(route, selected) };
+      return { html: formatRailTooltip(route, selected, consoleStore.get('railStatuses')) };
     }
     if (info.layer?.id === 'power' && info.object) {
       const plant = info.object as PowerPlant;
@@ -248,6 +263,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       source: lastFetchSource,
       updatedAt: lastUpdatedAt || Date.now(),
       viewport: consoleStore.get('viewport'),
+      faults: consoleStore.get('faults'),
     });
 
     // Batch: all 7 updates fire subscribers only once per key, after batch completes.
@@ -460,7 +476,46 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     shell.regionEl.textContent = state.regionLabel;
     shell.statusEl.textContent = state.statusText;
     shell.statusEl.setAttribute('data-mode', state.statusMode);
+    shell.heartbeatEl.setAttribute('data-mode', state.statusMode);
   }
+
+  // 10. Data freshness indicators
+  function renderFreshness(el: HTMLElement): void {
+    const f = consoleStore.get('dataFreshness');
+    const now = Date.now();
+
+    function ageLabel(ts: number): string {
+      if (ts === 0) return '--';
+      const sec = Math.floor((now - ts) / 1000);
+      if (sec < 60) return `${sec}s`;
+      return `${Math.floor(sec / 60)}m`;
+    }
+
+    function staleClass(ts: number): string {
+      if (ts === 0) return 'nz-freshness__dot--offline';
+      const age = now - ts;
+      if (age > 120_000) return 'nz-freshness__dot--stale';
+      return '';
+    }
+
+    const sources = [
+      { key: 'usgs', label: 'USGS', ts: f.usgs },
+      { key: 'ais', label: 'AIS', ts: f.ais },
+      { key: 'odpt', label: 'ODPT', ts: f.odpt },
+    ];
+
+    el.innerHTML = `<div class="nz-freshness">${sources.map(s => `
+      <span class="nz-freshness__src">
+        <span class="nz-freshness__dot ${staleClass(s.ts)}"></span>
+        <span class="nz-freshness__label">${s.label}</span>
+        <span class="nz-freshness__age">${ageLabel(s.ts)}</span>
+      </span>
+    `).join('')}</div>`;
+  }
+
+  const unsubFreshness = consoleStore.subscribe('dataFreshness', () => renderFreshness(shell.freshnessEl));
+  const freshnessTimer = setInterval(() => renderFreshness(shell.freshnessEl), 5_000);
+  renderFreshness(shell.freshnessEl);
 
   // 11. Load fault data in parallel
   setLoadingProgress(40, 'Loading fault data…');
@@ -472,6 +527,10 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     lastFetchSource = result.source;
     lastUpdatedAt = result.updatedAt;
     consoleStore.set('events', result.events);
+    consoleStore.set('dataFreshness', {
+      ...consoleStore.get('dataFreshness'),
+      usgs: Date.now(),
+    });
     syncOperationalTruth();
   }
 
@@ -489,7 +548,16 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     });
   }
 
-  // 13. AIS vessel tracking
+  // 13. Rail status tracking (ODPT Shinkansen feed)
+  const railStatusManager = createRailStatusManager((statuses) => {
+    consoleStore.set('railStatuses', statuses);
+    consoleStore.set('dataFreshness', {
+      ...consoleStore.get('dataFreshness'),
+      odpt: Date.now(),
+    });
+  });
+
+  // 13b. AIS vessel tracking
   const aisManager = createAisManager((vessels) => {
     // Batch: vessels + readModel update triggers subscribers once, not twice
     consoleStore.batch(() => {
@@ -502,6 +570,10 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
         vessels,
         assets: OPS_ASSETS,
       }));
+      consoleStore.set('dataFreshness', {
+        ...consoleStore.get('dataFreshness'),
+        ais: Date.now(),
+      });
     });
   });
 
@@ -510,6 +582,7 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     setLoadingProgress(60, 'Map ready, fetching events…');
     compositor.start();
     aisManager.start();
+    railStatusManager.start();
 
     try {
       await fetchAndSync();
@@ -551,7 +624,10 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   if (import.meta.hot) {
     import.meta.hot.dispose(() => {
       clearInterval(pollTimer);
+      clearInterval(freshnessTimer);
+      unsubFreshness();
       document.removeEventListener('keydown', handleKeydown);
+      railStatusManager.stop();
       aisManager.stop();
       compositor.stop();
       disposeSnapshot();
@@ -559,7 +635,10 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
       disposeExpo();
       disposeMaritime();
       disposeCheck();
+      disposeIntel();
       disposeLayerControl();
+      disposeTicker();
+      disposeLegend();
       timeline.dispose();
       disposeFaultCatalog();
       palette.dispose();

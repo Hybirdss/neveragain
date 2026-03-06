@@ -12,7 +12,7 @@ import { buildServiceReadModel } from '../ops/serviceReadModel';
 import type { ViewportState as OpsViewportState } from '../ops/types';
 import { buildOpsPriorities } from '../ops/priorities';
 import { buildMaritimeOverview } from '../ops/maritimeTelemetry';
-import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '../types';
+import type { ActiveFault, EarthquakeEvent, FaultType, IntensityGrid, TsunamiAssessment } from '../types';
 import { deriveRealtimeStatus } from '../orchestration/realtimeOrchestrator';
 import type { ViewportState as ConsoleViewportState } from './viewportManager';
 
@@ -25,6 +25,7 @@ export interface DeriveConsoleOperationalStateInput {
   source: RealtimeSource;
   updatedAt: number;
   viewport: ConsoleViewportState;
+  faults?: ActiveFault[];
 }
 
 export interface ConsoleOperationalState {
@@ -139,6 +140,85 @@ function quickTsunami(event: EarthquakeEvent | null): TsunamiAssessment | null {
   };
 }
 
+// ── Fault Strike Estimation ───────────────────────────────────
+//
+// For the finite-fault distance correction, we need the dominant fault
+// strike direction. For scenario events we compute it directly from
+// fault geometry. For real-time events we estimate from regional
+// subduction/fault architecture.
+//
+// Subduction trench orientations derived from the USGS Slab2 model:
+//   Hayes, G.P. et al. (2018). "Slab2, a comprehensive subduction zone
+//   geometry model." Science 362(6410):58-61. doi:10.1126/science.aat4723
+//
+// Representative slab contour azimuths (computed from Slab2 iso-depth lines):
+//   Japan Trench (Pacific plate, ~36-41°N): ~195° (≡ 15° NNE)
+//   Nankai Trough (Philippine Sea plate, ~32-34°N): ~245° (≡ 65° ENE)
+//   Ryukyu Trench (~24-30°N): ~220° (≡ 40° NE)
+//
+// Crustal fault trends from the GSI Active Fault Database (国土地理院活断層データベース)
+// and HERP long-term probability assessments (地震調査研究推進本部).
+
+const DEG_TO_RAD = Math.PI / 180;
+
+function computeStrikeFromSegments(segments: [number, number][]): number {
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  const dLng = last[0] - first[0];
+  const dLat = last[1] - first[1];
+  const cosLat = Math.cos(first[1] * DEG_TO_RAD);
+  const azimuthRad = Math.atan2(dLng * cosLat, dLat);
+  return ((azimuthRad * 180 / Math.PI) + 360) % 360;
+}
+
+/**
+ * Estimate dominant fault strike from regional tectonics.
+ *
+ * Subduction zone strikes from Slab2 iso-depth contour azimuths (Hayes 2018).
+ * Crustal fault trends from GSI Active Fault DB + HERP probability assessments.
+ */
+function estimateRegionalStrike(lat: number, lng: number, faultType: FaultType): number {
+  if (faultType === 'interface' || faultType === 'intraslab') {
+    // Slab2 contour azimuths:
+    //   Japan Trench: iso-depth lines trend ~15° (NNE) at 36-41°N, 140-145°E
+    //   Nankai Trough: iso-depth lines trend ~65° (ENE) at 32-34°N, 132-137°E
+    //   Ryukyu Trench: iso-depth lines trend ~40° (NE) at 24-31°N, 123-130°E
+    if (lng >= 140) return 15;
+    if (lat < 31) return 40;
+    return 65;
+  }
+
+  // Crustal fault trends (GSI/HERP):
+  //   Sagami Trough region (~35°N, 139°E): ~N140°E (NW-SE)
+  //     — Sagami Trough strikes approximately NW-SE (GSI)
+  //   Median Tectonic Line (~34°N, 132-136°E): ~N80°E (≈E-W)
+  //     — MTL strikes roughly E-W across Shikoku-Kii (HERP)
+  //   Tohoku inland faults (>37°N): ~N20°E (NNE-SSW)
+  //     — Parallel to the volcanic arc (GSI fault traces)
+  //   Kyushu faults (<33°N): ~N50°E (NE-SW)
+  //     — Beppu-Shimabara graben system (HERP)
+  if (lat >= 35 && lat < 37 && lng >= 139) return 140;
+  if (lat >= 34 && lat < 36 && lng < 137) return 80;
+  if (lat >= 37) return 20;
+  if (lat < 33) return 50;
+  return 45;
+}
+
+function estimateStrikeAngle(
+  event: EarthquakeEvent,
+  faults: ActiveFault[],
+): number {
+  // For scenario events, use exact fault geometry
+  if (event.id.startsWith('scenario-')) {
+    const faultId = event.id.replace('scenario-', '');
+    const fault = faults.find((f) => f.id === faultId);
+    if (fault && fault.segments.length >= 2) {
+      return computeStrikeFromSegments(fault.segments);
+    }
+  }
+  return estimateRegionalStrike(event.lat, event.lng, event.faultType);
+}
+
 export function deriveConsoleOperationalState(
   input: DeriveConsoleOperationalStateInput,
 ): ConsoleOperationalState {
@@ -186,6 +266,11 @@ export function deriveConsoleOperationalState(
   // Coarser grid for very large events to keep performance budget
   const intensitySpacing = intensityRadiusDeg >= 6 ? 0.15 : 0.1;
 
+  // Estimate fault strike for directional intensity propagation
+  const strikeAngle = selectedEvent
+    ? estimateStrikeAngle(selectedEvent, input.faults ?? [])
+    : undefined;
+
   const intensityGrid = selectedEvent
     ? computeIntensityGrid(
         { lat: selectedEvent.lat, lng: selectedEvent.lng },
@@ -194,6 +279,8 @@ export function deriveConsoleOperationalState(
         selectedEvent.faultType,
         intensitySpacing,
         intensityRadiusDeg,
+        undefined,     // vs30Grid
+        strikeAngle,   // directivity from fault strike
       )
     : null;
   const tsunamiAssessment = quickTsunami(selectedEvent);

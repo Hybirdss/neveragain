@@ -1,15 +1,22 @@
 /**
  * Map Engine — MapLibre GL JS + Deck.gl initialization
  *
- * Creates the base dark map and mounts Deck.gl's MapboxOverlay
- * with interleaved rendering for proper depth/label ordering.
+ * Base map: Protomaps PMTiles (self-hosted on R2, $0/mo)
+ * Fallback: CARTO Dark Matter (free, no key)
  */
 
 import maplibregl from 'maplibre-gl';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import type { Layer, PickingInfo } from '@deck.gl/core';
+import { Protocol } from 'pmtiles';
+import protoLayers from 'protomaps-themes-base';
 
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
+// PMTiles URL: https URL to .pmtiles file on R2 (without pmtiles:// prefix)
+const PMTILES_URL = import.meta.env.VITE_PMTILES_URL as string | undefined;
+
+// Register PMTiles protocol once
+const pmtilesProtocol = new Protocol();
+maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
 
 const JAPAN_CENTER: [number, number] = [139.69, 35.68];
 const DEFAULT_ZOOM = 5.5;
@@ -28,19 +35,35 @@ export interface MapEngine {
   dispose(): void;
 }
 
-function buildStyleUrl(): string {
-  // MapTiler Dataviz Dark — optimized for data overlay
-  if (MAPTILER_KEY) {
-    return `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`;
+function buildStyle(): maplibregl.StyleSpecification | string {
+  if (PMTILES_URL) {
+    const url = PMTILES_URL.startsWith('pmtiles://')
+      ? PMTILES_URL
+      : `pmtiles://${PMTILES_URL}`;
+
+    return {
+      version: 8,
+      glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
+      sprite: 'https://protomaps.github.io/basemaps-assets/sprites/v4/dark',
+      sources: {
+        protomaps: {
+          type: 'vector',
+          url,
+          attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://protomaps.com">Protomaps</a>',
+        },
+      },
+      layers: protoLayers('protomaps', 'dark', 'ja'),
+    } as maplibregl.StyleSpecification;
   }
-  // Fallback: Dark Matter (CartoDB/CARTO) — free, dark, clean
+
+  // Fallback: CARTO Dark Matter (free, no key required)
   return 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 }
 
 export function createMapEngine(container: HTMLElement): MapEngine {
   const map = new maplibregl.Map({
     container,
-    style: buildStyleUrl(),
+    style: buildStyle(),
     center: JAPAN_CENTER,
     zoom: DEFAULT_ZOOM,
     pitch: DEFAULT_PITCH,
@@ -84,6 +107,7 @@ export function createMapEngine(container: HTMLElement): MapEngine {
   }
 
   function dispose(): void {
+    maplibregl.removeProtocol('pmtiles');
     overlay.finalize();
     map.remove();
   }

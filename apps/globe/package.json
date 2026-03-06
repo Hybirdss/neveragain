@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@deck.gl/aggregation-layers": "^9.2.11",
     "@deck.gl/core": "^9.2.11",
     "@deck.gl/geo-layers": "^9.2.11",
     "@deck.gl/layers": "^9.2.11",
@@ -22,6 +23,8 @@
     "d3-contour": "^4.0.2",
     "d3-scale": "^4.0.2",
     "maplibre-gl": "^5.19.0",
+    "pmtiles": "^4.4.0",
+    "protomaps-themes-base": "^4.5.0",
     "vite-plugin-cesium": "^1.2.23"
   },
   "devDependencies": {

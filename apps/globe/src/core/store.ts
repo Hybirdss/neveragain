@@ -5,7 +5,7 @@
  * but with a state shape designed for the Japan-wide console.
  */
 
-import type { ActiveFault, EarthquakeEvent, IntensityGrid } from '../types';
+import type { ActiveFault, EarthquakeEvent, IntensityGrid, RailLineStatus } from '../types';
 import type { ViewportState } from './viewportManager';
 import type { OpsAssetExposure, OpsPriority } from '../ops/types';
 import type { RealtimeStatus, ServiceReadModel } from '../ops/readModelTypes';
@@ -18,6 +18,14 @@ import {
   type OperatorViewId,
 } from '../layers/bundleRegistry';
 import type { BundleId, LayerId } from '../layers/layerRegistry';
+
+// ── Data Freshness ────────────────────────────────────────────
+
+export interface DataFreshness {
+  usgs: number;    // timestamp of last USGS data
+  ais: number;     // timestamp of last AIS update
+  odpt: number;    // timestamp of last ODPT rail update
+}
 
 // ── Console State ──────────────────────────────────────────────
 
@@ -35,6 +43,7 @@ export interface ConsoleState {
   intensityGrid: IntensityGrid | null;
   vessels: Vessel[];
   faults: ActiveFault[];
+  railStatuses: RailLineStatus[];
   scenarioMode: boolean;
   layerVisibility: Record<LayerId, boolean>;
   activeBundleId: BundleId;
@@ -43,6 +52,9 @@ export interface ConsoleState {
   bundleDrawerOpen: boolean;
   panelsVisible: boolean;
   showCoordinates: boolean;
+  highlightedAssetId: string | null;
+  sequenceSWaveKm: number | null;
+  dataFreshness: DataFreshness;
 }
 
 // ── Store Implementation ───────────────────────────────────────
@@ -152,6 +164,7 @@ const initialState: ConsoleState = {
   intensityGrid: null,
   vessels: [],
   faults: [],
+  railStatuses: [],
   scenarioMode: false,
   layerVisibility: createDefaultLayerVisibility(),
   activeBundleId: 'seismic',
@@ -160,6 +173,9 @@ const initialState: ConsoleState = {
   bundleDrawerOpen: false,
   panelsVisible: true,
   showCoordinates: true,
+  highlightedAssetId: null,
+  sequenceSWaveKm: null,
+  dataFreshness: { usgs: 0, ais: 0, odpt: 0 },
 };
 
 export const consoleStore = new ConsoleStore(initialState);
