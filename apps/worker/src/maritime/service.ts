@@ -22,12 +22,17 @@ export type MaritimeUpstreamPhase =
   | 'completed'
   | 'upstream-error'
   | 'connect-timeout'
-  | 'no-live-data';
+  | 'no-live-data'
+  | 'closed-before-open';
 
 export interface MaritimeProviderDiagnostics {
   attemptedLive: boolean;
   upstreamPhase: MaritimeUpstreamPhase;
   messagesReceived: number;
+  socketOpened?: boolean;
+  subscriptionSent?: boolean;
+  closeCode?: number;
+  closeReason?: string;
   lastError?: string;
 }
 

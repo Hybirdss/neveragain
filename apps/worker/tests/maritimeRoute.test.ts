@@ -33,6 +33,10 @@ test('maritime route forwards maritime queries to the durable object hub', async
                     attempted_live: true,
                     upstream_phase: 'connect-timeout',
                     messages_received: 0,
+                    socket_opened: false,
+                    subscription_sent: false,
+                    close_code: null,
+                    close_reason: null,
                     last_error: 'AISstream websocket connect timeout',
                   },
                 },
@@ -58,6 +62,10 @@ test('maritime route forwards maritime queries to the durable object hub', async
         attempted_live: boolean;
         upstream_phase: string;
         messages_received: number;
+        socket_opened: boolean | null;
+        subscription_sent: boolean | null;
+        close_code: number | null;
+        close_reason: string | null;
         last_error: string | null;
       };
     };
@@ -73,6 +81,10 @@ test('maritime route forwards maritime queries to the durable object hub', async
   assert.equal(payload.provenance.diagnostics.attempted_live, true);
   assert.equal(payload.provenance.diagnostics.upstream_phase, 'connect-timeout');
   assert.equal(payload.provenance.diagnostics.messages_received, 0);
+  assert.equal(payload.provenance.diagnostics.socket_opened, false);
+  assert.equal(payload.provenance.diagnostics.subscription_sent, false);
+  assert.equal(payload.provenance.diagnostics.close_code, null);
+  assert.equal(payload.provenance.diagnostics.close_reason, null);
   assert.match(payload.provenance.diagnostics.last_error ?? '', /connect timeout/i);
   assert.match(
     forwardedUrl,

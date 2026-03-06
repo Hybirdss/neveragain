@@ -111,6 +111,40 @@ test('maritime provider falls back when AISstream never opens', async () => {
   assert.ok(snapshot.totalTracked > 122);
 });
 
+test('maritime provider marks sockets that close before open as upstream handshake failures', async () => {
+  const sockets: FakeWebSocket[] = [];
+  const provider = createMaritimeSnapshotProvider(
+    {
+      AISSTREAM_API_KEY: 'test-key',
+      AISSTREAM_COLLECTION_WINDOW_MS: 10,
+    },
+    {
+      webSocketFactory: (url) => {
+        const socket = new FakeWebSocket(url);
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      connectTimeoutMs: 50,
+    },
+  );
+
+  const snapshotPromise = provider.loadProfileSnapshot('japan-wide', 11_000);
+  await Promise.resolve();
+  const socket = sockets[0];
+  assert.ok(socket);
+  socket.emitClose({ code: 1006, reason: 'upstream closed' });
+
+  const snapshot = await snapshotPromise;
+  assert.equal(snapshot.source, 'synthetic');
+  assert.equal(snapshot.fallbackReason, 'upstream-error');
+  assert.equal(snapshot.diagnostics.attemptedLive, true);
+  assert.equal(snapshot.diagnostics.upstreamPhase, 'closed-before-open');
+  assert.equal(snapshot.diagnostics.socketOpened, false);
+  assert.equal(snapshot.diagnostics.subscriptionSent, false);
+  assert.equal(snapshot.diagnostics.closeCode, 1006);
+  assert.equal(snapshot.diagnostics.closeReason, 'upstream closed');
+});
+
 class FakeWebSocket {
   readonly sentMessages: string[] = [];
   private readonly listeners = new Map<string, Array<(event?: unknown) => void>>();
@@ -138,6 +172,12 @@ class FakeWebSocket {
   emitMessage(data: string): void {
     for (const handler of this.listeners.get('message') ?? []) {
       handler({ data });
+    }
+  }
+
+  emitClose(event: { code?: number; reason?: string } = {}): void {
+    for (const handler of this.listeners.get('close') ?? []) {
+      handler(event);
     }
   }
 }

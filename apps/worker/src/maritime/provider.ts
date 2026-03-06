@@ -59,10 +59,22 @@ export function createMaritimeSnapshotProvider(
         if (snapshot.totalTracked > 0) {
           return snapshot;
         }
-        return buildSyntheticFallback(profileId, now, 'no-live-data');
+        return buildSyntheticFallback(
+          profileId,
+          now,
+          'no-live-data',
+          {
+            attemptedLive: true,
+            upstreamPhase: 'no-live-data',
+            messagesReceived: snapshot.diagnostics.messagesReceived,
+            socketOpened: snapshot.diagnostics.socketOpened,
+            subscriptionSent: snapshot.diagnostics.subscriptionSent,
+          },
+        );
       } catch (error) {
         console.warn('[maritime] AISstream provider failed, falling back to synthetic snapshot:', error);
-        const fallbackReason = error instanceof Error && error.message === 'AISstream websocket connect timeout'
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const fallbackReason = errorMessage === 'AISstream websocket connect timeout'
           ? 'connect-timeout'
           : 'upstream-error';
         return buildSyntheticFallback(
@@ -71,7 +83,7 @@ export function createMaritimeSnapshotProvider(
           fallbackReason,
           buildFallbackDiagnostics(
             fallbackReason,
-            error instanceof Error ? error.message : String(error),
+            errorMessage,
           ),
         );
       }
@@ -106,6 +118,8 @@ async function collectAisstreamSnapshot(input: {
   const profile = getAisCoverageProfile(input.profileId);
   const vessels = new Map<string, Vessel>();
   let messagesReceived = 0;
+  let socketOpened = false;
+  let subscriptionSent = false;
 
   await new Promise<void>((resolve, reject) => {
     const socket = input.webSocketFactory(AISSTREAM_URL);
@@ -139,11 +153,13 @@ async function collectAisstreamSnapshot(input: {
     };
 
     socket.addEventListener('open', () => {
+      socketOpened = true;
       socket.send(JSON.stringify({
         APIKey: input.apiKey,
         BoundingBoxes: profile.boundingBoxes,
         FilterMessageTypes: ['PositionReport'],
       }));
+      subscriptionSent = true;
       if (openTimer) {
         clearTimeout(openTimer);
         openTimer = null;
@@ -162,7 +178,17 @@ async function collectAisstreamSnapshot(input: {
       finish(new Error('AISstream websocket error'));
     });
 
-    socket.addEventListener('close', () => {
+    socket.addEventListener('close', (event) => {
+      const closeCode = extractNumericField(event, 'code');
+      const closeReason = extractStringField(event, 'reason');
+      if (!socketOpened) {
+        const closeSuffix = [
+          closeCode ? `code=${closeCode}` : null,
+          closeReason ? `reason=${closeReason}` : null,
+        ].filter(Boolean).join(' ');
+        finish(new Error(`AISstream websocket closed before open${closeSuffix ? ` ${closeSuffix}` : ''}`));
+        return;
+      }
       finish();
     });
   });
@@ -173,6 +199,8 @@ async function collectAisstreamSnapshot(input: {
       attemptedLive: true,
       upstreamPhase: 'completed',
       messagesReceived,
+      socketOpened,
+      subscriptionSent,
     },
     profile,
     generatedAt: input.now,
@@ -203,15 +231,52 @@ function buildFallbackDiagnostics(
       attemptedLive: false,
       upstreamPhase: 'not-configured',
       messagesReceived: 0,
+      socketOpened: false,
+      subscriptionSent: false,
     };
   }
 
+  const closeCode = parseCloseCode(lastError);
+  const closeReason = parseCloseReason(lastError);
+
   return {
     attemptedLive: true,
-    upstreamPhase: fallbackReason,
+    upstreamPhase: lastError?.startsWith('AISstream websocket closed before open')
+      ? 'closed-before-open'
+      : fallbackReason,
     messagesReceived: 0,
+    socketOpened: false,
+    subscriptionSent: false,
+    closeCode,
+    closeReason,
     lastError,
   };
+}
+
+function extractNumericField(value: unknown, key: string): number | undefined {
+  if (!value || typeof value !== 'object' || !(key in value)) return undefined;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined;
+}
+
+function extractStringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object' || !(key in value)) return undefined;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'string' && candidate.length > 0 ? candidate : undefined;
+}
+
+function parseCloseCode(lastError: string | undefined): number | undefined {
+  if (!lastError?.startsWith('AISstream websocket closed before open')) return undefined;
+  const match = lastError.match(/code=(\d+)/);
+  if (!match) return undefined;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseCloseReason(lastError: string | undefined): string | undefined {
+  if (!lastError?.startsWith('AISstream websocket closed before open')) return undefined;
+  const match = lastError.match(/reason=(.+)$/);
+  return match?.[1];
 }
 
 function parseAisstreamMessage(

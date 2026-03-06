@@ -29,6 +29,8 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
           attemptedLive: false,
           upstreamPhase: 'not-configured',
           messagesReceived: 0,
+          socketOpened: false,
+          subscriptionSent: false,
         },
         profile: {
           id: profileId,
@@ -92,6 +94,8 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
   assert.equal(first.provenance.diagnostics.attemptedLive, false);
   assert.equal(first.provenance.diagnostics.upstreamPhase, 'not-configured');
   assert.equal(first.provenance.diagnostics.messagesReceived, 0);
+  assert.equal(first.provenance.diagnostics.socketOpened, false);
+  assert.equal(first.provenance.diagnostics.subscriptionSent, false);
   assert.equal(second.visibleCount, 1);
   assert.equal(second.provenance.cacheStatus, 'hit');
   assert.equal(second.provenance.fallbackReason, 'not-configured');
@@ -110,6 +114,8 @@ test('maritime snapshot service refreshes stale records', async () => {
           attemptedLive: true,
           upstreamPhase: calls === 1 ? 'upstream-error' : 'connect-timeout',
           messagesReceived: 0,
+          socketOpened: false,
+          subscriptionSent: false,
           lastError: calls === 1 ? 'upstream error' : 'connect timeout',
         },
         profile: {
@@ -171,6 +177,8 @@ test('maritime snapshot service returns stale data immediately while refreshing 
             attemptedLive: true,
             upstreamPhase: 'upstream-error',
             messagesReceived: 0,
+            socketOpened: false,
+            subscriptionSent: false,
             lastError: 'upstream error',
           },
           profile: {
@@ -224,6 +232,8 @@ test('maritime snapshot service returns stale data immediately while refreshing 
       attemptedLive: false,
       upstreamPhase: 'not-configured',
       messagesReceived: 0,
+      socketOpened: false,
+      subscriptionSent: false,
     },
     profile: {
       id: 'japan-wide',
@@ -290,6 +300,8 @@ test('maritime snapshot service deduplicates concurrent cache misses', async () 
       attemptedLive: false,
       upstreamPhase: 'not-configured',
       messagesReceived: 0,
+      socketOpened: false,
+      subscriptionSent: false,
     },
     profile: {
       id: 'japan-wide',
