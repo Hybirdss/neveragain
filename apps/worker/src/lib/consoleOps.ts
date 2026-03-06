@@ -1,13 +1,20 @@
-import { computeIntensityGrid } from '../../../globe/src/engine/gmpe.ts';
-import { buildCanonicalEventEnvelope } from '../../../globe/src/data/eventEnvelope.ts';
-import { OPS_ASSETS } from '../../../globe/src/ops/assetCatalog.ts';
-import { selectOperationalFocusEvent } from '../../../globe/src/ops/eventSelection.ts';
-import { buildAssetExposures } from '../../../globe/src/ops/exposure.ts';
-import { buildOpsPriorities } from '../../../globe/src/ops/priorities.ts';
-import { buildServiceReadModel, createEmptyServiceReadModel } from '../../../globe/src/ops/serviceReadModel.ts';
-import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '../../../globe/src/ops/readModelTypes.ts';
-import type { ViewportState } from '../../../globe/src/ops/types.ts';
-import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment } from '../../../globe/src/types.ts';
+import {
+  buildAssetExposures,
+  buildCanonicalEventEnvelope,
+  buildOpsPriorities,
+  buildServiceReadModel,
+  computeIntensityGrid,
+  createEmptyServiceReadModel,
+  OPS_ASSETS,
+  selectOperationalFocusEvent,
+  type EarthquakeEvent,
+  type IntensityGrid,
+  type RealtimeSource,
+  type RealtimeStatus,
+  type ServiceReadModel,
+  type TsunamiAssessment,
+  type ViewportState,
+} from '@namazue/ops';
 
 const STALE_AFTER_MS = 60_000;
 

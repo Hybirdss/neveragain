@@ -18,6 +18,10 @@ In short:
 - `BACKEND.md` owns computation truth
 - `BACKLOG.md` owns execution order
 
+Pure shared computation now lives in `packages/ops`. Some frontend file paths
+below may still exist as compatibility re-exports, but the domain source of
+truth is the workspace package.
+
 ---
 
 ## Backend North Star

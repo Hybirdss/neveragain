@@ -18,6 +18,7 @@
     "@loaders.gl/3d-tiles": "^4.3.4",
     "@loaders.gl/core": "^4.3.4",
     "@namazue/db": "*",
+    "@namazue/ops": "*",
     "d3-contour": "^4.0.2",
     "d3-scale": "^4.0.2",
     "maplibre-gl": "^5.19.0"

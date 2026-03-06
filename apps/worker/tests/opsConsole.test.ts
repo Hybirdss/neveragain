@@ -1,10 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { OPS_ASSETS, deriveZoomTier } from '@namazue/ops';
 import { buildConsoleSnapshot } from '../src/lib/consoleOps.ts';
 
 test('buildConsoleSnapshot derives backend-owned console truth for a viewport', () => {
   const now = Date.now();
+  const viewport = {
+    center: { lat: 35.68, lng: 139.76 },
+    zoom: 9.2,
+    bounds: [138.4, 34.8, 140.9, 36.4],
+    tier: deriveZoomTier(9.2),
+    activeRegion: 'kanto',
+  } as const;
   const snapshot = buildConsoleSnapshot({
     now,
     updatedAt: now - 5_000,
@@ -23,19 +31,14 @@ test('buildConsoleSnapshot derives backend-owned console truth for a viewport', 
         place: { text: 'Tokyo Bay' },
       },
     ],
-    viewport: {
-      center: { lat: 35.68, lng: 139.76 },
-      zoom: 9.2,
-      bounds: [138.4, 34.8, 140.9, 36.4],
-      tier: 'regional',
-      activeRegion: 'kanto',
-    },
+    viewport,
   });
 
   assert.equal(snapshot.mode, 'event');
   assert.equal(snapshot.selectedEvent?.id, 'tokyo-impact');
   assert.ok(snapshot.intensityGrid);
   assert.ok(snapshot.exposures.length > 0);
+  assert.ok(snapshot.exposures.every((entry) => OPS_ASSETS.some((asset) => asset.id === entry.assetId)));
   assert.ok(snapshot.priorities.length > 0);
   assert.equal(snapshot.readModel.viewport?.activeRegion, 'kanto');
   assert.ok(snapshot.readModel.visibleExposureSummary.length > 0);

@@ -13,7 +13,7 @@
 ## 2. 반드시 지켜야 할 원칙
 
 - 엔진 우선: GMPE 출력이 제품의 진실원본
-- 타입 계약 우선: `src/types.ts`는 모듈 간 계약
+- 타입 계약 우선: `packages/ops/types.ts`는 모듈 간 계약
 - 문서 우선 구현: 설계/수식/성능 기준은 `docs/` 준수
 - 검증 필수: 역사 지진 대비 JMA 오차 허용범위 충족
 - 프레임워크 금지: React/Vue/Angular 없이 vanilla TypeScript + DOM
@@ -31,7 +31,7 @@
 ## 4. 60초 온보딩 (AI/개발자 공통)
 
 1. 이 README를 먼저 읽는다.
-2. `src/types.ts`로 계약 타입을 확인한다.
+2. `packages/ops/types.ts`로 계약 타입을 확인한다.
 3. 작업별 최소 문서만 추가로 읽는다(아래 "빠른 문서 경로" 참고).
 4. 구현 전에 성공 기준(정확도/성능)을 명시한다.
 5. 구현 후 검증 계획 항목을 체크한다.
@@ -58,14 +58,20 @@ apps/globe/src/
   layers/   # deck.gl operational layers
   panels/   # operator panels and controls
   data/     # console API clients, realtime support
-  ops/      # shared operational truth contracts used by the frontend
-  engine/   # GMPE and seismic computation
+  ops/      # compatibility re-exports for shared operational contracts
+  engine/   # compatibility re-exports for shared seismic computation
   utils/    # contours, coordinates, geo helpers
-  types.ts  # shared app contracts
+  types.ts  # compatibility re-export for shared contracts
 
 apps/worker/src/
   routes/   # Hono API routes
   lib/      # DB access, validation, backend console ops assembly
+
+packages/ops/
+  ops/      # pure operational domain logic and contracts
+  data/     # canonical event truth helpers
+  engine/   # pure GMPE/intensity computation
+  types.ts  # shared domain contracts
 ```
 
 ## 7. 데이터 흐름 (요약)
@@ -104,7 +110,7 @@ npm run preview
 ## 10. 운영상 주의사항
 
 - 난카이 경로는 `SharedArrayBuffer`를 사용하므로 교차 출처 격리(COOP/COEP) 환경이 필요하다.
-- 타입 계약 변경(`src/types.ts`)은 파급 범위가 크므로 관련 모듈 전체를 함께 검증한다.
+- 타입 계약 변경(`packages/ops/types.ts`)은 파급 범위가 크므로 관련 모듈 전체를 함께 검증한다.
 - 실시간/타임라인/시나리오 모드 전환 시 상태 오염이 없는지 반드시 점검한다.
 
 ## 11. 문서 우선순위 규칙 (충돌 시)

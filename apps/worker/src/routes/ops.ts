@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { and, desc, gte, lte } from 'drizzle-orm';
 import { earthquakes } from '@namazue/db';
+import { deriveZoomTier, type FaultType, type ViewportState } from '@namazue/ops';
 
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
@@ -12,16 +13,11 @@ import {
   validateRange,
   validateRangePair,
 } from '../lib/earthquakeValidation.ts';
-import type { FaultType } from '../../../globe/src/types.ts';
-import type { ViewportState } from '../../../globe/src/ops/types.ts';
 
 export const opsRoute = new Hono<{ Bindings: Env }>();
 
 function classifyZoomTier(zoom: number): ViewportState['tier'] {
-  if (zoom < 8) return 'national';
-  if (zoom < 11) return 'regional';
-  if (zoom < 14) return 'city';
-  return 'district';
+  return deriveZoomTier(zoom);
 }
 
 function classifyRegion(lat: number, lng: number): ViewportState['activeRegion'] {

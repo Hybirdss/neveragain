@@ -12,7 +12,9 @@
     "verbatimModuleSyntax": true,
     "paths": {
       "@namazue/db": ["../../packages/db/index.ts"],
-      "@namazue/db/*": ["../../packages/db/*"]
+      "@namazue/db/*": ["../../packages/db/*"],
+      "@namazue/ops": ["../../packages/ops/index.ts"],
+      "@namazue/ops/*": ["../../packages/ops/*"]
     }
   },
   "include": ["src/**/*.ts"],

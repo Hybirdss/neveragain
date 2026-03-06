@@ -58,7 +58,7 @@ MapLibre GL JS 4.x     Base map renderer (2D + pitch/rotation)
 Deck.gl 9.x            All data visualization layers
 MapTiler Dark custom    Dark vector tiles (API key available)
 GMPE engine             Intensity computation (existing, keep)
-Ops domain              Exposure / priorities (existing, keep)
+Ops domain              `packages/ops` shared exposure / priority / read-model logic
 Vanilla TypeScript      No React / Vue / framework
 Vite                    Build tool
 ```
@@ -174,6 +174,9 @@ Each operator view preset declares:
 
 This is what makes the product feel like an operational console rather than a
 GIS settings surface.
+
+Pure operational contracts and calculations live in `packages/ops`. `apps/globe`
+renders that truth; it does not own the domain logic.
 
 ---
 
