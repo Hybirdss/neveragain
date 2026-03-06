@@ -105,7 +105,7 @@ interface MaritimeSnapshotServiceOptions {
   ) => MaritimeRuntimeGovernorPolicy | Promise<MaritimeRuntimeGovernorPolicy>;
 }
 
-const DEFAULT_TTL_MS = 5_000;
+const DEFAULT_TTL_MS = 60_000;
 
 export class MaritimeSnapshotService {
   private readonly provider: MaritimeSnapshotProvider;
