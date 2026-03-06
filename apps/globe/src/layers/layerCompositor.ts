@@ -374,6 +374,9 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
     // ── 1b. Intensity animation ─────────────────────────────────
     const intensityVisible = isLayerEffectivelyVisible('intensity', cachedVis['intensity'], cachedBundleSettings);
+    // Scenario events use reduced opacity so the intensity field looks less alarming
+    const selectedId = consoleStore.get('selectedEvent')?.id;
+    const intensityOpacity = selectedId?.startsWith('scenario-') ? 0.45 : undefined;
 
     if (intensityDrivenBySequence) {
       // Wave sequence drives intensity reveal — S-wave front determines visible radius
@@ -382,7 +385,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
 
       if (grid && sWaveKm < Infinity) {
         if (now - lastIntensityAnimUpdate >= INTENSITY_ANIM_INTERVAL) {
-          const animLayer = createIntensityLayer(grid, sequence.epicenter, sWaveKm);
+          const animLayer = createIntensityLayer(grid, sequence.epicenter, sWaveKm, intensityOpacity);
           cache.set('intensity', animLayer ? [animLayer] : []);
           lastIntensityAnimUpdate = now;
         }
@@ -399,7 +402,7 @@ export function createLayerCompositor(engine: MapEngine): LayerCompositor {
           const revealRadiusKm = (elapsed / INTENSITY_ANIM_DURATION) * intensityAnimMaxRadiusKm;
           const grid = consoleStore.get('intensityGrid');
           if (grid) {
-            const animLayer = createIntensityLayer(grid, intensityAnimEpicenter!, revealRadiusKm);
+            const animLayer = createIntensityLayer(grid, intensityAnimEpicenter!, revealRadiusKm, intensityOpacity);
             cache.set('intensity', animLayer ? [animLayer] : []);
             lastIntensityAnimUpdate = now;
           }

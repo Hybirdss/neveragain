@@ -204,6 +204,7 @@ export function createIntensityLayer(
   grid: IntensityGrid | null,
   epicenter?: { lat: number; lng: number },
   revealRadiusKm?: number,
+  opacity?: number,
 ): ScatterplotLayer<IntensityPoint> | null {
   if (!grid) return null;
 
@@ -223,6 +224,7 @@ export function createIntensityLayer(
     pickable: false,
     stroked: false,
     filled: true,
+    opacity: opacity ?? 1,
     radiusUnits: 'meters',
     getPosition: (d) => d.position,
     getRadius: (d) => d.radius,
