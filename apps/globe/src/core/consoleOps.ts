@@ -1,6 +1,6 @@
 import { earthquakeStore } from '../data/earthquakeStore';
 import type { Vessel } from '../data/aisManager';
-import { computeIntensityGrid } from '../engine/gmpe';
+import { computeIntensityGrid, jma05ThresholdKm } from '../engine/gmpe';
 import { OPS_ASSETS } from '../ops/assetCatalog';
 import { buildOperatorBundleSummaries } from '../ops/bundleSummaries';
 import { buildDefaultBundleDomainOverviews } from '../ops/bundleDomainOverviews';
@@ -263,32 +263,13 @@ export function deriveConsoleOperationalState(
       : null;
     focusReason = focus.reason;
   }
-  // Dynamic radius derived from Si & Midorikawa (1999) GMPE.
-  // For each magnitude, the JMA 0.5 threshold distance (display cutoff) was computed
-  // via binary search of the attenuation curve with typical fault depths, then divided
-  // by 0.82 for the circular edge-fade margin (fade band = outer 18% of grid).
-  //
-  // Computed values (Vs30 amp = 1.41, crustal d=15km, subduction d=25km):
-  //   M4.5 → 173km → 1.6° → /0.82 = 2.0°
-  //   M5.0 → 243km → 2.2° → /0.82 = 2.7°
-  //   M5.5 → 331km → 3.0° → /0.82 = 3.6°
-  //   M6.0 → 417km → 3.8° → /0.82 = 4.5°
-  //   M6.5 → 515km → 4.6° → /0.82 = 5.5°
-  //   M7.0 → 614km → 5.5° → /0.82 = 6.5°
-  //   M7.5 → 720km → 6.5° → /0.82 = 8.0°
-  //   M8.0+ → 846-914km → 7.6-8.2° → /0.82 = 10.0° (Mw cap 8.3 saturates)
-  const intensityRadiusDeg = selectedEvent
-    ? (selectedEvent.magnitude >= 8.0 ? 10.0
-      : selectedEvent.magnitude >= 7.5 ? 8.0
-      : selectedEvent.magnitude >= 7.0 ? 6.5
-      : selectedEvent.magnitude >= 6.5 ? 5.5
-      : selectedEvent.magnitude >= 6.0 ? 4.5
-      : selectedEvent.magnitude >= 5.5 ? 3.6
-      : selectedEvent.magnitude >= 5.0 ? 2.7
-      : 2.0)
-    : 3;
+  // Dynamic radius from GMPE-derived JMA 0.5 threshold distance.
+  // jma05ThresholdKm returns the surface distance where intensity drops below display cutoff.
+  // Divide by 0.82 for the circular edge-fade margin (outer 18% of grid fades to zero).
+  const thresholdKm = selectedEvent ? jma05ThresholdKm(selectedEvent.magnitude) : 333;
+  const intensityRadiusDeg = (thresholdKm / 111) / 0.82;
   // Grid spacing: ~100 rows regardless of radius (total cells ≈ 10-12K)
-  const intensitySpacing = Math.max(0.06, intensityRadiusDeg * 0.02);
+  const intensitySpacing = Math.max(0.04, intensityRadiusDeg * 0.02);
 
   // Estimate fault strike for directional intensity propagation
   const strikeAngle = selectedEvent

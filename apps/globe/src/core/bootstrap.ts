@@ -544,7 +544,13 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
     lastUpdatedAt = result.updatedAt;
     refreshPlan = buildClientRefreshPlan(result.governor);
     aisManager.setRefreshMs(refreshPlan.maritime.refreshMs);
-    consoleStore.set('events', result.events);
+    // Merge new events with existing (preserves historical data from custom range searches).
+    // Without merge, each poll replaces all events with only the last 7 days,
+    // wiping any historical events the user loaded via the period picker.
+    const existing = new Map(consoleStore.get('events').map((e) => [e.id, e]));
+    for (const e of result.events) existing.set(e.id, e);
+    const merged = [...existing.values()].sort((a, b) => b.time - a.time);
+    consoleStore.set('events', merged);
     consoleStore.set('dataFreshness', {
       ...consoleStore.get('dataFreshness'),
       usgs: Date.now(),

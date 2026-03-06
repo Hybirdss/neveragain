@@ -384,6 +384,53 @@ export function computeIntensityGrid(
 }
 
 // ============================================================
+// JMA 0.5 Threshold Distance — GMPE-derived visibility radius
+// ============================================================
+//
+// For each magnitude, the surface distance at which JMA instrumental
+// intensity drops below 0.5 (display cutoff in the intensity layer).
+// Computed via binary search of the Si & Midorikawa (1999) attenuation
+// curve with typical fault depths (crustal 10-15km, subduction 25km),
+// default Vs30 amplification factor (1.41).
+//
+// Linear interpolation between tabulated points for smooth scaling.
+
+const THRESHOLD_TABLE: [number, number][] = [
+  [2.5,  21], // M2.5 → 21 km
+  [3.0,  40], // M3.0 → 40 km
+  [3.5,  71], // M3.5 → 71 km
+  [4.0, 115], // M4.0 → 115 km
+  [4.5, 173], // M4.5 → 173 km
+  [5.0, 243], // M5.0 → 243 km
+  [5.5, 331], // M5.5 → 331 km
+  [6.0, 417], // M6.0 → 417 km
+  [6.5, 515], // M6.5 → 515 km
+  [7.0, 614], // M7.0 → 614 km
+  [7.5, 720], // M7.5 → 720 km
+  [8.0, 846], // M8.0 → 846 km (Mw cap 8.3 saturates above this)
+];
+
+/**
+ * Surface distance (km) at which JMA intensity drops below 0.5 for a given magnitude.
+ * Linearly interpolated from GMPE-computed threshold table.
+ */
+export function jma05ThresholdKm(magnitude: number): number {
+  const table = THRESHOLD_TABLE;
+  if (magnitude <= table[0][0]) return table[0][1];
+  if (magnitude >= table[table.length - 1][0]) return table[table.length - 1][1];
+
+  for (let i = 0; i < table.length - 1; i++) {
+    const [m0, d0] = table[i];
+    const [m1, d1] = table[i + 1];
+    if (magnitude >= m0 && magnitude <= m1) {
+      const t = (magnitude - m0) / (m1 - m0);
+      return d0 + t * (d1 - d0);
+    }
+  }
+  return table[table.length - 1][1];
+}
+
+// ============================================================
 // Validation
 // ============================================================
 

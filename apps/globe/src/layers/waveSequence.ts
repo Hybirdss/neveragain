@@ -21,6 +21,7 @@
 
 import { ScatterplotLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
+import { jma05ThresholdKm } from '../engine/gmpe';
 
 // ── Compressed propagation speeds ─────────────────────────────
 // Base velocities: average upper-crust P and S wave speeds for Japan.
@@ -37,7 +38,12 @@ const FLASH_DURATION = 320;
 const P_START = 120;
 const S_START = 380;
 const SEQUENCE_DURATION = 3400;
-const MAX_RADIUS_KM = 800;
+
+// Maximum visual radius — derived from GMPE JMA 0.5 threshold distance.
+// Waves stop propagating beyond where shaking would actually be perceivable.
+function maxRadiusForMag(magnitude: number): number {
+  return jma05ThresholdKm(magnitude);
+}
 
 // Echo ring lag distances (km behind the main ring)
 const P_ECHO_LAGS = [25, 55];
@@ -88,7 +94,7 @@ export function getSWaveRadiusKm(state: WaveSequenceState, now: number): number 
   const elapsed = now - state.startTime;
   if (elapsed < S_START) return 0;
   const sElapsedSec = (elapsed - S_START) / 1000;
-  return Math.min(VS_VISUAL_KMS * sElapsedSec, MAX_RADIUS_KM);
+  return Math.min(VS_VISUAL_KMS * sElapsedSec, maxRadiusForMag(state.magnitude));
 }
 
 /** Sequence progress 0..1. */
@@ -103,8 +109,8 @@ function kmToMeters(km: number, depth: number): number {
   return Math.sqrt(km * km + depth * depth) * 1000;
 }
 
-function ringAlpha(radiusKm: number, maxAlpha: number, magScale: number): number {
-  const fade = Math.max(0, 1 - radiusKm / MAX_RADIUS_KM);
+function ringAlpha(radiusKm: number, maxAlpha: number, magScale: number, maxRKm: number): number {
+  const fade = Math.max(0, 1 - radiusKm / maxRKm);
   return Math.round(fade * Math.max(0.3, magScale) * maxAlpha);
 }
 
@@ -136,15 +142,16 @@ export function createSequenceLayers(state: WaveSequenceState, now: number): Lay
   const pos: [number, number] = [state.epicenter.lng, state.epicenter.lat];
   const magScale = Math.min(1, (state.magnitude - 3) / 4);
   const depth = state.depth_km;
+  const maxRKm = maxRadiusForMag(state.magnitude);
 
   // ── 1. S-wave interior fill ─────────────────────────────────
   // Subtle amber wash expanding with S-wave. Makes the "damage zone" visible.
   if (elapsed > S_START) {
     const sElapsed = (elapsed - S_START) / 1000;
     const sRadiusKm = VS_VISUAL_KMS * sElapsed;
-    if (sRadiusKm < MAX_RADIUS_KM && sRadiusKm > 0) {
+    if (sRadiusKm < maxRKm && sRadiusKm > 0) {
       const fillAlpha = Math.round(
-        Math.max(0, 1 - sRadiusKm / MAX_RADIUS_KM) * Math.max(0.3, magScale) * 20,
+        Math.max(0, 1 - sRadiusKm / maxRKm) * Math.max(0.3, magScale) * 20,
       );
       sFillPool[0].position = pos;
       sFillPool[0].radiusMeters = kmToMeters(sRadiusKm, depth);
@@ -257,8 +264,8 @@ export function createSequenceLayers(state: WaveSequenceState, now: number): Lay
     let ringIdx = 0;
 
     // Main P-wave ring
-    if (pMainKm > 0 && pMainKm < MAX_RADIUS_KM) {
-      const alpha = ringAlpha(pMainKm, 180, magScale);
+    if (pMainKm > 0 && pMainKm < maxRKm) {
+      const alpha = ringAlpha(pMainKm, 180, magScale, maxRKm);
       ringPool[ringIdx].position = pos;
       ringPool[ringIdx].radiusMeters = kmToMeters(pMainKm, depth);
       ringPool[ringIdx].color = [125, 211, 252, alpha];
@@ -268,8 +275,8 @@ export function createSequenceLayers(state: WaveSequenceState, now: number): Lay
     // P-wave echo rings (trailing, dimmer)
     for (let i = 0; i < P_ECHO_LAGS.length; i++) {
       const echoKm = pMainKm - P_ECHO_LAGS[i];
-      if (echoKm > 5 && echoKm < MAX_RADIUS_KM) {
-        const echoAlpha = ringAlpha(echoKm, 80 - i * 25, magScale);
+      if (echoKm > 5 && echoKm < maxRKm) {
+        const echoAlpha = ringAlpha(echoKm, 80 - i * 25, magScale, maxRKm);
         ringPool[ringIdx].position = pos;
         ringPool[ringIdx].radiusMeters = kmToMeters(echoKm, depth);
         ringPool[ringIdx].color = [125, 211, 252, echoAlpha];
@@ -302,8 +309,8 @@ export function createSequenceLayers(state: WaveSequenceState, now: number): Lay
     let ringIdx = 3; // Start after P-wave slots in the pool
 
     // Main S-wave ring
-    if (sMainKm > 0 && sMainKm < MAX_RADIUS_KM) {
-      const alpha = ringAlpha(sMainKm, 240, magScale);
+    if (sMainKm > 0 && sMainKm < maxRKm) {
+      const alpha = ringAlpha(sMainKm, 240, magScale, maxRKm);
       ringPool[ringIdx].position = pos;
       ringPool[ringIdx].radiusMeters = kmToMeters(sMainKm, depth);
       ringPool[ringIdx].color = [251, 191, 36, alpha];
@@ -313,8 +320,8 @@ export function createSequenceLayers(state: WaveSequenceState, now: number): Lay
     // S-wave echo rings
     for (let i = 0; i < S_ECHO_LAGS.length; i++) {
       const echoKm = sMainKm - S_ECHO_LAGS[i];
-      if (echoKm > 5 && echoKm < MAX_RADIUS_KM) {
-        const echoAlpha = ringAlpha(echoKm, 100 - i * 30, magScale);
+      if (echoKm > 5 && echoKm < maxRKm) {
+        const echoAlpha = ringAlpha(echoKm, 100 - i * 30, magScale, maxRKm);
         ringPool[ringIdx].position = pos;
         ringPool[ringIdx].radiusMeters = kmToMeters(echoKm, depth);
         ringPool[ringIdx].color = [251, 191, 36, echoAlpha];
