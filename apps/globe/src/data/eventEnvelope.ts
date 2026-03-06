@@ -1,1 +1,1 @@
-export * from '@namazue/ops/data/eventEnvelope';
+export * from '@namazue/domain-earthquake/eventEnvelope';

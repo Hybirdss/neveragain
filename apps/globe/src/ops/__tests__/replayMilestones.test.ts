@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildReplayMilestones } from '../replayMilestones';
+import { buildReplayMilestones } from '@namazue/domain-replay';
 
 describe('buildReplayMilestones', () => {
   it('creates milestone entries for backend-known state changes', () => {

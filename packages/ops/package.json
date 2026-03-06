@@ -13,6 +13,10 @@
   },
   "dependencies": {
     "@namazue/contracts": "*",
+    "@namazue/domain-earthquake": "*",
+    "@namazue/domain-ops": "*",
+    "@namazue/domain-replay": "*",
+    "@namazue/domain-scenario": "*",
     "@namazue/kernel": "*"
   },
   "devDependencies": {

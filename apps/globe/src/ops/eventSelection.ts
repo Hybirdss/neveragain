@@ -1,1 +1,1 @@
-export * from '@namazue/ops/ops/eventSelection';
+export * from '@namazue/domain-earthquake/eventSelection';

@@ -1,1 +1,1 @@
-export * from '@namazue/ops/ops/exposure';
+export * from '@namazue/domain-ops/exposure';

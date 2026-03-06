@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildScenarioDelta } from '../scenarioDelta';
+import { buildScenarioDelta } from '@namazue/domain-scenario';
 
 describe('buildScenarioDelta', () => {
   it('describes ranking changes and reasons between two scenario states', () => {

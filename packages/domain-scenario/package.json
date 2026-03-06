@@ -1,0 +1,19 @@
+{
+  "name": "@namazue/domain-scenario",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./scenarioDelta": "./scenarioDelta.ts",
+    "./scenarioShift": "./scenarioShift.ts",
+    "./types": "./types.ts"
+  },
+  "dependencies": {
+    "@namazue/kernel": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

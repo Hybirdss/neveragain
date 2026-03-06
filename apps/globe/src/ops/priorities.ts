@@ -1,1 +1,1 @@
-export * from '@namazue/ops/ops/priorities';
+export * from '@namazue/domain-ops/priorities';

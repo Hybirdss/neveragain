@@ -1,0 +1,20 @@
+{
+  "name": "@namazue/domain-ops",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./assetClassRegistry": "./assetClassRegistry.ts",
+    "./exposure": "./exposure.ts",
+    "./priorities": "./priorities.ts",
+    "./types": "./types.ts"
+  },
+  "dependencies": {
+    "@namazue/kernel": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

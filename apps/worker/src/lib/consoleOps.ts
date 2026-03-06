@@ -1,12 +1,14 @@
 import {
-  buildAssetExposures,
   buildCanonicalEventEnvelope,
-  buildOpsPriorities,
+  selectOperationalFocusEvent,
+} from '@namazue/domain-earthquake';
+import { buildAssetExposures } from '@namazue/domain-ops/exposure';
+import { buildOpsPriorities } from '@namazue/domain-ops/priorities';
+import {
   buildServiceReadModel,
   computeIntensityGrid,
   createEmptyServiceReadModel,
   OPS_ASSETS,
-  selectOperationalFocusEvent,
 } from '@namazue/ops';
 import type { RealtimeSource, RealtimeStatus, ServiceReadModel } from '@namazue/contracts';
 import type { EarthquakeEvent, IntensityGrid, TsunamiAssessment, ViewportState } from '@namazue/kernel';

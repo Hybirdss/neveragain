@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { EarthquakeEvent } from '@namazue/ops/types';
+import type { EarthquakeEvent } from '@namazue/kernel';
 import {
   analyzeEventRevisionHistory,
   buildCanonicalEventEnvelope,
   pickPreferredEventEnvelope,
-} from '../eventEnvelope';
+} from '@namazue/domain-earthquake/eventEnvelope';
 
 const baseEvent: EarthquakeEvent = {
   id: 'eq-1',
