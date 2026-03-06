@@ -27,6 +27,7 @@ export type {
 export interface AisManager {
   start(): void;
   stop(): void;
+  setRefreshMs(refreshMs: number): void;
 }
 
 export interface CreateAisManagerOptions {
@@ -81,6 +82,10 @@ interface MaritimeSnapshotResponse {
 
 const MAX_TRAIL = 15;
 const UPDATE_INTERVAL = 3000;
+
+function normalizeRefreshMs(refreshMs: number): number {
+  return Math.max(1_000, Math.round(refreshMs));
+}
 
 const AIS_API_BASE = (() => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL as string;
@@ -292,8 +297,10 @@ function createApiAisManager(
   profile: AisCoverageProfile,
   onUpdate: (vessels: Vessel[]) => void,
 ): AisManager {
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let fallbackManager: AisManager | null = null;
+  let refreshMs = UPDATE_INTERVAL;
+  let running = false;
 
   async function poll(): Promise<void> {
     try {
@@ -309,27 +316,46 @@ function createApiAisManager(
       console.warn('[AIS] Worker maritime API unavailable, falling back to local synthetic fleet:', error);
       if (!fallbackManager) {
         fallbackManager = createDemoAisManager(profile, profile.demoFleetScale, onUpdate);
+        fallbackManager.setRefreshMs(refreshMs);
         fallbackManager.start();
       }
     }
   }
 
+  function clearTimer(): void {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  function scheduleNext(delayMs = refreshMs): void {
+    clearTimer();
+    if (!running) return;
+    timer = setTimeout(() => {
+      void poll();
+      scheduleNext(refreshMs);
+    }, delayMs);
+  }
+
   return {
     start() {
-      if (timer) return;
+      if (running) return;
+      running = true;
       void poll();
-      timer = setInterval(() => {
-        void poll();
-      }, UPDATE_INTERVAL);
+      scheduleNext(refreshMs);
     },
 
     stop() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+      running = false;
+      clearTimer();
       fallbackManager?.stop();
       fallbackManager = null;
+    },
+
+    setRefreshMs(nextRefreshMs) {
+      refreshMs = normalizeRefreshMs(nextRefreshMs);
+      if (fallbackManager) fallbackManager.setRefreshMs(refreshMs);
+      if (running) scheduleNext(refreshMs);
     },
   };
 }
@@ -342,26 +368,44 @@ function createDemoAisManager(
   onUpdate: (vessels: Vessel[]) => void,
 ): AisManager {
   let fleet: InternalVessel[] = [];
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let refreshMs = UPDATE_INTERVAL;
+  let running = false;
+
+  function clearTimer(): void {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  function scheduleNext(delayMs = refreshMs): void {
+    clearTimer();
+    if (!running) return;
+    timer = setTimeout(() => {
+      advanceFleet(fleet, profile);
+      onUpdate([...fleet]);
+      scheduleNext(refreshMs);
+    }, delayMs);
+  }
 
   return {
     start() {
-      if (timer) return;
+      if (running) return;
+      running = true;
       fleet = generateFleet(profile, demoFleetScale);
       onUpdate(fleet);
-
-      timer = setInterval(() => {
-        advanceFleet(fleet, profile);
-        onUpdate([...fleet]);
-      }, UPDATE_INTERVAL);
+      scheduleNext(refreshMs);
     },
 
     stop() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+      running = false;
+      clearTimer();
       fleet = [];
+    },
+
+    setRefreshMs(nextRefreshMs) {
+      refreshMs = normalizeRefreshMs(nextRefreshMs);
+      if (running) scheduleNext(refreshMs);
     },
   };
 }

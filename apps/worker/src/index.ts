@@ -7,6 +7,7 @@ import { askRoute } from './routes/ask.ts';
 import { chatRoute } from './routes/chat.ts';
 import { maritimeRoute } from './routes/maritime.ts';
 import { railRoute } from './routes/rail.ts';
+import { runtimeRoute } from './routes/runtime.ts';
 import { handleCron } from './routes/cron.ts';
 export { MaritimeHub } from './durableObjects/maritimeHub.ts';
 
@@ -83,6 +84,8 @@ app.route('/api/reports', reportsRoute);
 app.route('/api/ask', askRoute);
 app.route('/api/chat', chatRoute);
 app.route('/api/maritime', maritimeRoute);
+app.route('/api/rail', railRoute);
+app.route('/api/runtime', runtimeRoute);
 app.route('/api/rail', railRoute);
 
 export default {

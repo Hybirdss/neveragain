@@ -72,7 +72,21 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
   const service = new MaritimeSnapshotService({
     provider,
     store: new MemorySnapshotStore(),
-    ttlMs: 5_000,
+    resolveRuntimeGovernor() {
+      return {
+        activation: {
+          state: 'watch',
+          sourceClasses: ['event-truth', 'fast-situational'],
+          regionScope: {
+            kind: 'regional',
+            regionIds: ['kanto'],
+          },
+          activatedAt: '2026-03-07T00:00:00.000Z',
+          reason: 'moderate seismic activity activated watch mode',
+        },
+        refreshMs: 60_000,
+      };
+    },
   });
 
   const first = await service.getSnapshot({
@@ -96,9 +110,16 @@ test('maritime snapshot service caches a profile snapshot and filters bounds on 
   assert.equal(first.provenance.diagnostics.messagesReceived, 0);
   assert.equal(first.provenance.diagnostics.socketOpened, false);
   assert.equal(first.provenance.diagnostics.subscriptionSent, false);
+  assert.equal(first.provenance.governorState, 'watch');
+  assert.equal(first.provenance.policyRefreshMs, 60_000);
+  assert.deepEqual(first.provenance.regionScope, {
+    kind: 'regional',
+    regionIds: ['kanto'],
+  });
   assert.equal(second.visibleCount, 1);
   assert.equal(second.provenance.cacheStatus, 'hit');
   assert.equal(second.provenance.fallbackReason, 'not-configured');
+  assert.equal(second.provenance.governorState, 'watch');
 });
 
 test('maritime snapshot service refreshes stale records', async () => {
@@ -147,7 +168,22 @@ test('maritime snapshot service refreshes stale records', async () => {
   const service = new MaritimeSnapshotService({
     provider,
     store: new MemorySnapshotStore(),
-    ttlMs: 2_000,
+    ttlMs: 60_000,
+    resolveRuntimeGovernor() {
+      return {
+        activation: {
+          state: 'incident',
+          sourceClasses: ['event-truth', 'fast-situational', 'slow-infrastructure'],
+          regionScope: {
+            kind: 'regional',
+            regionIds: ['tokai'],
+          },
+          activatedAt: '2026-03-07T00:00:00.000Z',
+          reason: 'large magnitude event escalated runtime into incident mode',
+        },
+        refreshMs: 2_000,
+      };
+    },
   });
 
   const first = await service.getSnapshot({ profileId: 'japan-wide', now: 1_000 });
@@ -158,6 +194,8 @@ test('maritime snapshot service refreshes stale records', async () => {
   assert.equal(first.provenance.fallbackReason, 'upstream-error');
   assert.equal(second.provenance.cacheStatus, 'stale');
   assert.equal(second.provenance.fallbackReason, 'upstream-error');
+  assert.equal(second.provenance.governorState, 'incident');
+  assert.equal(second.provenance.policyRefreshMs, 2_000);
   assert.equal(second.vessels[0]?.mmsi, '1');
 });
 
@@ -213,7 +251,21 @@ test('maritime snapshot service returns stale data immediately while refreshing 
   const service = new MaritimeSnapshotService({
     provider,
     store: new MemorySnapshotStore(),
-    ttlMs: 1_000,
+    resolveRuntimeGovernor() {
+      return {
+        activation: {
+          state: 'incident',
+          sourceClasses: ['event-truth', 'fast-situational', 'slow-infrastructure'],
+          regionScope: {
+            kind: 'regional',
+            regionIds: ['tokai'],
+          },
+          activatedAt: '2026-03-07T00:00:00.000Z',
+          reason: 'material exposure count escalated runtime into incident mode',
+        },
+        refreshMs: 1_000,
+      };
+    },
   });
 
   const first = await service.getSnapshot({ profileId: 'japan-wide', now: 1_000 });
@@ -223,6 +275,7 @@ test('maritime snapshot service returns stale data immediately while refreshing 
   assert.equal(calls, 2);
   assert.equal(stale.provenance.cacheStatus, 'stale');
   assert.equal(stale.provenance.refreshInFlight, true);
+  assert.equal(stale.provenance.governorState, 'incident');
   assert.equal(stale.vessels[0]?.mmsi, 'stale-1');
 
   resolveRefresh?.({
@@ -283,7 +336,20 @@ test('maritime snapshot service deduplicates concurrent cache misses', async () 
   const service = new MaritimeSnapshotService({
     provider,
     store: new MemorySnapshotStore(),
-    ttlMs: 5_000,
+    resolveRuntimeGovernor() {
+      return {
+        activation: {
+          state: 'calm',
+          sourceClasses: ['event-truth'],
+          regionScope: {
+            kind: 'national',
+          },
+          activatedAt: '2026-03-07T00:00:00.000Z',
+          reason: 'no material seismic escalation detected',
+        },
+        refreshMs: 60_000,
+      };
+    },
   });
 
   const firstPromise = service.getSnapshot({ profileId: 'japan-wide', now: 1_000 });

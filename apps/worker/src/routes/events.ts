@@ -15,6 +15,7 @@ import {
   validateRange,
   validateRangePair,
 } from '../lib/earthquakeValidation.ts';
+import { buildGovernorPolicyEnvelopeFromEvents } from '../governor/runtimeGovernor.ts';
 
 export const eventsRoute = new Hono<{ Bindings: Env }>();
 
@@ -212,13 +213,19 @@ eventsRoute.get('/', async (c) => {
     ? rows[0].time.getTime()
     : (rows[0]?.time ?? 0);
   const etag = `"${latestTime}-${rows.length}"`;
+  const governor = buildGovernorPolicyEnvelopeFromEvents(rows.map((row) => ({
+    ...row,
+    tsunami: Boolean(row.tsunami),
+  })), {
+    now: new Date().toISOString(),
+  });
 
   const clientEtag = c.req.header('if-none-match');
   if (clientEtag === etag) {
     return new Response(null, { status: 304 });
   }
 
-  const body = JSON.stringify({ events: rows, count: rows.length });
+  const body = JSON.stringify({ events: rows, count: rows.length, governor });
   const responseHeaders = {
     'Content-Type': 'application/json',
     'Cache-Control': `public, max-age=${EVENTS_CACHE_TTL}`,

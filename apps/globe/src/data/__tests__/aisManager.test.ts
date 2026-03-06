@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  createAisManager,
   generateDemoFleet,
   getAisCoverageProfile,
   resolveAisManagerConfig,
 } from '../aisManager';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('aisManager coverage', () => {
   it('defaults to a wider japan-wide coverage profile', () => {
@@ -43,5 +49,41 @@ describe('aisManager coverage', () => {
 
     expect(profile.boundingBoxes.length).toBeGreaterThan(2);
     expect(profile.demoFleetScale).toBeGreaterThan(getAisCoverageProfile('japan-wide').demoFleetScale);
+  });
+
+  it('reschedules worker API polling when the runtime governor changes cadence', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        source: 'live',
+        profile: { id: 'japan-wide', label: 'Japan Wide' },
+        generated_at: Date.now(),
+        total_tracked: 0,
+        visible_count: 0,
+        vessels: [],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const manager = createAisManager(() => {}, { apiBase: 'https://api.example.com' });
+
+    manager.start();
+    await vi.waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    manager.setRefreshMs(10_000);
+
+    await vi.advanceTimersByTimeAsync(9000);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    manager.stop();
   });
 });

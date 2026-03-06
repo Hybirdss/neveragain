@@ -17,6 +17,7 @@ import type {
   TsunamiAssessment,
 } from '../types';
 import type { OpsAssetExposure, OpsPriority } from '../ops/types';
+import type { GovernorPolicyEnvelope } from '../governor/types.ts';
 
 // ── Public Types ────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ interface ServerEvent {
 interface ServerEventsResponse {
   events: ServerEvent[];
   count: number;
+  governor?: GovernorPolicyEnvelope;
 }
 
 interface USGSFeature {
@@ -91,6 +93,7 @@ export interface FetchEventsResult {
   events: EarthquakeEvent[];
   source: 'server' | 'usgs';
   updatedAt: number;
+  governor: GovernorPolicyEnvelope | null;
 }
 
 // ── Fetch Layer ─────────────────────────────────────────────────
@@ -148,16 +151,6 @@ function usgsFeatureToEq(f: USGSFeature): EarthquakeEvent {
   };
 }
 
-async function fetchFromApi(): Promise<EarthquakeEvent[]> {
-  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const url = `${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=500&since=${since}`;
-  const data = await fetchWithTimeout<ServerEventsResponse>(url);
-  if (!Array.isArray(data.events)) return [];
-  return data.events
-    .map(serverEventToEq)
-    .filter((e): e is EarthquakeEvent => e !== null);
-}
-
 async function fetchFromUsgs(): Promise<EarthquakeEvent[]> {
   const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson';
   const data = await fetchWithTimeout<USGSResponse>(url);
@@ -178,19 +171,26 @@ export async function fetchEventsWithMeta(): Promise<FetchEventsResult> {
       events: await fetchFromUsgs(),
       source: 'usgs',
       updatedAt,
+      governor: null,
     };
   }
   try {
+    const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const data = await fetchWithTimeout<ServerEventsResponse>(`${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=500&since=${since}`);
     return {
-      events: await fetchFromApi(),
+      events: Array.isArray(data.events)
+        ? data.events.map(serverEventToEq).filter((event): event is EarthquakeEvent => event !== null)
+        : [],
       source: 'server',
       updatedAt,
+      governor: data.governor ?? null,
     };
   } catch {
     return {
       events: await fetchFromUsgs(),
       source: 'usgs',
       updatedAt,
+      governor: null,
     };
   }
 }
@@ -209,7 +209,7 @@ export async function fetchEventsByRange(sinceMs: number, untilMs?: number): Pro
     // USGS only has last week, filter client-side
     const events = await fetchFromUsgs();
     const filtered = events.filter((e) => e.time >= sinceMs && (!untilMs || e.time <= untilMs));
-    return { events: filtered, source: 'usgs', updatedAt };
+    return { events: filtered, source: 'usgs', updatedAt, governor: null };
   }
   try {
     const since = new Date(sinceMs).toISOString();
@@ -218,18 +218,18 @@ export async function fetchEventsByRange(sinceMs: number, untilMs?: number): Pro
       // Client-side filter for until — API doesn't have until param yet
     }
     const data = await fetchWithTimeout<ServerEventsResponse>(url);
-    if (!Array.isArray(data.events)) return { events: [], source: 'server', updatedAt };
+    if (!Array.isArray(data.events)) return { events: [], source: 'server', updatedAt, governor: null };
     let events = data.events
       .map(serverEventToEq)
       .filter((e): e is EarthquakeEvent => e !== null);
     if (untilMs) {
       events = events.filter((e) => e.time <= untilMs);
     }
-    return { events, source: 'server', updatedAt };
+    return { events, source: 'server', updatedAt, governor: data.governor ?? null };
   } catch {
     const events = await fetchFromUsgs();
     const filtered = events.filter((e) => e.time >= sinceMs && (!untilMs || e.time <= untilMs));
-    return { events: filtered, source: 'usgs', updatedAt };
+    return { events: filtered, source: 'usgs', updatedAt, governor: null };
   }
 }
 
