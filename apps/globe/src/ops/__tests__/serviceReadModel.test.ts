@@ -2,10 +2,29 @@ import { describe, expect, it } from 'vitest';
 
 import { buildServiceReadModel } from '../serviceReadModel';
 import { buildCanonicalEventEnvelope } from '../../data/eventEnvelope';
+import type { CanonicalEventEnvelope } from '../../data/eventEnvelope';
 
 describe('buildServiceReadModel', () => {
   it('returns national and viewport-ready summaries from the selected event and ops priorities', () => {
     const model = buildServiceReadModel({
+      selectedEventRevisionHistory: [
+        buildCanonicalEventEnvelope({
+          event: {
+            id: 'eq-1',
+            lat: 35,
+            lng: 139,
+            depth_km: 30,
+            magnitude: 7.0,
+            time: 1_700_000_000_000,
+            faultType: 'interface',
+            tsunami: true,
+            place: { text: 'Sagami corridor' },
+          },
+          source: 'usgs',
+          issuedAt: 1_700_000_001_000,
+          receivedAt: 1_700_000_001_500,
+        }),
+      ] satisfies CanonicalEventEnvelope[],
       selectedEvent: {
         id: 'eq-1',
         lat: 35,
@@ -114,6 +133,9 @@ describe('buildServiceReadModel', () => {
     expect(model.currentEvent?.id).toBe('eq-1');
     expect(model.eventTruth?.source).toBe('server');
     expect(model.eventTruth?.confidence).toBe('high');
+    expect(model.eventTruth?.revisionCount).toBe(2);
+    expect(model.eventTruth?.sources).toEqual(['usgs', 'server']);
+    expect(model.eventTruth?.hasConflictingRevision).toBe(true);
     expect(model.viewport?.activeRegion).toBe('kanto');
     expect(model.nationalExposureSummary).toHaveLength(2);
     expect(model.visibleExposureSummary.map((entry) => entry.assetId)).toEqual(['tokyo-port']);
@@ -126,6 +148,7 @@ describe('buildServiceReadModel', () => {
     const model = buildServiceReadModel({
       selectedEvent: null,
       selectedEventEnvelope: null,
+      selectedEventRevisionHistory: [],
       tsunamiAssessment: null,
       impactResults: null,
       assets: [

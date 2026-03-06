@@ -28,6 +28,7 @@ export function initLayerOrchestrator(
     store.set('serviceReadModel', buildServiceReadModel({
       selectedEvent,
       selectedEventEnvelope: selectedEvent ? earthquakeStore.getEnvelope(selectedEvent.id) ?? null : null,
+      selectedEventRevisionHistory: selectedEvent ? [...earthquakeStore.getRevisionHistory(selectedEvent.id)] : [],
       tsunamiAssessment: store.get('tsunamiAssessment'),
       impactResults: store.get('impactResults'),
       assets: ops.assets,

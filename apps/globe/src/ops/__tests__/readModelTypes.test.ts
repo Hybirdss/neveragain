@@ -27,6 +27,7 @@ describe('read model backend contracts', () => {
     };
 
     expect(model.freshnessStatus.state).toBe('fresh');
+    expect(model.eventTruth).toBeNull();
   });
 
   it('supports replay and scenario state contracts', () => {

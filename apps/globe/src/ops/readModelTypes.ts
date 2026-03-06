@@ -29,6 +29,9 @@ export interface EventTruth {
   observedAt: number;
   supersedes: string | null;
   confidence: CanonicalEventConfidence;
+  revisionCount: number;
+  sources: CanonicalEventSource[];
+  hasConflictingRevision: boolean;
 }
 
 export interface ServiceReadModel {

@@ -51,5 +51,10 @@ describe('earthquakeStore', () => {
     expect(envelope?.source).toBe('server');
     expect(envelope?.supersedes).toBe('usgs:1700000001000:eq-1');
     expect(earthquakeStore.get('eq-1')?.magnitude).toBe(7.0);
+    expect(earthquakeStore.getRevisionHistory('eq-1')).toHaveLength(2);
+    expect(earthquakeStore.getRevisionHistory('eq-1').map((entry) => entry.source)).toEqual([
+      'usgs',
+      'server',
+    ]);
   });
 });

@@ -43,6 +43,7 @@ export interface EarthquakeUpsertOptions {
 
 class EarthquakeStore {
   private byId = new Map<string, CanonicalEventEnvelope>();
+  private historyById = new Map<string, CanonicalEventEnvelope[]>();
   private sortedCache: EarthquakeEvent[] | null = null;
   private listeners = new Set<ChangeListener>();
 
@@ -67,6 +68,11 @@ class EarthquakeStore {
         receivedAt: options.receivedAt,
       });
       const existing = this.byId.get(event.id);
+      const history = this.historyById.get(event.id) ?? [];
+      if (!history.some((entry) => entry.revision === incoming.revision)) {
+        history.push(incoming);
+        this.historyById.set(event.id, history);
+      }
       if (existing) {
         const preferred = pickPreferredEventEnvelope(existing, incoming);
         if (preferred !== existing) {
@@ -98,6 +104,11 @@ class EarthquakeStore {
   /** Get the canonical envelope for a single earthquake. */
   getEnvelope(id: string): CanonicalEventEnvelope | undefined {
     return this.byId.get(id);
+  }
+
+  /** Get all known revisions for a single earthquake, oldest first. */
+  getRevisionHistory(id: string): ReadonlyArray<CanonicalEventEnvelope> {
+    return this.historyById.get(id) ?? [];
   }
 
   /** Get all earthquakes, sorted by time descending (newest first). */
@@ -197,6 +208,7 @@ class EarthquakeStore {
   /** Clear all data. */
   clear(): void {
     this.byId.clear();
+    this.historyById.clear();
     this.invalidateCache();
     this.notify();
   }
