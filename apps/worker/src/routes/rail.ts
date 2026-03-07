@@ -5,7 +5,7 @@ export const railRoute = new Hono<{ Bindings: Env }>();
 
 // --- Types ---
 
-interface RailLineStatus {
+export interface RailLineStatus {
   lineId: string;
   status: 'normal' | 'delayed' | 'suspended' | 'partial' | 'unknown';
   cause?: string;
@@ -124,7 +124,7 @@ function parseOdptResponse(data: OdptTrainInfo[]): RailLineStatus[] {
   return lines;
 }
 
-async function fetchFromOdpt(): Promise<RailLineStatus[]> {
+export async function fetchFromOdpt(): Promise<RailLineStatus[]> {
   const res = await fetch(ODPT_URL, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(8_000),

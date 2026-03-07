@@ -12,6 +12,7 @@ import {
   publishRailFeed,
   publishGovernorFeed,
 } from '../lib/feedPublisher.ts';
+import { fetchFromOdpt } from './rail.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
@@ -427,24 +428,27 @@ async function publishR2Feeds(env: Env, db: ReturnType<typeof createDb>, governo
     }
   }
 
-  // 3. Rail status from ODPT (reuse existing KV cache if available)
+  // 3. Rail status — fetch ODPT directly with proper parsing
   let railData: unknown = null;
   try {
-    const kvCached = await env.RATE_LIMIT.get('rail:status:shinkansen');
-    if (kvCached) {
-      railData = JSON.parse(kvCached);
-    }
+    const lines = await fetchFromOdpt();
+    railData = { lines, source: 'odpt', updatedAt: Date.now() };
   } catch {
-    // Non-critical
+    // ODPT unavailable — try KV cache as fallback
+    try {
+      const kvCached = await env.RATE_LIMIT.get('rail:status:shinkansen');
+      if (kvCached) railData = JSON.parse(kvCached);
+    } catch { /* non-critical */ }
   }
 
   // 4. Write all feeds to R2 in parallel
+  // Always write maritime/rail even if empty — prevents client fallback to Worker API
   const writes: Promise<void>[] = [
     publishEventsFeed(bucket, rows, governor),
     publishGovernorFeed(bucket, governor),
+    publishMaritimeFeed(bucket, maritimeData ?? { source: 'none', vessels: [], generated_at: Date.now() }),
+    publishRailFeed(bucket, railData ?? { lines: [], source: 'fallback', updatedAt: Date.now() }),
   ];
-  if (maritimeData) writes.push(publishMaritimeFeed(bucket, maritimeData));
-  if (railData) writes.push(publishRailFeed(bucket, railData));
 
   await Promise.all(writes);
 }
@@ -677,13 +681,22 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
   }
 
   // ── Step 5: Publish R2 feeds ──────────────────────────────────────────
-  // Always publish after the cron cycle so CDN-served snapshots stay fresh.
-  // This is the key to scaling: clients read R2 → CDN, not Workers API.
-  try {
-    const db = createDb(env.DATABASE_URL);
-    const governor = await resolveCronGovernor(when, db);
-    await publishR2Feeds(env, db, governor);
-  } catch (err) {
-    console.error('[cron] R2 feed publish failed:', err);
+  // Clients read R2 → CDN, not Workers API.
+  // Only publish when data changed OR every 5min as heartbeat to keep snapshots fresh.
+  const dataChanged = jmaChanged; // USGS changes also trigger jmaChanged path (shared db)
+  const heartbeat = minute % 5 === 0;
+
+  if (dataChanged || heartbeat) {
+    try {
+      let governorEnvelope: unknown = null;
+      const cachedGov = await kv.get(KV_GOVERNOR_STATE);
+      if (cachedGov) {
+        try { governorEnvelope = JSON.parse(cachedGov); } catch { /* use null */ }
+      }
+      const db = createDb(env.DATABASE_URL);
+      await publishR2Feeds(env, db, governorEnvelope);
+    } catch (err) {
+      console.error('[cron] R2 feed publish failed:', err);
+    }
   }
 }

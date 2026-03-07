@@ -314,7 +314,7 @@ function createApiAisManager(
         const response = await fetch(AIS_R2_FEED);
         if (response.ok) {
           const payload = await response.json() as MaritimeSnapshotResponse;
-          if (Array.isArray(payload.vessels) && payload.vessels.length > 0) {
+          if (Array.isArray(payload.vessels)) {
             onUpdate(payload.vessels);
             return;
           }

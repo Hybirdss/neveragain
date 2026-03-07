@@ -49,7 +49,7 @@ export function createRailStatusManager(
         clearTimeout(timeout);
         if (res.ok) {
           const data: RailStatusResponse = await res.json();
-          if (Array.isArray(data.lines) && data.lines.length > 0) {
+          if (Array.isArray(data.lines)) {
             onUpdate(data.lines);
             return;
           }
