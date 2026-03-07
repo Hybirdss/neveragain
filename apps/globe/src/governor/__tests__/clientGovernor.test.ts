@@ -8,7 +8,7 @@ describe('buildClientRefreshPlan', () => {
       state: 'calm',
       events: { source: 'events', refreshMs: 60_000 },
       maritime: { source: 'maritime', refreshMs: 60_000 },
-      rail: { source: 'rail', refreshMs: 180_000 },
+      rail: { source: 'rail', refreshMs: 120_000 },
     });
   });
 
@@ -25,9 +25,9 @@ describe('buildClientRefreshPlan', () => {
       },
     })).toEqual({
       state: 'incident',
-      events: { source: 'events', refreshMs: 15_000 },
+      events: { source: 'events', refreshMs: 10_000 },
       maritime: { source: 'maritime', refreshMs: 10_000 },
-      rail: { source: 'rail', refreshMs: 30_000 },
+      rail: { source: 'rail', refreshMs: 15_000 },
     });
   });
 });

@@ -16,24 +16,27 @@ export interface ClientRefreshPlan {
   rail: ClientRefreshPolicy;
 }
 
+// R2 CDN architecture: reads go through R2 public URL → CF CDN → zero Worker invocations.
+// Polling cadences can be aggressive since R2 reads are free within 10M/month Class B tier.
+// Cron writes snapshots every minute, so polling faster than 60s yields no new data.
 const CLIENT_REFRESH_MS: Record<ClientGovernedSource, Record<GovernorState, number>> = {
   events: {
-    calm: 60_000,
-    watch: 30_000,
-    incident: 15_000,
+    calm: 60_000,     // 1min — matches cron cadence, CDN-cached (free)
+    watch: 20_000,
+    incident: 10_000,
     recovery: 60_000,
   },
   maritime: {
-    calm: 60_000,
+    calm: 60_000,     // 1min — CDN-cached R2 snapshot (free)
     watch: 20_000,
     incident: 10_000,
-    recovery: 30_000,
+    recovery: 60_000,
   },
   rail: {
-    calm: 180_000,
-    watch: 60_000,
-    incident: 30_000,
-    recovery: 120_000,
+    calm: 120_000,    // 2min — Shinkansen status updates less often
+    watch: 30_000,
+    incident: 15_000,
+    recovery: 60_000,
   },
 };
 

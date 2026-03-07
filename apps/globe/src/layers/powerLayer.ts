@@ -171,6 +171,33 @@ export const POWER_PLANTS: PowerPlant[] = [
   { id: 'tpp-chita', name: '知多火力発電所', nameEn: 'Chita Thermal', lat: 34.9750, lng: 136.8500, type: 'thermal', status: 'operating', capacityMw: 3966, units: 6, region: 'chubu' },
   { id: 'tpp-maizuru', name: '舞鶴発電所', nameEn: 'Maizuru Thermal', lat: 35.4833, lng: 135.3833, type: 'thermal', status: 'operating', capacityMw: 1800, units: 2, region: 'kansai' },
   { id: 'tpp-matsuura', name: '松浦火力発電所', nameEn: 'Matsuura Thermal', lat: 33.3500, lng: 129.6667, type: 'thermal', status: 'operating', capacityMw: 2000, units: 2, region: 'kyushu' },
+
+  // Additional Major Thermal Plants (>1GW capacity)
+  // JERA Plants
+  { id: 'tpp-futtsu', name: '富津火力発電所', nameEn: 'Futtsu Thermal', lat: 35.3421, lng: 139.8319, type: 'thermal', status: 'operating', capacityMw: 5160, units: 4, region: 'kanto' },
+  { id: 'tpp-kawasaki', name: '川崎火力発電所', nameEn: 'Kawasaki Thermal', lat: 35.5123, lng: 139.7626, type: 'thermal', status: 'operating', capacityMw: 3420, units: 3, region: 'kanto' },
+  { id: 'tpp-anegasaki', name: '姉崎火力発電所', nameEn: 'Anegasaki Thermal', lat: 35.4845, lng: 140.0172, type: 'thermal', status: 'operating', capacityMw: 3600, units: 6, region: 'kanto' },
+  { id: 'tpp-sodegaura', name: '袖ケ浦火力発電所', nameEn: 'Sodegaura Thermal', lat: 35.4626, lng: 139.9768, type: 'thermal', status: 'operating', capacityMw: 3600, units: 4, region: 'kanto' },
+  { id: 'tpp-yokosuka', name: '横須賀火力発電所', nameEn: 'Yokosuka Thermal', lat: 35.2156, lng: 139.7164, type: 'thermal', status: 'operating', capacityMw: 2274, units: 2, region: 'kanto' },
+  { id: 'tpp-yokohama', name: '横浜火力発電所', nameEn: 'Yokohama Thermal', lat: 35.4770, lng: 139.6779, type: 'thermal', status: 'operating', capacityMw: 3325, units: 8, region: 'kanto' },
+  { id: 'tpp-hitachinaka', name: '常陸那珂火力発電所', nameEn: 'Hitachinaka Thermal', lat: 36.4368, lng: 140.6138, type: 'thermal', status: 'operating', capacityMw: 2000, units: 2, region: 'kanto' },
+  { id: 'tpp-hirono', name: '広野火力発電所', nameEn: 'Hirono Thermal', lat: 37.2330, lng: 141.0150, type: 'thermal', status: 'operating', capacityMw: 3800, units: 6, region: 'tohoku' },
+  { id: 'tpp-taketoyo', name: '武豊火力発電所', nameEn: 'Taketoyo Thermal', lat: 34.8244, lng: 136.9238, type: 'thermal', status: 'operating', capacityMw: 1070, units: 2, region: 'chubu' },
+  { id: 'tpp-goi', name: '五井火力発電所', nameEn: 'Goi Thermal', lat: 35.5470, lng: 140.0724, type: 'thermal', status: 'operating', capacityMw: 2340, units: 3, region: 'kanto' },
+
+  // J-POWER Plants
+  { id: 'tpp-isogo', name: '磯子火力発電所', nameEn: 'Isogo Thermal', lat: 35.4033, lng: 139.6414, type: 'thermal', status: 'operating', capacityMw: 1200, units: 2, region: 'kanto' },
+  { id: 'tpp-tachibana-wan', name: '橘湾火力発電所', nameEn: 'Tachibana-wan Thermal', lat: 33.8563, lng: 134.6514, type: 'thermal', status: 'operating', capacityMw: 2100, units: 2, region: 'shikoku' },
+  { id: 'tpp-takehara', name: '竹原火力発電所', nameEn: 'Takehara Thermal', lat: 34.3376, lng: 132.9603, type: 'thermal', status: 'operating', capacityMw: 1300, units: 3, region: 'chugoku' },
+
+  // Regional Utility Plants
+  { id: 'tpp-haramachi', name: '原町火力発電所', nameEn: 'Haramachi Thermal', lat: 37.6661, lng: 141.0183, type: 'thermal', status: 'operating', capacityMw: 2000, units: 2, region: 'tohoku' },
+  { id: 'tpp-himeji2', name: '姫路第二発電所', nameEn: 'Himeji No.2 Thermal', lat: 34.7772, lng: 134.6903, type: 'thermal', status: 'operating', capacityMw: 2919, units: 6, region: 'kansai' },
+  { id: 'tpp-shin-kokura', name: '新小倉発電所', nameEn: 'Shin-Kokura Thermal', lat: 33.9078, lng: 130.8614, type: 'thermal', status: 'operating', capacityMw: 1800, units: 4, region: 'kyushu' },
+  { id: 'tpp-reihoku', name: '苓北火力発電所', nameEn: 'Reihoku Thermal', lat: 32.4859, lng: 130.0420, type: 'thermal', status: 'operating', capacityMw: 1400, units: 2, region: 'kyushu' },
+  { id: 'tpp-tomato-atsuma', name: '苫東厚真火力発電所', nameEn: 'Tomato-Atsuma Thermal', lat: 42.6120, lng: 141.8050, type: 'thermal', status: 'operating', capacityMw: 1650, units: 4, region: 'hokkaido' },
+  { id: 'tpp-shin-sendai', name: '新仙台火力発電所', nameEn: 'Shin-Sendai Thermal', lat: 38.2768, lng: 141.0393, type: 'thermal', status: 'operating', capacityMw: 1000, units: 2, region: 'tohoku' },
+  { id: 'tpp-tsuruga-thermal', name: '敦賀火力発電所', nameEn: 'Tsuruga Thermal', lat: 35.6724, lng: 136.0815, type: 'thermal', status: 'operating', capacityMw: 1200, units: 2, region: 'kansai' },
 ];
 
 // ── Tooltip ──────────────────────────────────────────────────

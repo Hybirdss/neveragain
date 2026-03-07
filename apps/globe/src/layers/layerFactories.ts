@@ -30,6 +30,7 @@ import { createHospitalLayers } from './hospitalLayer';
 import { createRailLayers } from './railLayer';
 import { createPowerLayers } from './powerLayer';
 import { createSeismicHeatmapLayer } from './heatmapLayer';
+import { createPopulationLayers } from './populationLayer';
 
 export interface LayerFactory {
   id: LayerId;
@@ -46,10 +47,15 @@ export const LAYER_FACTORIES: LayerFactory[] = [
   f({
     id: 'intensity',
     order: 100,
-    deps: ['intensityGrid'],
+    deps: ['intensityGrid', 'selectedEvent', 'viewport'],
+    viewportMode: 'zoom',
     create(state: ConsoleState) {
-      const layer = createIntensityLayer(state.intensityGrid);
-      return layer ? [layer] : [];
+      const layers: Layer[] = [];
+      const intensity = createIntensityLayer(state.intensityGrid);
+      if (intensity) layers.push(intensity);
+      // Population exposure circles overlay
+      layers.push(...createPopulationLayers(state.selectedEvent, state.viewport.zoom));
+      return layers;
     },
   }),
   f({

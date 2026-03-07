@@ -6,6 +6,9 @@ import { eq, and, desc } from 'drizzle-orm';
 
 export const reportsRoute = new Hono<{ Bindings: Env }>();
 
+// Reports are immutable once generated — cache aggressively.
+const REPORT_CACHE_TTL = 86400; // 24 hours
+
 /**
  * GET /api/reports/:type/:period
  * e.g. /api/reports/weekly/2026-W10
@@ -18,6 +21,11 @@ reportsRoute.get('/:type/:period', async (c) => {
   if (!['weekly', 'monthly'].includes(type)) {
     return c.json({ error: 'Invalid report type' }, 400);
   }
+
+  // CF Cache API check — reports are immutable, cache for 24h
+  const cache = caches.default;
+  const cachedRes = await cache.match(c.req.raw);
+  if (cachedRes) return cachedRes;
 
   const db = createDb(c.env.DATABASE_URL);
 
@@ -33,7 +41,16 @@ reportsRoute.get('/:type/:period', async (c) => {
     return c.json({ error: 'Report not found' }, 404);
   }
 
-  return c.json(rows[0].content);
+  const body = JSON.stringify(rows[0].content);
+  const response = new Response(body, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': `public, max-age=${REPORT_CACHE_TTL}`,
+    },
+  });
+
+  c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()));
+  return response;
 });
 
 /**

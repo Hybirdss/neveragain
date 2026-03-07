@@ -62,7 +62,7 @@ describe('layerControl bundle summaries', () => {
   it('client governor disables high-frequency maritime polling in calm mode', () => {
     expect(getClientRefreshPolicy('maritime', 'calm').refreshMs).toBe(60_000);
     expect(getClientRefreshPolicy('maritime', 'incident').refreshMs).toBe(10_000);
-    expect(getClientRefreshPolicy('rail', 'calm').refreshMs).toBe(180_000);
+    expect(getClientRefreshPolicy('rail', 'calm').refreshMs).toBe(120_000);
   });
 
   it('client governor prefers worker truth and falls back to calm when unavailable', () => {

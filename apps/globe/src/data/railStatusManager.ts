@@ -9,7 +9,7 @@
 
 import type { RailLineStatus } from '../types';
 
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 600_000; // 10min default, governor can shorten during incidents
 const FETCH_TIMEOUT_MS = 8_000;
 
 const API_BASE = (() => {
@@ -17,6 +17,11 @@ const API_BASE = (() => {
   if (import.meta.env.PROD) return 'https://api.namazue.dev';
   return '';
 })();
+
+// R2 CDN feed URL — static snapshots, zero Worker invocations
+const RAIL_R2_FEED = import.meta.env.PROD
+  ? 'https://pub-bf7ee9c3b9f7430496681e94cbfa42cd.r2.dev/feed/rail.json'
+  : '';
 
 interface RailStatusResponse {
   lines: RailLineStatus[];
@@ -35,6 +40,26 @@ export function createRailStatusManager(
   let timer: ReturnType<typeof setInterval> | null = null;
 
   async function fetch_(): Promise<void> {
+    // Try R2 CDN feed first (zero Worker invocations)
+    if (RAIL_R2_FEED) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        const res = await fetch(RAIL_R2_FEED, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data: RailStatusResponse = await res.json();
+          if (Array.isArray(data.lines) && data.lines.length > 0) {
+            onUpdate(data.lines);
+            return;
+          }
+        }
+      } catch {
+        // R2 unavailable, fall through to Worker API
+      }
+    }
+
+    // Fall back to Worker API
     if (!API_BASE) return;
     try {
       const controller = new AbortController();

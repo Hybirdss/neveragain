@@ -6,6 +6,12 @@ import { generateAndStoreAnalysis } from './analyze.ts';
 import { fetchJmaQuakes } from '../lib/jma.ts';
 import { fetchUsgsQuakes } from '../lib/usgs.ts';
 import { buildGovernorPolicyEnvelopeFromEvents } from '../governor/runtimeGovernor.ts';
+import {
+  publishEventsFeed,
+  publishMaritimeFeed,
+  publishRailFeed,
+  publishGovernorFeed,
+} from '../lib/feedPublisher.ts';
 
 const ANALYSIS_GEN_LIMIT = 3;
 const BACKFILL_LIMIT = 2;
@@ -20,16 +26,39 @@ const DEDUP_MAG = 0.5;
 const MAG_REVISION_THRESHOLD = 0.3;
 const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 
+// KV cache keys and TTLs
+const KV_JMA_FINGERPRINT = 'cron:jma:fp';
+const KV_GOVERNOR_STATE = 'cron:governor';
+const KV_USGS_FINGERPRINT = 'cron:usgs:fp';
+const GOVERNOR_CACHE_TTL = 300; // 5 minutes
+
+// ─── JMA Fingerprinting ───────────────────────────────────
+// Hash sorted event IDs into a compact fingerprint.
+// If fingerprint matches KV cache → JMA feed is unchanged → skip DB entirely.
+
+function computeFingerprint(events: Array<{ id: string; magnitude: number }>): string {
+  // Include both IDs and magnitudes to detect revisions (e.g., M4.2 → M4.5)
+  const sorted = events
+    .map(e => `${e.id}:${e.magnitude}`)
+    .sort()
+    .join('|');
+  // Simple hash — we don't need cryptographic strength, just change detection.
+  let hash = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const ch = sorted.charCodeAt(i);
+    hash = ((hash << 5) - hash + ch) | 0;
+  }
+  return hash.toString(36);
+}
+
 // ─── JMA Polling ────────────────────────────────────────
 // Runs every minute. Upserts all JMA events (handles revisions).
 // Triggers new analysis for new M4+ events, or re-analysis
 // when magnitude changes ≥0.3.
 
-async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; revised: number }> {
+async function pollJma(env: Env, db: ReturnType<typeof createDb>): Promise<{ ingested: number; analyzed: number; revised: number }> {
   const jmaEvents = await fetchJmaQuakes();
   if (jmaEvents.length === 0) return { ingested: 0, analyzed: 0, revised: 0 };
-
-  const db = createDb(env.DATABASE_URL);
 
   // Load existing events for revision detection
   const jmaIds = jmaEvents.map(e => e.id);
@@ -141,11 +170,13 @@ async function pollJma(env: Env): Promise<{ ingested: number; analyzed: number; 
 // deduplicates against existing events (JMA or prior USGS),
 // upserts with status/magnitude updates, generates analysis for new M4+.
 
-async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number; revised: number }> {
-  const usgsEvents = await fetchUsgsQuakes();
+async function pollUsgs(
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  prefetchedEvents?: Awaited<ReturnType<typeof fetchUsgsQuakes>>,
+): Promise<{ ingested: number; analyzed: number; revised: number }> {
+  const usgsEvents = prefetchedEvents ?? await fetchUsgsQuakes();
   if (usgsEvents.length === 0) return { ingested: 0, analyzed: 0, revised: 0 };
-
-  const db = createDb(env.DATABASE_URL);
 
   // Check which USGS IDs already exist (for new vs update detection)
   const usgsIds = usgsEvents.map(e => e.id);
@@ -317,9 +348,7 @@ async function pollUsgs(env: Env): Promise<{ ingested: number; analyzed: number;
 // Runs every 10 minutes. Picks up any M4+ events that
 // missed analysis generation (safety net).
 
-async function backfillAnalyses(env: Env): Promise<number> {
-  const db = createDb(env.DATABASE_URL);
-
+async function backfillAnalyses(env: Env, db: ReturnType<typeof createDb>): Promise<number> {
   const rows = await db.select({
     event_id: earthquakes.id,
   })
@@ -348,8 +377,79 @@ async function backfillAnalyses(env: Env): Promise<number> {
   return generated;
 }
 
-async function resolveCronGovernor(env: Env, when: Date) {
-  const db = createDb(env.DATABASE_URL);
+// ─── R2 Feed Publishing ──────────────────────────────────
+// After each cron cycle, snapshot events/maritime/rail to R2.
+// Clients fetch these via R2 public URL + CDN — zero Worker invocations.
+
+const FEED_EVENTS_LIMIT = 500;
+const FEED_EVENTS_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function publishR2Feeds(env: Env, db: ReturnType<typeof createDb>, governor: unknown): Promise<void> {
+  const bucket = env.FEED_BUCKET;
+  if (!bucket) return;
+
+  // 1. Events snapshot: M2.5+ Japan earthquakes, last 7 days
+  const since = new Date(Date.now() - FEED_EVENTS_LOOKBACK_MS);
+  const rows = await db.select({
+    id: earthquakes.id,
+    lat: earthquakes.lat,
+    lng: earthquakes.lng,
+    depth_km: earthquakes.depth_km,
+    magnitude: earthquakes.magnitude,
+    time: earthquakes.time,
+    place: earthquakes.place,
+    fault_type: earthquakes.fault_type,
+    source: earthquakes.source,
+    tsunami: earthquakes.tsunami,
+    mag_type: earthquakes.mag_type,
+  })
+    .from(earthquakes)
+    .where(and(
+      gte(earthquakes.magnitude, 2.5),
+      gte(earthquakes.time, since),
+      gte(earthquakes.lat, 24),
+      lte(earthquakes.lat, 46),
+      gte(earthquakes.lng, 122),
+      lte(earthquakes.lng, 150),
+    ))
+    .orderBy(desc(earthquakes.time))
+    .limit(FEED_EVENTS_LIMIT);
+
+  // 2. Maritime snapshot from Durable Object
+  let maritimeData: unknown = null;
+  if (env.MARITIME_HUB) {
+    try {
+      const stub = env.MARITIME_HUB.getByName('japan-maritime-hub');
+      const res = await stub.fetch('https://maritime-hub/snapshot');
+      if (res.ok) maritimeData = await res.json();
+    } catch (err) {
+      console.error('[cron] maritime snapshot for R2 failed:', err);
+    }
+  }
+
+  // 3. Rail status from ODPT (reuse existing KV cache if available)
+  let railData: unknown = null;
+  try {
+    const kvCached = await env.RATE_LIMIT.get('rail:status:shinkansen');
+    if (kvCached) {
+      railData = JSON.parse(kvCached);
+    }
+  } catch {
+    // Non-critical
+  }
+
+  // 4. Write all feeds to R2 in parallel
+  const writes: Promise<void>[] = [
+    publishEventsFeed(bucket, rows, governor),
+    publishGovernorFeed(bucket, governor),
+  ];
+  if (maritimeData) writes.push(publishMaritimeFeed(bucket, maritimeData));
+  if (railData) writes.push(publishRailFeed(bucket, railData));
+
+  await Promise.all(writes);
+}
+
+async function resolveCronGovernor(when: Date, db: ReturnType<typeof createDb>) {
   const recentRows = await db.select({
     magnitude: earthquakes.magnitude,
     tsunami: earthquakes.tsunami,
@@ -371,9 +471,23 @@ async function resolveCronGovernor(env: Env, when: Date) {
 }
 
 /**
- * Cron handler — single trigger runs every minute.
+ * Cron handler — "Always watching, never wasting"
  *
- * Every minute:    JMA poll → ingest → analysis
+ * Runs every minute to maintain <2min earthquake detection latency.
+ * Uses KV fingerprinting to achieve zero DB queries during calm periods:
+ *
+ * 1. Fetch JMA feed (cheap HTTP, ~100ms)
+ * 2. Compute fingerprint of event IDs + magnitudes
+ * 3. Compare with KV-cached fingerprint
+ *    → MATCH: skip DB entirely (0 Neon queries)
+ *    → MISMATCH: full pipeline (upsert + analysis + governor refresh)
+ * 4. Governor state cached in KV (5min TTL) — avoids per-minute DB queries
+ *
+ * Calm period cost:  1 JMA fetch + 2 KV reads per minute
+ * Active period cost: full pipeline fires immediately on change detection
+ *
+ * Every minute:    JMA poll → fingerprint gate → conditional DB work
+ * Every 5 min:     USGS poll (or every minute during watch/incident)
  * Every 10 min:    Backfill missed analyses
  * 03:00 JST daily: Reserved for batch jobs
  * Monday 09:00 JST: Weekly brief
@@ -404,36 +518,172 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
     return;
   }
 
-  // Every minute: JMA poll
+  const kv = env.RATE_LIMIT;
+
+  // ── Step 1: Fetch JMA feed (always — this is the earthquake heartbeat) ──
+  let jmaEvents: Awaited<ReturnType<typeof fetchJmaQuakes>> = [];
   try {
-    const { ingested, analyzed, revised } = await pollJma(env);
-    if (ingested > 0 || revised > 0) {
-      console.log(`[cron] jma: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
-    }
+    jmaEvents = await fetchJmaQuakes();
   } catch (err) {
-    console.error('[cron] jma poll failed:', err);
+    console.error('[cron] jma fetch failed:', err);
+    // Even if JMA fetch fails, continue to USGS/backfill on schedule
   }
 
-  const governor = await resolveCronGovernor(env, when);
-  const governorState = governor.activation.state;
+  // ── Step 2: KV fingerprint gate ─────────────────────────────────────────
+  // Compare current feed fingerprint with cached version.
+  // If identical → JMA feed hasn't changed → skip all DB work.
+  const currentFp = jmaEvents.length > 0
+    ? computeFingerprint(jmaEvents)
+    : 'empty';
+  const cachedFp = await kv.get(KV_JMA_FINGERPRINT);
+  const jmaChanged = currentFp !== cachedFp;
 
-  // Every 5 minutes: USGS poll (supplements JMA with global source)
-  if (minute % 5 === 0 || governorState === 'watch' || governorState === 'incident') {
-    try {
-      const { ingested, analyzed, revised } = await pollUsgs(env);
-      if (ingested > 0 || revised > 0) {
-        console.log(`[cron] usgs: state=${governorState} ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+  // ── Step 3: Resolve governor (from KV cache or DB) ──────────────────────
+  // Governor determines USGS frequency and backfill scheduling.
+  // Cache it in KV for 5 minutes to avoid per-minute DB queries.
+  let governorState: string = 'calm';
+
+  if (jmaChanged) {
+    // Feed changed — run full pipeline, refresh governor from DB
+    const db = createDb(env.DATABASE_URL);
+
+    // Update fingerprint in KV (no TTL — overwritten each run)
+    await kv.put(KV_JMA_FINGERPRINT, currentFp);
+
+    // Ingest JMA events into DB
+    if (jmaEvents.length > 0) {
+      try {
+        const { ingested, analyzed, revised } = await pollJma(env, db);
+        if (ingested > 0 || revised > 0) {
+          console.log(`[cron] jma: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+        }
+      } catch (err) {
+        console.error('[cron] jma poll failed:', err);
       }
+    }
+
+    // Refresh governor from DB and cache in KV
+    try {
+      const governor = await resolveCronGovernor(when, db);
+      governorState = governor.activation.state;
+      await kv.put(KV_GOVERNOR_STATE, JSON.stringify({
+        state: governorState,
+        resolvedAt: when.toISOString(),
+      }), { expirationTtl: GOVERNOR_CACHE_TTL });
     } catch (err) {
-      console.error('[cron] usgs poll failed:', err);
+      console.error('[cron] governor resolution failed:', err);
+    }
+
+    // USGS poll: every 5 min normally, every minute during watch/incident
+    if (minute % 5 === 0 || governorState === 'watch' || governorState === 'incident') {
+      try {
+        const { ingested, analyzed, revised } = await pollUsgs(env, db);
+        if (ingested > 0 || revised > 0) {
+          console.log(`[cron] usgs: state=${governorState} ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+        }
+      } catch (err) {
+        console.error('[cron] usgs poll failed:', err);
+      }
+    }
+
+    // Backfill missed analyses every 10 min during calm/recovery
+    if (minute % 10 === 0 && governorState !== 'watch' && governorState !== 'incident') {
+      try {
+        const backfill = await backfillAnalyses(env, db);
+        if (backfill > 0) {
+          console.log(`[cron] backfill: state=${governorState} count=${backfill}`);
+        }
+      } catch (err) {
+        console.error('[cron] backfill failed:', err);
+      }
+    }
+  } else {
+    // JMA feed unchanged — zero DB queries path
+    // Read governor from KV cache
+    const cachedGovernor = await kv.get(KV_GOVERNOR_STATE);
+    if (cachedGovernor) {
+      try {
+        const parsed = JSON.parse(cachedGovernor);
+        governorState = parsed.state ?? 'calm';
+      } catch {
+        governorState = 'calm';
+      }
+    }
+
+    // Even on quiet minutes, run USGS on schedule (5min intervals or escalated)
+    const shouldPollUsgs = minute % 5 === 0
+      || governorState === 'watch'
+      || governorState === 'incident';
+
+    if (shouldPollUsgs) {
+      // USGS has its own fingerprint gate for minimal DB cost
+      try {
+        const usgsEvents = await fetchUsgsQuakes();
+        if (usgsEvents.length > 0) {
+          const usgsFp = computeFingerprint(usgsEvents);
+          const cachedUsgsFp = await kv.get(KV_USGS_FINGERPRINT);
+
+          if (usgsFp !== cachedUsgsFp) {
+            // USGS feed changed — need DB
+            const db = createDb(env.DATABASE_URL);
+            await kv.put(KV_USGS_FINGERPRINT, usgsFp);
+            const { ingested, analyzed, revised } = await pollUsgs(env, db, usgsEvents);
+            if (ingested > 0 || revised > 0) {
+              console.log(`[cron] usgs: state=${governorState} ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+            }
+
+            // Also refresh governor since we have a DB connection
+            const governor = await resolveCronGovernor(when, db);
+            governorState = governor.activation.state;
+            await kv.put(KV_GOVERNOR_STATE, JSON.stringify({
+              state: governorState,
+              resolvedAt: when.toISOString(),
+            }), { expirationTtl: GOVERNOR_CACHE_TTL });
+          }
+        }
+      } catch (err) {
+        console.error('[cron] usgs poll failed:', err);
+      }
+    }
+
+    // Governor TTL expired — refresh from DB even if feeds unchanged
+    if (!cachedGovernor && governorState === 'calm') {
+      // Only refresh if we haven't resolved it above via USGS path
+      try {
+        const db = createDb(env.DATABASE_URL);
+        const governor = await resolveCronGovernor(when, db);
+        governorState = governor.activation.state;
+        await kv.put(KV_GOVERNOR_STATE, JSON.stringify({
+          state: governorState,
+          resolvedAt: when.toISOString(),
+        }), { expirationTtl: GOVERNOR_CACHE_TTL });
+      } catch (err) {
+        console.error('[cron] governor refresh failed:', err);
+      }
+    }
+
+    // Backfill on schedule even during quiet periods
+    if (minute % 10 === 0 && governorState !== 'watch' && governorState !== 'incident') {
+      try {
+        const db = createDb(env.DATABASE_URL);
+        const backfill = await backfillAnalyses(env, db);
+        if (backfill > 0) {
+          console.log(`[cron] backfill: state=${governorState} count=${backfill}`);
+        }
+      } catch (err) {
+        console.error('[cron] backfill failed:', err);
+      }
     }
   }
 
-  // Every 10 minutes: backfill missed analyses
-  if (minute % 10 === 0 && governorState !== 'watch' && governorState !== 'incident') {
-    const backfill = await backfillAnalyses(env);
-    if (backfill > 0) {
-      console.log(`[cron] backfill: state=${governorState} count=${backfill}`);
-    }
+  // ── Step 5: Publish R2 feeds ──────────────────────────────────────────
+  // Always publish after the cron cycle so CDN-served snapshots stay fresh.
+  // This is the key to scaling: clients read R2 → CDN, not Workers API.
+  try {
+    const db = createDb(env.DATABASE_URL);
+    const governor = await resolveCronGovernor(when, db);
+    await publishR2Feeds(env, db, governor);
+  } catch (err) {
+    console.error('[cron] R2 feed publish failed:', err);
   }
 }

@@ -59,6 +59,12 @@ const API_BASE = (() => {
   return '';
 })();
 
+// R2 CDN feed URL — static snapshots written by cron, served via CDN.
+// Zero Worker invocations for reads. Scales to 100K+ concurrent users.
+const R2_FEED_BASE = import.meta.env.PROD
+  ? 'https://pub-bf7ee9c3b9f7430496681e94cbfa42cd.r2.dev'
+  : '';
+
 // ── Server API Types ────────────────────────────────────────────
 
 interface ServerEvent {
@@ -164,35 +170,58 @@ async function fetchFromUsgs(): Promise<EarthquakeEvent[]> {
     .map(usgsFeatureToEq);
 }
 
+interface R2EventsFeed {
+  events: ServerEvent[];
+  count: number;
+  governor?: GovernorPolicyEnvelope;
+  generated_at: number;
+}
+
 export async function fetchEventsWithMeta(): Promise<FetchEventsResult> {
   const updatedAt = Date.now();
-  if (!API_BASE) {
-    return {
-      events: await fetchFromUsgs(),
-      source: 'usgs',
-      updatedAt,
-      governor: null,
-    };
+
+  // 1. Try R2 CDN feed first (zero Worker invocations, CDN-cached)
+  if (R2_FEED_BASE) {
+    try {
+      const data = await fetchWithTimeout<R2EventsFeed>(`${R2_FEED_BASE}/feed/events.json`);
+      if (Array.isArray(data.events) && data.events.length > 0) {
+        return {
+          events: data.events.map(serverEventToEq).filter((event): event is EarthquakeEvent => event !== null),
+          source: 'server',
+          updatedAt,
+          governor: data.governor ?? null,
+        };
+      }
+    } catch {
+      // R2 unavailable, fall through to Worker API
+    }
   }
-  try {
-    const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const data = await fetchWithTimeout<ServerEventsResponse>(`${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=500&since=${since}`);
-    return {
-      events: Array.isArray(data.events)
-        ? data.events.map(serverEventToEq).filter((event): event is EarthquakeEvent => event !== null)
-        : [],
-      source: 'server',
-      updatedAt,
-      governor: data.governor ?? null,
-    };
-  } catch {
-    return {
-      events: await fetchFromUsgs(),
-      source: 'usgs',
-      updatedAt,
-      governor: null,
-    };
+
+  // 2. Fall back to Worker API (costs 1 invocation per request)
+  if (API_BASE) {
+    try {
+      const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const data = await fetchWithTimeout<ServerEventsResponse>(`${API_BASE}/api/events?mag_min=2.5&lat_min=${JAPAN_BBOX.minLat}&lat_max=${JAPAN_BBOX.maxLat}&lng_min=${JAPAN_BBOX.minLng}&lng_max=${JAPAN_BBOX.maxLng}&limit=500&since=${since}`);
+      return {
+        events: Array.isArray(data.events)
+          ? data.events.map(serverEventToEq).filter((event): event is EarthquakeEvent => event !== null)
+          : [],
+        source: 'server',
+        updatedAt,
+        governor: data.governor ?? null,
+      };
+    } catch {
+      // Worker API failed, fall through to USGS
+    }
   }
+
+  // 3. Direct USGS fallback (free external API)
+  return {
+    events: await fetchFromUsgs(),
+    source: 'usgs',
+    updatedAt,
+    governor: null,
+  };
 }
 
 export async function fetchEvents(): Promise<EarthquakeEvent[]> {

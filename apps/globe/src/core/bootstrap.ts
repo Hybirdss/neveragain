@@ -182,7 +182,9 @@ export async function bootstrapConsole(root: HTMLElement): Promise<void> {
   shell.leftRail.appendChild(maritimeContainer);
   const disposeMaritime = mountMaritimeExposure(maritimeContainer);
 
-  const disposeCheck = mountCheckTheseNow(shell.rightRail);
+  const checkContainer = document.createElement('div');
+  shell.rightRail.appendChild(checkContainer);
+  const disposeCheck = mountCheckTheseNow(checkContainer);
 
   const intelContainer = document.createElement('div');
   shell.rightRail.appendChild(intelContainer);

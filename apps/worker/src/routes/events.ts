@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index.ts';
 import { createDb } from '../lib/db.ts';
 import { earthquakes } from '@namazue/db';
-import { gte, lte, and, desc } from 'drizzle-orm';
+import { gte, lte, and, desc, sql } from 'drizzle-orm';
 import { generateAndStoreAnalysis } from './analyze.ts';
 import { checkRateLimit } from '../lib/rateLimit.ts';
 import {
@@ -548,9 +548,34 @@ async function upsertEvents(
   events: EarthquakeInsert[],
 ): Promise<void> {
   if (events.length === 0) return;
+  // Batch upsert in chunks of 20. Each chunk is a single INSERT...ON CONFLICT
+  // statement instead of 20 separate queries, reducing DB round-trips ~20x.
   for (let i = 0; i < events.length; i += BULK_UPSERT_CONCURRENCY) {
     const chunk = events.slice(i, i + BULK_UPSERT_CONCURRENCY);
-    await Promise.all(chunk.map((event) => upsertEvent(db, event)));
+    await db.insert(earthquakes)
+      .values(chunk)
+      .onConflictDoUpdate({
+        target: earthquakes.id,
+        set: {
+          lat: sql`excluded.lat`,
+          lng: sql`excluded.lng`,
+          depth_km: sql`excluded.depth_km`,
+          magnitude: sql`excluded.magnitude`,
+          time: sql`excluded.time`,
+          place: sql`excluded.place`,
+          place_ja: sql`excluded.place_ja`,
+          fault_type: sql`excluded.fault_type`,
+          source: sql`excluded.source`,
+          mag_type: sql`excluded.mag_type`,
+          tsunami: sql`excluded.tsunami`,
+          mt_strike: sql`excluded.mt_strike`,
+          mt_dip: sql`excluded.mt_dip`,
+          mt_rake: sql`excluded.mt_rake`,
+          mt_strike2: sql`excluded.mt_strike2`,
+          mt_dip2: sql`excluded.mt_dip2`,
+          mt_rake2: sql`excluded.mt_rake2`,
+        },
+      });
   }
 }
 

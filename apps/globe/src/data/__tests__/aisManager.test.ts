@@ -73,15 +73,17 @@ describe('aisManager coverage', () => {
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
-    await vi.advanceTimersByTimeAsync(3000);
+    // Default interval is 300_000ms; advance to trigger second poll
+    await vi.advanceTimersByTimeAsync(300_000);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
-    manager.setRefreshMs(10_000);
+    // Governor shortens to 30_000ms (floor is 10_000)
+    manager.setRefreshMs(30_000);
 
-    await vi.advanceTimersByTimeAsync(9000);
+    await vi.advanceTimersByTimeAsync(29_000);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(fetchSpy).toHaveBeenCalledTimes(3);
 
     manager.stop();

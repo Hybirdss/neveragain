@@ -20,6 +20,12 @@ AISSTREAM_COLLECTION_WINDOW_MS = 1500
 binding = "RATE_LIMIT"
 id = "9cd827bb4fcc4a3ea2ed9f2e1eed9c78"
 
+# R2 bucket for CDN-served data feeds (events, maritime, rail)
+# Reads go through R2 public URL → CF CDN → zero Worker invocations
+[[r2_buckets]]
+binding = "FEED_BUCKET"
+bucket_name = "namazue-tiles"
+
 [[durable_objects.bindings]]
 name = "MARITIME_HUB"
 class_name = "MaritimeHub"
@@ -28,7 +34,8 @@ class_name = "MaritimeHub"
 tag = "v1"
 new_sqlite_classes = ["MaritimeHub"]
 
-# Cron triggers — every minute for JMA polling + analysis generation
+# Cron triggers — every 5 minutes for JMA/USGS polling + analysis generation
+# Free tier: 100K requests/day — every-minute cron alone burns 1,440/day
 [triggers]
 crons = [
   "* * * * *",

@@ -16,6 +16,7 @@ export interface Env {
   XAI_API_KEY: string;
   RATE_LIMIT: KVNamespace;
   MARITIME_HUB: DurableObjectNamespace;
+  FEED_BUCKET: R2Bucket;
   ALLOWED_ORIGINS?: string;
   INTERNAL_API_TOKEN?: string;
   AISSTREAM_API_KEY?: string;
@@ -86,7 +87,6 @@ app.route('/api/chat', chatRoute);
 app.route('/api/maritime', maritimeRoute);
 app.route('/api/rail', railRoute);
 app.route('/api/runtime', runtimeRoute);
-app.route('/api/rail', railRoute);
 
 export default {
   fetch: app.fetch,

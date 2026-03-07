@@ -81,10 +81,10 @@ interface MaritimeSnapshotResponse {
 }
 
 const MAX_TRAIL = 15;
-const UPDATE_INTERVAL = 3000;
+const UPDATE_INTERVAL = 300_000; // 5min default, overridden by governor
 
 function normalizeRefreshMs(refreshMs: number): number {
-  return Math.max(1_000, Math.round(refreshMs));
+  return Math.max(10_000, Math.round(refreshMs)); // Floor at 10s to protect Workers free tier
 }
 
 const AIS_API_BASE = (() => {
@@ -92,6 +92,11 @@ const AIS_API_BASE = (() => {
   if (import.meta.env.PROD) return 'https://api.namazue.dev';
   return '';
 })();
+
+// R2 CDN feed URL — static snapshots, zero Worker invocations
+const AIS_R2_FEED = import.meta.env.PROD
+  ? 'https://pub-bf7ee9c3b9f7430496681e94cbfa42cd.r2.dev/feed/maritime.json'
+  : '';
 const AIS_COVERAGE_PROFILE_ID = (import.meta.env.VITE_AIS_COVERAGE_PROFILE as string | undefined)?.trim();
 const AIS_DEMO_SCALE = Number(import.meta.env.VITE_AIS_DEMO_SCALE ?? '');
 
@@ -303,6 +308,23 @@ function createApiAisManager(
   let running = false;
 
   async function poll(): Promise<void> {
+    // Try R2 CDN feed first (zero Worker invocations)
+    if (AIS_R2_FEED) {
+      try {
+        const response = await fetch(AIS_R2_FEED);
+        if (response.ok) {
+          const payload = await response.json() as MaritimeSnapshotResponse;
+          if (Array.isArray(payload.vessels) && payload.vessels.length > 0) {
+            onUpdate(payload.vessels);
+            return;
+          }
+        }
+      } catch {
+        // R2 unavailable, fall through to Worker API
+      }
+    }
+
+    // Fall back to Worker API (costs 1 invocation)
     try {
       const url = new URL('/api/maritime/vessels', apiBase);
       url.searchParams.set('profile', profile.id);
