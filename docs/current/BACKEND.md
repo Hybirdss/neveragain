@@ -207,6 +207,63 @@ The core rule remains:
 
 ---
 
+## Worker Detection Pipeline
+
+### SeismicSentinel (Durable Object)
+
+10-second earthquake detection via P2P地震情報, bypassing cron's 1-minute minimum.
+
+```
+P2P地震情報 ──(10s alarm)──> SeismicSentinel DO
+                                  │
+                     P2P fingerprint (in-memory)
+                     ├── match → sleep (cost: ~0)
+                     └── changed → JMA fetch
+                                     │
+                          JMA fingerprint (R2, shared with cron)
+                          ├── match → retry 10s (JMA not ready)
+                          └── changed → DB ingest + R2 feed publish
+```
+
+Key design:
+- **P2P as sentinel**: P2P relays JMA telegrams within seconds. Polls REST API every 10s.
+- **JMA as truth**: P2P triggers detection, but canonical data always comes from JMA.
+- **Delayed P2P fingerprint update**: P2P fingerprint only updates after JMA is successfully processed, preventing missed events when P2P is ahead of JMA.
+- **R2 fingerprint sharing**: Sentinel and cron share `feed/_fp_jma.txt` in R2. When sentinel processes an event, cron skips it automatically.
+- **Self-healing alarm chain**: DO alarms persist in storage. Cron pings sentinel every minute to ensure chain is alive.
+
+### Cron (Safety Net)
+
+1-minute cron with R2 fingerprint gating. Zero DB queries when feeds are unchanged.
+
+```
+Every 1 min: JMA fetch → R2 fingerprint gate → conditional DB work
+Every 5 min: USGS poll (or every 1 min during watch/incident)
+Every 10 min: Backfill missed analyses
+```
+
+### Neon Compute
+
+- `suspend_timeout_seconds: 300` — auto-suspends after 5 min of no connections
+- `pooler_enabled: true` — transaction-mode connection pooling
+- Combined with fingerprint gating, compute suspends during calm periods (cost ~0)
+
+### Detection Latency
+
+```
+Before: earthquake → JMA (~2min) → cron wait (~1min)     = ~3min
+After:  earthquake → P2P (~3s)   → sentinel wait (~10s)  = ~2min 10s
+        (JMA publication speed is the bottleneck, not us)
+```
+
+Relevant files:
+- `apps/worker/src/durableObjects/seismicSentinel.ts`
+- `apps/worker/src/routes/cron.ts`
+- `apps/worker/src/lib/jma.ts`
+- `apps/worker/src/governor/runtimeGovernor.ts`
+
+---
+
 ## What Still Needs To Evolve
 
 ### 1. Feed-Backed Domain Overviews

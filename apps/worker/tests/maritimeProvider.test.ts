@@ -116,7 +116,7 @@ test('maritime provider merges AISHub and AISstream vessels by MMSI priority', a
   const provider = createMaritimeSnapshotProvider(
     {
       AISSTREAM_API_KEY: 'test-key',
-      AISSTREAM_COLLECTION_WINDOW_MS: 10,
+      AISSTREAM_COLLECTION_WINDOW_MS: 200,
       AISHUB_USERNAME: 'demo-user',
       AISHUB_MAX_AGE_MINUTES: 15,
     } as never,
@@ -154,7 +154,7 @@ test('maritime provider merges AISHub and AISstream vessels by MMSI priority', a
   await new Promise((resolve) => setTimeout(resolve, 10));
   const socket = sockets[0];
   assert.ok(socket);
-  socket.emitOpen();
+  // fetch-upgrade socket is already open after accept() — no emitOpen() needed
   socket.emitMessage(JSON.stringify({
     MessageType: 'PositionReport',
     MetaData: {
@@ -186,7 +186,7 @@ test('maritime provider prefers fetch-upgrade websocket clients when available',
   const provider = createMaritimeSnapshotProvider(
     {
       AISSTREAM_API_KEY: 'test-key',
-      AISSTREAM_COLLECTION_WINDOW_MS: 10,
+      AISSTREAM_COLLECTION_WINDOW_MS: 200,
     },
     {
       fetchImpl: async (url, init) => {
@@ -205,7 +205,7 @@ test('maritime provider prefers fetch-upgrade websocket clients when available',
 
   const snapshotPromise = provider.loadProfileSnapshot('japan-wide', 6_000);
   await new Promise((resolve) => setTimeout(resolve, 10));
-  socket.emitOpen();
+  // fetch-upgrade socket is already open after accept() — no emitOpen() needed
   socket.emitMessage(JSON.stringify({
     MessageType: 'PositionReport',
     MetaData: {

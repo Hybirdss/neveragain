@@ -201,7 +201,7 @@ async function collectAisstreamSnapshot(input: {
   await new Promise<void>((resolve, reject) => {
     let socketAttached = false;
 
-    const attachSocket = (socket: WebSocket) => {
+    const attachSocket = (socket: WebSocket, alreadyOpen = false) => {
       if (socketAttached) {
         try {
           socket.close();
@@ -240,7 +240,7 @@ async function collectAisstreamSnapshot(input: {
         }
       };
 
-      socket.addEventListener('open', () => {
+      const handleOpen = () => {
         socketOpened = true;
         socket.send(JSON.stringify({
           APIKey: input.apiKey,
@@ -253,6 +253,16 @@ async function collectAisstreamSnapshot(input: {
           openTimer = null;
         }
         collectionTimer = setTimeout(() => finish(), input.collectionWindowMs);
+      };
+
+      // CF Workers fetch-upgrade sockets are already open after accept() —
+      // the 'open' event never fires, so handle it immediately.
+      if (alreadyOpen) {
+        handleOpen();
+      }
+
+      socket.addEventListener('open', () => {
+        if (!socketOpened) handleOpen();
       });
 
       socket.addEventListener('message', (event) => {
@@ -315,10 +325,11 @@ async function collectAisstreamSnapshot(input: {
         return;
       }
       transport = 'fetch-upgrade';
-      if (typeof socket.accept === 'function') {
+      const accepted = typeof socket.accept === 'function';
+      if (accepted) {
         socket.accept();
       }
-      attachSocket(socket);
+      attachSocket(socket, accepted);
     }).catch(() => {
       openViaConstructor();
     });

@@ -10,12 +10,14 @@ import { railRoute } from './routes/rail.ts';
 import { runtimeRoute } from './routes/runtime.ts';
 import { handleCron } from './routes/cron.ts';
 export { MaritimeHub } from './durableObjects/maritimeHub.ts';
+export { SeismicSentinel } from './durableObjects/seismicSentinel.ts';
 
 export interface Env {
   DATABASE_URL: string;
   XAI_API_KEY: string;
   RATE_LIMIT: KVNamespace;
   MARITIME_HUB: DurableObjectNamespace;
+  SEISMIC_SENTINEL: DurableObjectNamespace;
   FEED_BUCKET: R2Bucket;
   ALLOWED_ORIGINS?: string;
   INTERNAL_API_TOKEN?: string;

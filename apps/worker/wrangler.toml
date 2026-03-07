@@ -30,9 +30,17 @@ bucket_name = "namazue-tiles"
 name = "MARITIME_HUB"
 class_name = "MaritimeHub"
 
+[[durable_objects.bindings]]
+name = "SEISMIC_SENTINEL"
+class_name = "SeismicSentinel"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MaritimeHub"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SeismicSentinel"]
 
 # Cron triggers — every 5 minutes for JMA/USGS polling + analysis generation
 # Free tier: 100K requests/day — every-minute cron alone burns 1,440/day

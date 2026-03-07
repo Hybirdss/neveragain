@@ -34,7 +34,7 @@ const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 // Hash sorted event IDs into a compact fingerprint.
 // If fingerprint matches KV cache → JMA feed is unchanged → skip DB entirely.
 
-function computeFingerprint(events: Array<{ id: string; magnitude: number }>): string {
+export function computeFingerprint(events: Array<{ id: string; magnitude: number }>): string {
   // Include both IDs and magnitudes to detect revisions (e.g., M4.2 → M4.5)
   const sorted = events
     .map(e => `${e.id}:${e.magnitude}`)
@@ -54,8 +54,12 @@ function computeFingerprint(events: Array<{ id: string; magnitude: number }>): s
 // Triggers new analysis for new M4+ events, or re-analysis
 // when magnitude changes ≥0.3.
 
-async function pollJma(env: Env, db: ReturnType<typeof createDb>): Promise<{ ingested: number; analyzed: number; revised: number }> {
-  const jmaEvents = await fetchJmaQuakes();
+export async function pollJma(
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  prefetchedEvents?: Awaited<ReturnType<typeof fetchJmaQuakes>>,
+): Promise<{ ingested: number; analyzed: number; revised: number }> {
+  const jmaEvents = prefetchedEvents ?? await fetchJmaQuakes();
   if (jmaEvents.length === 0) return { ingested: 0, analyzed: 0, revised: 0 };
 
   // Load existing events for revision detection
@@ -382,7 +386,7 @@ async function backfillAnalyses(env: Env, db: ReturnType<typeof createDb>): Prom
 const FEED_EVENTS_LIMIT = 500;
 const FEED_EVENTS_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
-async function publishR2Feeds(env: Env, db: ReturnType<typeof createDb>, governor: unknown): Promise<void> {
+export async function publishR2Feeds(env: Env, db: ReturnType<typeof createDb>, governor: unknown): Promise<void> {
   const bucket = env.FEED_BUCKET;
   if (!bucket) return;
 
@@ -450,7 +454,7 @@ async function publishR2Feeds(env: Env, db: ReturnType<typeof createDb>, governo
   await Promise.all(writes);
 }
 
-async function resolveCronGovernor(when: Date, db: ReturnType<typeof createDb>) {
+export async function resolveCronGovernor(when: Date, db: ReturnType<typeof createDb>) {
   const recentRows = await db.select({
     magnitude: earthquakes.magnitude,
     tsunami: earthquakes.tsunami,
@@ -517,6 +521,14 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
   if (hour === 0 && minute === 0 && dayOfWeek === 1) {
     console.log('[cron] Weekly brief');
     return;
+  }
+
+  // Ensure SeismicSentinel alarm chain is alive (no-op if already running)
+  if (env.SEISMIC_SENTINEL) {
+    try {
+      const sentinel = env.SEISMIC_SENTINEL.idFromName('japan-seismic-sentinel');
+      await env.SEISMIC_SENTINEL.get(sentinel).fetch('https://sentinel/ping');
+    } catch { /* non-critical — cron is the safety net */ }
   }
 
   const bucket = env.FEED_BUCKET;
