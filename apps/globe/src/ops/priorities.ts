@@ -1,27 +1,5 @@
 import type { OpsAsset, OpsAssetExposure, OpsPriority } from './types';
-import { getOpsAssetClassDefinition } from './assetClassRegistry';
-
-function formatRegionLabel(region: OpsAsset['region']): string {
-  switch (region) {
-    case 'hokkaido': return 'Hokkaido';
-    case 'tohoku': return 'Tohoku';
-    case 'kanto': return 'Kanto';
-    case 'chubu': return 'Chubu';
-    case 'kansai': return 'Kansai';
-    case 'chugoku': return 'Chugoku';
-    case 'shikoku': return 'Shikoku';
-    case 'kyushu': return 'Kyushu';
-  }
-}
-
-function titleForAsset(asset: OpsAsset): string {
-  return getOpsAssetClassDefinition(asset.class).priorityTitle(asset);
-}
-
-function rationaleFor(asset: OpsAsset, exposure: OpsAssetExposure): string {
-  const definition = getOpsAssetClassDefinition(asset.class);
-  return `${formatRegionLabel(asset.region)} ${definition.label} posture is ${exposure.severity} because ${exposure.reasons.join(', ')}.`;
-}
+import { buildPriorityRationale, buildPriorityTitle } from './operatorLocale';
 
 export function buildOpsPriorities(input: {
   assets: OpsAsset[];
@@ -44,8 +22,13 @@ export function buildOpsPriorities(input: {
       id: `priority-${asset.id}`,
       assetId: asset.id,
       severity: exposure.severity,
-      title: titleForAsset(asset),
-      rationale: rationaleFor(asset, exposure),
+      title: buildPriorityTitle(asset),
+      rationale: buildPriorityRationale({
+        region: asset.region,
+        assetClass: asset.class,
+        severity: exposure.severity,
+        reasons: exposure.reasons,
+      }),
     });
 
     if (priorities.length === 3) {

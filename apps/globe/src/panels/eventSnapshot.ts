@@ -10,15 +10,22 @@
  */
 
 import { consoleStore } from '../core/store';
+import {
+  formatConfidenceLabel,
+  formatRealtimeStateLabel,
+  formatSeverityLabel,
+  formatSourceLabel,
+  operatorText,
+} from '../ops/operatorLocale';
 import type { ServiceReadModel } from '../ops/readModelTypes';
 import type { EarthquakeEvent } from '../types';
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
-  if (diff < 60_000) return 'just now';
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
-  return `${Math.floor(diff / 86400_000)}d ago`;
+  if (diff < 60_000) return operatorText('time.justNow');
+  if (diff < 3600_000) return operatorText('time.minutesAgo', { count: Math.floor(diff / 60_000) });
+  if (diff < 86400_000) return operatorText('time.hoursAgo', { count: Math.floor(diff / 3600_000) });
+  return operatorText('time.daysAgo', { count: Math.floor(diff / 86400_000) });
 }
 
 function severityClass(mag: number): string {
@@ -28,15 +35,11 @@ function severityClass(mag: number): string {
   return 'info';
 }
 
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 function formatTruthLabel(readModel: ServiceReadModel): string | null {
   if (!readModel.eventTruth) {
     return null;
   }
-  return `${capitalize(readModel.eventTruth.source)} truth · ${capitalize(readModel.eventTruth.confidence)} confidence`;
+  return `${operatorText('event.truthLabel', { source: formatSourceLabel(readModel.eventTruth.source) })} · ${formatConfidenceLabel(readModel.eventTruth.confidence)}`;
 }
 
 function formatRevisionLabel(readModel: ServiceReadModel): string | null {
@@ -45,20 +48,20 @@ function formatRevisionLabel(readModel: ServiceReadModel): string | null {
   }
 
   const conflictLabel = readModel.eventTruth.divergenceSeverity === 'material'
-    ? ' · Material divergence'
+    ? ` · ${operatorText('event.materialDivergence')}`
     : readModel.eventTruth.hasConflictingRevision
-      ? ' · Conflict detected'
+      ? ` · ${operatorText('event.conflict')}`
       : '';
-  return `${readModel.eventTruth.revisionCount} revisions${conflictLabel}`;
+  return `${operatorText('count.revisions', { count: readModel.eventTruth.revisionCount })}${conflictLabel}`;
 }
 
 function formatFreshnessLabel(readModel: ServiceReadModel, now: number): string {
   const freshness = readModel.freshnessStatus;
   if (freshness.updatedAt <= 0) {
-    return 'Data pending';
+    return operatorText('event.dataPending');
   }
   const age = formatTimeAgo(Math.min(freshness.updatedAt, now));
-  return `Data ${freshness.state}${age ? ` · ${age}` : ''}`;
+  return `${operatorText('event.dataState', { state: formatRealtimeStateLabel(freshness.state) })}${age ? ` · ${age}` : ''}`;
 }
 
 function getHealthTone(readModel: ServiceReadModel): 'calm' | 'watch' | 'critical' {
@@ -75,11 +78,11 @@ function getHealthTone(readModel: ServiceReadModel): 'calm' | 'watch' | 'critica
 function getHealthLabel(readModel: ServiceReadModel): string {
   switch (readModel.systemHealth.level) {
     case 'degraded':
-      return 'DEGRADED';
+      return formatSeverityLabel('critical', true);
     case 'watch':
-      return 'WATCH';
+      return formatSeverityLabel('watch', true);
     default:
-      return 'NOMINAL';
+      return formatSeverityLabel('clear', true);
   }
 }
 
@@ -108,12 +111,12 @@ function renderCalmState(readModel: ServiceReadModel, now: number): string {
   return `
     <div class="nz-panel" id="nz-event-snapshot">
       <div class="nz-panel__header">
-        <span class="nz-panel__title">Situation</span>
+        <span class="nz-panel__title">${operatorText('panel.eventTruth')}</span>
         <span class="nz-snap__status nz-snap__status--${getHealthTone(readModel)}">${getHealthLabel(readModel)}</span>
       </div>
       <div class="nz-snap__headline">${summary}</div>
       <div class="nz-snap__meta">
-        <span class="nz-snap__metric">Monitoring active</span>
+        <span class="nz-snap__metric">${operatorText('status.monitoringActive')}</span>
         <span class="nz-snap__metric">${freshness}</span>
       </div>
       ${healthMarkup}
@@ -127,7 +130,7 @@ function renderEventState(
   now: number,
 ): string {
   const sev = severityClass(event.magnitude);
-  const sevLabel = sev.toUpperCase();
+  const sevLabel = formatSeverityLabel(sev as 'watch' | 'priority' | 'critical', true);
   const truthLabel = formatTruthLabel(readModel);
   const revisionLabel = formatRevisionLabel(readModel);
   const freshnessLabel = formatFreshnessLabel(readModel, now);
@@ -138,22 +141,22 @@ function renderEventState(
   return `
     <div class="nz-panel" id="nz-event-snapshot">
       <div class="nz-panel__header">
-        <span class="nz-panel__title">Event Truth</span>
+        <span class="nz-panel__title">${operatorText('panel.eventTruth')}</span>
         <span class="nz-snap__status nz-snap__status--${sev}">${sevLabel}</span>
       </div>
       <div class="nz-snap__headline">${event.place.text}</div>
       <div class="nz-snap__metrics">
         <div class="nz-snap__metric-group">
           <span class="nz-snap__metric-value">M${event.magnitude.toFixed(1)}</span>
-          <span class="nz-snap__metric-label">Magnitude</span>
+          <span class="nz-snap__metric-label">${operatorText('metric.magnitude')}</span>
         </div>
         <div class="nz-snap__metric-group">
           <span class="nz-snap__metric-value">${Math.round(event.depth_km)}km</span>
-          <span class="nz-snap__metric-label">Depth</span>
+          <span class="nz-snap__metric-label">${operatorText('metric.depth')}</span>
         </div>
         <div class="nz-snap__metric-group">
           <span class="nz-snap__metric-value">${formatTimeAgo(event.time)}</span>
-          <span class="nz-snap__metric-label">Elapsed</span>
+          <span class="nz-snap__metric-label">${operatorText('metric.elapsed')}</span>
         </div>
       </div>
       ${metaMarkup ? `<div class="nz-snap__meta">${metaMarkup}</div>` : ''}

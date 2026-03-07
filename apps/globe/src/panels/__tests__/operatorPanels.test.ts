@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { setLocale } from '../../i18n';
 import type { ServiceReadModel } from '../../ops/readModelTypes';
 import { renderEventSnapshotMarkup } from '../eventSnapshot';
 import { buildExposureEmptyMessage, selectExposureSummary } from '../assetExposure';
@@ -121,6 +122,7 @@ function createReadModel(overrides: Partial<ServiceReadModel> = {}): ServiceRead
 
 describe('operator panel selectors', () => {
   it('renders event truth metadata inside the event snapshot markup', () => {
+    setLocale('en');
     const markup = renderEventSnapshotMarkup({
       mode: 'event',
       selectedEvent: createReadModel().currentEvent,
@@ -139,6 +141,7 @@ describe('operator panel selectors', () => {
   });
 
   it('renders material divergence when the selected event truth is materially inconsistent', () => {
+    setLocale('en');
     const markup = renderEventSnapshotMarkup({
       mode: 'event',
       selectedEvent: createReadModel().currentEvent,
@@ -168,6 +171,7 @@ describe('operator panel selectors', () => {
   });
 
   it('renders operational selection messaging in calm mode when no event is selected', () => {
+    setLocale('en');
     const markup = renderEventSnapshotMarkup({
       mode: 'calm',
       selectedEvent: null,
@@ -200,6 +204,7 @@ describe('operator panel selectors', () => {
   });
 
   it('uses backend-owned overview messaging for empty exposure and priority panels', () => {
+    setLocale('en');
     const readModel = createReadModel({
       operationalOverview: {
         selectionReason: null,
@@ -220,7 +225,26 @@ describe('operator panel selectors', () => {
     expect(buildPriorityEmptyMessage(readModel)).toBe('2 assets in elevated posture nationwide');
   });
 
+  it('renders service snapshot chrome in Korean when the locale is Korean', () => {
+    setLocale('ko');
+
+    const markup = renderEventSnapshotMarkup({
+      mode: 'event',
+      selectedEvent: createReadModel().currentEvent,
+      readModel: createReadModel(),
+      now: Date.parse('2026-03-06T10:00:00.000Z'),
+    });
+
+    expect(markup).toContain('기준 이벤트 정보');
+    expect(markup).toContain('서버 기준');
+    expect(markup).toContain('신뢰도 높음');
+    expect(markup).toContain('출처 충돌');
+    expect(markup).toContain('데이터 최신');
+    setLocale('en');
+  });
+
   it('prefers visible exposure summaries and visible priorities when available', () => {
+    setLocale('en');
     const readModel = createReadModel({
       nationalExposureSummary: [
         {
@@ -247,6 +271,7 @@ describe('operator panel selectors', () => {
   });
 
   it('falls back to national summaries when visible summaries are empty', () => {
+    setLocale('en');
     const readModel = createReadModel({
       visibleExposureSummary: [],
       visiblePriorityQueue: [],

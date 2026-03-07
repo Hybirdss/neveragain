@@ -1,4 +1,5 @@
 import { resolveAppRoute, type AppRoute } from './namazue/routeModel';
+import { initializeLocale } from './i18n';
 
 export interface EntryRouteLoaders {
   service(appRoot: HTMLElement): Promise<void>;
@@ -50,6 +51,7 @@ export async function runEntryRoute(
 }
 
 export async function start(): Promise<void> {
+  await initializeLocale();
   const route = resolveAppRoute(window.location.pathname);
   await runEntryRoute(route);
 }

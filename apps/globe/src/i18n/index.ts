@@ -18,6 +18,10 @@ import ja from './ja';
 // ── Types ────────────────────────────────────────────────────────
 
 export type Locale = 'en' | 'ko' | 'ja';
+export interface RuntimeLocaleContext {
+  country: string | null;
+  locale: Locale;
+}
 
 // ── State ────────────────────────────────────────────────────────
 
@@ -27,23 +31,82 @@ let currentLocale: Locale = detectLocale();
 
 // ── Locale detection ─────────────────────────────────────────────
 
-function detectLocale(): Locale {
-  if (typeof navigator === 'undefined') return 'en';
-
-  // 1. Check browser language preference
-  const lang = navigator.language ?? '';
-  const prefix = lang.slice(0, 2).toLowerCase();
-  if (prefix === 'ja') return 'ja';
-  if (prefix === 'ko') return 'ko';
-
-  // 2. Fallback: detect by timezone (physical location)
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz.startsWith('Asia/Tokyo') || tz === 'Japan') return 'ja';
-    if (tz.startsWith('Asia/Seoul') || tz === 'ROK') return 'ko';
-  } catch { /* ignore */ }
-
+export function resolveLocaleFromCountry(country: string | null | undefined): Locale {
+  const normalized = (country ?? '').trim().toUpperCase();
+  if (normalized === 'KR' || normalized === 'KOR') return 'ko';
+  if (normalized === 'JP' || normalized === 'JPN') return 'ja';
   return 'en';
+}
+
+export function detectLocaleFromEnvironment(input: {
+  country?: string | null;
+  timeZone?: string | null;
+} = {}): Locale {
+  if (input.country) {
+    return resolveLocaleFromCountry(input.country);
+  }
+
+  const tz = input.timeZone ?? (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (tz === 'Asia/Seoul') return 'ko';
+  if (tz === 'Asia/Tokyo') return 'ja';
+  return 'en';
+}
+
+function detectLocale(): Locale {
+  if (typeof window === 'undefined') {
+    return 'en';
+  }
+  return detectLocaleFromEnvironment();
+}
+
+function syncDocumentLocale(locale: Locale): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.lang = locale;
+}
+
+export async function initializeLocale(options: {
+  runtimeContextUrl?: string;
+  fetchImpl?: typeof fetch;
+} = {}): Promise<RuntimeLocaleContext> {
+  const runtimeContextUrl = options.runtimeContextUrl ?? '/api/runtime-context';
+  const fetchImpl = options.fetchImpl ?? (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
+
+  if (fetchImpl) {
+    try {
+      const response = await fetchImpl(runtimeContextUrl, {
+        headers: { Accept: 'application/json' },
+      });
+      if (response.ok) {
+        const payload = await response.json() as Partial<RuntimeLocaleContext>;
+        const locale = payload.locale && ['en', 'ko', 'ja'].includes(payload.locale)
+          ? payload.locale
+          : resolveLocaleFromCountry(payload.country);
+        setLocale(locale);
+        syncDocumentLocale(locale);
+        return {
+          country: payload.country ?? null,
+          locale,
+        };
+      }
+    } catch {
+      // Fall through to environment detection.
+    }
+  }
+
+  const locale = detectLocaleFromEnvironment();
+  setLocale(locale);
+  syncDocumentLocale(locale);
+  return {
+    country: null,
+    locale,
+  };
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -55,6 +118,7 @@ function detectLocale(): Locale {
 export function setLocale(locale: Locale): void {
   if (locale === currentLocale) return;
   currentLocale = locale;
+  syncDocumentLocale(locale);
   for (const fn of listeners) {
     fn(locale);
   }

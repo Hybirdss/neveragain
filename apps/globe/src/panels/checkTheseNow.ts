@@ -7,6 +7,7 @@
  */
 
 import { consoleStore } from '../core/store';
+import { formatSeverityLabel, operatorText } from '../ops/operatorLocale';
 import type { ServiceReadModel } from '../ops/readModelTypes';
 import type { OpsPriority, OpsSeverity } from '../ops/types';
 
@@ -25,7 +26,7 @@ function renderEmpty(message: string): string {
   return `
     <div class="nz-panel" id="nz-check-now">
       <div class="nz-panel__header">
-        <span class="nz-panel__title">Check These Now</span>
+        <span class="nz-panel__title">${operatorText('panel.checkTheseNow')}</span>
       </div>
       <div class="nz-check__empty">${message}</div>
     </div>
@@ -55,7 +56,7 @@ function renderPriorities(
       <div class="nz-check__item" data-asset-id="${p.assetId ?? ''}">
         <div class="nz-check__item-header">
           <span class="nz-check__rank">${i + 1}</span>
-          <span class="nz-check__severity nz-check__severity--${badge}">${p.severity.toUpperCase()}</span>
+          <span class="nz-check__severity nz-check__severity--${badge}">${formatSeverityLabel(p.severity, true)}</span>
         </div>
         <div class="nz-check__title">${p.title}</div>
         <div class="nz-check__rationale">${p.rationale}</div>
@@ -66,11 +67,11 @@ function renderPriorities(
   return `
     <div class="nz-panel" id="nz-check-now">
       <div class="nz-panel__header">
-        <span class="nz-panel__title">Check These Now</span>
+        <span class="nz-panel__title">${operatorText('panel.checkTheseNow')}</span>
         <span class="nz-check__count">${totalCount}</span>
       </div>
       <div class="nz-check__list">${items}</div>
-      ${overflowCount > 0 ? `<div class="nz-check__empty">${overflowCount} more queued</div>` : ''}
+      ${overflowCount > 0 ? `<div class="nz-check__empty">${operatorText('queue.more', { count: overflowCount })}</div>` : ''}
     </div>
   `;
 }

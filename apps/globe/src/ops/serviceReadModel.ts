@@ -25,6 +25,11 @@ import {
   type MaritimeTelemetryOverview,
 } from './bundleSummaries';
 import { buildDefaultBundleDomainOverviews } from './bundleDomainOverviews';
+import {
+  formatElevatedAssetSummary,
+  formatSourceLabel,
+  operatorText,
+} from './operatorLocale';
 
 export interface BuildServiceReadModelInput {
   selectedEvent: EarthquakeEvent | null;
@@ -71,8 +76,8 @@ function buildSystemHealth(
   if (freshnessStatus.state === 'degraded') {
     return {
       level: 'degraded',
-      headline: 'Realtime feed degraded',
-      detail: freshnessStatus.message ?? 'Fallback realtime feed active. Verify source confidence before acting.',
+      headline: operatorText('health.degradedHeadline'),
+      detail: freshnessStatus.message ?? operatorText('health.degradedDetail'),
       flags,
     };
   }
@@ -80,8 +85,8 @@ function buildSystemHealth(
   if (flags.includes('material-divergence')) {
     return {
       level: 'watch',
-      headline: 'Material revision divergence detected',
-      detail: divergenceSummary ?? 'Source revisions diverge materially and require operator review.',
+      headline: operatorText('health.materialHeadline'),
+      detail: divergenceSummary ?? operatorText('health.materialDetail'),
       flags,
     };
   }
@@ -90,23 +95,28 @@ function buildSystemHealth(
     return {
       level: 'watch',
       headline: flags.includes('revision-conflict')
-        ? 'Conflicting source revisions detected'
+        ? operatorText('health.conflictHeadline')
         : flags.includes('low-confidence-truth')
-          ? 'Selected event truth is low confidence'
-        : 'Realtime updates are delayed',
+          ? operatorText('health.lowConfidenceHeadline')
+        : operatorText('health.staleHeadline'),
       detail: flags.includes('revision-conflict')
-        ? divergenceSummary ?? `${eventTruth?.revisionCount ?? 0} revisions from ${(eventTruth?.sources ?? []).join('/')} require operator review.`
+        ? divergenceSummary ?? operatorText('health.conflictDetail', {
+          count: eventTruth?.revisionCount ?? 0,
+          sources: (eventTruth?.sources ?? []).map((source) => formatSourceLabel(source)).join('/'),
+        })
         : flags.includes('low-confidence-truth')
-          ? `Selected truth originates from a low-confidence ${eventTruth?.source ?? 'feed'} revision. Verify before acting.`
-        : freshnessStatus.message ?? 'Primary feed is stale; decisions may lag current field conditions.',
+          ? operatorText('health.lowConfidenceDetail', {
+            source: eventTruth?.source ? formatSourceLabel(eventTruth.source) : operatorText('health.feed'),
+          })
+        : freshnessStatus.message ?? operatorText('health.staleDetail'),
       flags,
     };
   }
 
   return {
     level: 'nominal',
-    headline: 'Primary realtime feed healthy',
-    detail: 'No source conflicts or realtime degradation detected.',
+    headline: operatorText('health.nominalHeadline'),
+    detail: operatorText('health.nominalDetail'),
     flags,
   };
 }
@@ -134,10 +144,17 @@ function buildDivergenceSummary(eventTruth: EventTruth): string | null {
   }
 
   if (parts.length === 0) {
-    return `${eventTruth.revisionCount} revisions from ${eventTruth.sources.join('/')} require operator review.`;
+    return operatorText('health.conflictDetail', {
+      count: eventTruth.revisionCount,
+      sources: eventTruth.sources.map((source) => formatSourceLabel(source)).join('/'),
+    });
   }
 
-  return `${eventTruth.revisionCount} revisions from ${eventTruth.sources.join('/')} show ${parts.join(', ')}.`;
+  return operatorText('health.divergenceDetail', {
+    count: eventTruth.revisionCount,
+    sources: eventTruth.sources.map((source) => formatSourceLabel(source)).join('/'),
+    details: parts.join(', '),
+  });
 }
 
 function severityRank(severity: OpsSeverity): number {
@@ -176,19 +193,19 @@ function getTopSeverity(exposures: OpsAssetExposure[]): OpsSeverity {
 
 function buildSelectionSummary(reason: SelectedOperationalFocusReason | null, hasEvent: boolean): string {
   if (!hasEvent) {
-    return 'No operationally significant event selected';
+    return operatorText('ops.noSignificantEvent');
   }
 
   switch (reason) {
     case 'auto-select':
-      return 'Operational focus auto-selected from current incident stream';
+      return operatorText('ops.autoSelect');
     case 'retain-current':
-      return 'Operational focus retained on the current incident';
+      return operatorText('ops.retainCurrent');
     case 'escalate':
-      return 'Operational focus escalated to a materially stronger incident';
+      return operatorText('ops.escalate');
     case 'no-significant-event':
     case null:
-      return 'Operational focus active';
+      return operatorText('ops.active');
   }
 }
 
@@ -199,18 +216,18 @@ function buildImpactSummary(
 ): string {
   if (!hasViewport) {
     if (nationalCount > 0) {
-      return `${nationalCount} asset${nationalCount === 1 ? '' : 's'} in elevated posture nationwide`;
+      return formatElevatedAssetSummary(nationalCount, 'national');
     }
-    return 'No assets in elevated posture';
+    return operatorText('ops.noneElevated');
   }
 
   if (visibleCount > 0) {
-    return `${visibleCount} visible asset${visibleCount === 1 ? '' : 's'} in elevated posture`;
+    return formatElevatedAssetSummary(visibleCount, 'visible');
   }
   if (nationalCount > 0) {
-    return `${nationalCount} asset${nationalCount === 1 ? '' : 's'} in elevated posture nationwide`;
+    return formatElevatedAssetSummary(nationalCount, 'national');
   }
-  return 'No assets in elevated posture';
+  return operatorText('ops.noneElevated');
 }
 
 function buildOperationalOverview(input: {
@@ -255,8 +272,8 @@ export function createEmptyServiceReadModel(
     systemHealth,
     operationalOverview: {
       selectionReason: null,
-      selectionSummary: 'No operationally significant event selected',
-      impactSummary: 'No assets in elevated posture',
+      selectionSummary: operatorText('ops.noSignificantEvent'),
+      impactSummary: operatorText('ops.noneElevated'),
       visibleAffectedAssetCount: 0,
       nationalAffectedAssetCount: 0,
       topRegion: null,

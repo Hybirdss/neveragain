@@ -49,7 +49,6 @@ import { showTooltip, hideTooltip } from './ui/tooltip';
 import { initAlertBar } from './ui/alertBar';
 import { initLayerToggles, disposeLayerToggles } from './ui/layerToggles';
 import { initModeSwitcher, disposeModeSwitcher } from './ui/modeSwitcher';
-import { initLocaleSwitcher, disposeLocaleSwitcher } from './ui/localeSwitcher';
 import { initDepthScale, disposeDepthScale } from './ui/depthScale';
 import { initMobileShell, disposeMobileShell } from './ui/mobileShell';
 import { initMobileSheet, disposeMobileSheet } from './ui/mobileSheet';
@@ -167,7 +166,6 @@ export async function bootstrapLegacyApp(): Promise<void> {
   initAlertBar(layout.globeArea);
   initGeocoder(globe, layout.globeArea);
   initLayerToggles(layout.globeArea, globe);
-  initLocaleSwitcher(layout.globeArea);
   initDepthScale(layout.globeArea);
   initSearchBar();
   initCrossSection(layout.globeArea, globe);
@@ -278,7 +276,6 @@ export async function bootstrapLegacyApp(): Promise<void> {
       disposeTimeline();
       disposeScenarioPicker();
       disposeLayerToggles();
-      disposeLocaleSwitcher();
       disposeDepthScale();
       disposeCrossSection();
       disposeActiveFaults(globe);
