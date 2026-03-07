@@ -13,12 +13,6 @@ export interface RailLineStatus {
   updatedAt: number;
 }
 
-interface RailLineStatusResponse {
-  lines: RailLineStatus[];
-  source: 'odpt' | 'cache' | 'fallback';
-  updatedAt: number;
-}
-
 // --- Mappings ---
 
 /** ODPT railway operator+line → our internal lineId */
@@ -40,9 +34,6 @@ const JR_OPERATORS = [
   'odpt.Operator:JR-West',
   'odpt.Operator:JR-Kyushu',
 ];
-
-const CACHE_KEY = 'rail:status:shinkansen';
-const CACHE_TTL_SECONDS = 60;
 
 const ODPT_URL =
   'https://api-public.odpt.org/api/v4/odpt:TrainInformation.json';
@@ -141,56 +132,32 @@ export async function fetchFromOdpt(): Promise<RailLineStatus[]> {
 // --- Route ---
 
 railRoute.get('/', async (c) => {
-  const kv = c.env.RATE_LIMIT; // reuse existing KV namespace
-
-  // 1. Try cache first
-  if (kv) {
+  // Serve from R2 feed first (zero ODPT fetches, zero KV writes)
+  const bucket = c.env.FEED_BUCKET;
+  if (bucket) {
     try {
-      const cached = await kv.get(CACHE_KEY, 'text');
-      if (cached) {
-        const parsed: RailLineStatusResponse = JSON.parse(cached);
-        return c.json({ ...parsed, source: 'cache' });
+      const obj = await bucket.get('feed/rail.json');
+      if (obj) {
+        return new Response(obj.body, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60',
+            'X-Source': 'r2',
+          },
+        });
       }
     } catch {
-      // cache read failed, proceed to fetch
+      // R2 read failed, fall through
     }
   }
 
-  // 2. Fetch from ODPT
+  // Fallback: fetch ODPT directly
   try {
     const lines = await fetchFromOdpt();
-    const now = Date.now();
-
-    const response: RailLineStatusResponse = {
-      lines,
-      source: 'odpt',
-      updatedAt: now,
-    };
-
-    // Cache the result
-    if (kv) {
-      try {
-        await kv.put(CACHE_KEY, JSON.stringify(response), {
-          expirationTtl: CACHE_TTL_SECONDS,
-        });
-      } catch {
-        // cache write failed, not fatal
-      }
-    }
-
-    return c.json(response);
+    return c.json({ lines, source: 'odpt', updatedAt: Date.now() });
   } catch (err) {
     console.error('[rail] ODPT fetch failed:', err);
-
-    // 3. Fallback: try stale cache (already expired but KV might still have it)
-    //    Since KV auto-deletes on TTL, this is unlikely but harmless to try.
-    //    Return empty fallback.
-    const fallback: RailLineStatusResponse = {
-      lines: [],
-      source: 'fallback',
-      updatedAt: Date.now(),
-    };
-
-    return c.json(fallback);
+    return c.json({ lines: [], source: 'fallback', updatedAt: Date.now() });
   }
 });

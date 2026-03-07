@@ -27,11 +27,8 @@ const DEDUP_MAG = 0.5;
 const MAG_REVISION_THRESHOLD = 0.3;
 const GOVERNOR_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 
-// KV cache keys and TTLs
-const KV_JMA_FINGERPRINT = 'cron:jma:fp';
-const KV_GOVERNOR_STATE = 'cron:governor';
-const KV_USGS_FINGERPRINT = 'cron:usgs:fp';
-const GOVERNOR_CACHE_TTL = 300; // 5 minutes
+// KV cache keys (legacy — migrated to R2 for fingerprints/governor)
+// KV writes limited to 1K/day on free tier; R2 Class A writes: 1M/month
 
 // ─── JMA Fingerprinting ───────────────────────────────────
 // Hash sorted event IDs into a compact fingerprint.
@@ -522,39 +519,54 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
     return;
   }
 
-  const kv = env.RATE_LIMIT;
+  const bucket = env.FEED_BUCKET;
 
-  // ── Step 1: Fetch JMA feed (always — this is the earthquake heartbeat) ──
+  // ── Step 1: Fetch JMA feed ──
   let jmaEvents: Awaited<ReturnType<typeof fetchJmaQuakes>> = [];
   try {
     jmaEvents = await fetchJmaQuakes();
   } catch (err) {
     console.error('[cron] jma fetch failed:', err);
-    // Even if JMA fetch fails, continue to USGS/backfill on schedule
   }
 
-  // ── Step 2: KV fingerprint gate ─────────────────────────────────────────
-  // Compare current feed fingerprint with cached version.
-  // If identical → JMA feed hasn't changed → skip all DB work.
-  const currentFp = jmaEvents.length > 0
-    ? computeFingerprint(jmaEvents)
-    : 'empty';
-  const cachedFp = await kv.get(KV_JMA_FINGERPRINT);
-  const jmaChanged = currentFp !== cachedFp;
+  // ── Step 2: Fingerprint gate (R2-based, not KV) ──
+  // Store fingerprint in R2 to avoid KV write limits (1K/day).
+  // R2 Class A writes: 1M/month (~33K/day) — plenty of headroom.
+  const currentFp = jmaEvents.length > 0 ? computeFingerprint(jmaEvents) : 'empty';
+  let jmaChanged = true;
+  if (bucket) {
+    try {
+      const fpObj = await bucket.get('feed/_fp_jma.txt');
+      if (fpObj) {
+        const cachedFp = await fpObj.text();
+        jmaChanged = currentFp !== cachedFp;
+      }
+    } catch { /* treat as changed */ }
+  }
 
-  // ── Step 3: Resolve governor (from KV cache or DB) ──────────────────────
-  // Governor determines USGS frequency and backfill scheduling.
-  // Cache it in KV for 5 minutes to avoid per-minute DB queries.
+  // ── Step 3: Governor state (from R2, not KV) ──
   let governorState: string = 'calm';
+  let governorEnvelope: unknown = null;
+  if (bucket) {
+    try {
+      const govObj = await bucket.get('feed/governor.json');
+      if (govObj) {
+        const parsed = await govObj.json() as { state?: string };
+        governorState = parsed?.state ?? 'calm';
+        governorEnvelope = parsed;
+      }
+    } catch { /* default calm */ }
+  }
 
   if (jmaChanged) {
-    // Feed changed — run full pipeline, refresh governor from DB
     const db = createDb(env.DATABASE_URL);
 
-    // Update fingerprint in KV (no TTL — overwritten each run)
-    await kv.put(KV_JMA_FINGERPRINT, currentFp);
+    // Save fingerprint to R2
+    if (bucket) {
+      try { await bucket.put('feed/_fp_jma.txt', currentFp); } catch { /* non-critical */ }
+    }
 
-    // Ingest JMA events into DB
+    // Ingest JMA events
     if (jmaEvents.length > 0) {
       try {
         const { ingested, analyzed, revised } = await pollJma(env, db);
@@ -566,19 +578,16 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
       }
     }
 
-    // Refresh governor from DB and cache in KV
+    // Refresh governor
     try {
       const governor = await resolveCronGovernor(when, db);
       governorState = governor.activation.state;
-      await kv.put(KV_GOVERNOR_STATE, JSON.stringify({
-        state: governorState,
-        resolvedAt: when.toISOString(),
-      }), { expirationTtl: GOVERNOR_CACHE_TTL });
+      governorEnvelope = governor;
     } catch (err) {
       console.error('[cron] governor resolution failed:', err);
     }
 
-    // USGS poll: every 5 min normally, every minute during watch/incident
+    // USGS poll
     if (minute % 5 === 0 || governorState === 'watch' || governorState === 'incident') {
       try {
         const { ingested, analyzed, revised } = await pollUsgs(env, db);
@@ -590,59 +599,56 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
       }
     }
 
-    // Backfill missed analyses every 10 min during calm/recovery
+    // Backfill
     if (minute % 10 === 0 && governorState !== 'watch' && governorState !== 'incident') {
       try {
         const backfill = await backfillAnalyses(env, db);
-        if (backfill > 0) {
-          console.log(`[cron] backfill: state=${governorState} count=${backfill}`);
-        }
+        if (backfill > 0) console.log(`[cron] backfill: count=${backfill}`);
       } catch (err) {
         console.error('[cron] backfill failed:', err);
       }
     }
-  } else {
-    // JMA feed unchanged — zero DB queries path
-    // Read governor from KV cache
-    const cachedGovernor = await kv.get(KV_GOVERNOR_STATE);
-    if (cachedGovernor) {
-      try {
-        const parsed = JSON.parse(cachedGovernor);
-        governorState = parsed.state ?? 'calm';
-      } catch {
-        governorState = 'calm';
-      }
+
+    // Publish R2 feeds immediately after data change
+    try {
+      await publishR2Feeds(env, db, governorEnvelope);
+    } catch (err) {
+      console.error('[cron] R2 feed publish failed:', err);
     }
+  } else {
+    // JMA unchanged — minimal work path
 
-    // Even on quiet minutes, run USGS on schedule (5min intervals or escalated)
-    const shouldPollUsgs = minute % 5 === 0
-      || governorState === 'watch'
-      || governorState === 'incident';
-
-    if (shouldPollUsgs) {
-      // USGS has its own fingerprint gate for minimal DB cost
+    // USGS on schedule (every 5min or escalated)
+    if (minute % 5 === 0 || governorState === 'watch' || governorState === 'incident') {
       try {
         const usgsEvents = await fetchUsgsQuakes();
         if (usgsEvents.length > 0) {
           const usgsFp = computeFingerprint(usgsEvents);
-          const cachedUsgsFp = await kv.get(KV_USGS_FINGERPRINT);
+          // Check USGS fingerprint from R2
+          let usgsChanged = true;
+          if (bucket) {
+            try {
+              const fpObj = await bucket.get('feed/_fp_usgs.txt');
+              if (fpObj) usgsChanged = usgsFp !== await fpObj.text();
+            } catch { /* treat as changed */ }
+          }
 
-          if (usgsFp !== cachedUsgsFp) {
-            // USGS feed changed — need DB
+          if (usgsChanged) {
             const db = createDb(env.DATABASE_URL);
-            await kv.put(KV_USGS_FINGERPRINT, usgsFp);
+            if (bucket) {
+              try { await bucket.put('feed/_fp_usgs.txt', usgsFp); } catch { /* non-critical */ }
+            }
             const { ingested, analyzed, revised } = await pollUsgs(env, db, usgsEvents);
             if (ingested > 0 || revised > 0) {
-              console.log(`[cron] usgs: state=${governorState} ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
+              console.log(`[cron] usgs: ingested=${ingested} analyzed=${analyzed} revised=${revised}`);
             }
-
-            // Also refresh governor since we have a DB connection
-            const governor = await resolveCronGovernor(when, db);
-            governorState = governor.activation.state;
-            await kv.put(KV_GOVERNOR_STATE, JSON.stringify({
-              state: governorState,
-              resolvedAt: when.toISOString(),
-            }), { expirationTtl: GOVERNOR_CACHE_TTL });
+            // Refresh governor + publish feeds
+            try {
+              const governor = await resolveCronGovernor(when, db);
+              governorEnvelope = governor;
+              governorState = governor.activation.state;
+            } catch { /* keep existing */ }
+            try { await publishR2Feeds(env, db, governorEnvelope); } catch { /* logged inside */ }
           }
         }
       } catch (err) {
@@ -650,53 +656,25 @@ export async function handleCron(event: ScheduledEvent, env: Env): Promise<void>
       }
     }
 
-    // Governor TTL expired — refresh from DB even if feeds unchanged
-    if (!cachedGovernor && governorState === 'calm') {
-      // Only refresh if we haven't resolved it above via USGS path
-      try {
-        const db = createDb(env.DATABASE_URL);
-        const governor = await resolveCronGovernor(when, db);
-        governorState = governor.activation.state;
-        await kv.put(KV_GOVERNOR_STATE, JSON.stringify({
-          state: governorState,
-          resolvedAt: when.toISOString(),
-        }), { expirationTtl: GOVERNOR_CACHE_TTL });
-      } catch (err) {
-        console.error('[cron] governor refresh failed:', err);
-      }
-    }
-
-    // Backfill on schedule even during quiet periods
+    // Backfill on schedule
     if (minute % 10 === 0 && governorState !== 'watch' && governorState !== 'incident') {
       try {
         const db = createDb(env.DATABASE_URL);
         const backfill = await backfillAnalyses(env, db);
-        if (backfill > 0) {
-          console.log(`[cron] backfill: state=${governorState} count=${backfill}`);
-        }
+        if (backfill > 0) console.log(`[cron] backfill: count=${backfill}`);
       } catch (err) {
         console.error('[cron] backfill failed:', err);
       }
     }
-  }
 
-  // ── Step 5: Publish R2 feeds ──────────────────────────────────────────
-  // Clients read R2 → CDN, not Workers API.
-  // Only publish when data changed OR every 5min as heartbeat to keep snapshots fresh.
-  const dataChanged = jmaChanged; // USGS changes also trigger jmaChanged path (shared db)
-  const heartbeat = minute % 5 === 0;
-
-  if (dataChanged || heartbeat) {
-    try {
-      let governorEnvelope: unknown = null;
-      const cachedGov = await kv.get(KV_GOVERNOR_STATE);
-      if (cachedGov) {
-        try { governorEnvelope = JSON.parse(cachedGov); } catch { /* use null */ }
+    // Heartbeat: publish R2 feeds every 5min even when nothing changed
+    if (minute % 5 === 0) {
+      try {
+        const db = createDb(env.DATABASE_URL);
+        await publishR2Feeds(env, db, governorEnvelope);
+      } catch (err) {
+        console.error('[cron] R2 heartbeat publish failed:', err);
       }
-      const db = createDb(env.DATABASE_URL);
-      await publishR2Feeds(env, db, governorEnvelope);
-    } catch (err) {
-      console.error('[cron] R2 feed publish failed:', err);
     }
   }
 }

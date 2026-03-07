@@ -85,9 +85,30 @@ function normalizeEventsCacheKey(req: Request): Request {
 }
 
 eventsRoute.get('/', async (c) => {
-  // ── CF Cache API check ──────────────────────────────────────────────────
-  // Workers run *before* CF's HTTP cache layer, so Cache-Control alone does
-  // nothing for Worker responses. We must use caches.default explicitly.
+  // ── Serve from R2 (zero DB queries) ────────────────────────────────────
+  // Cron writes events snapshot to R2 every minute. Serve it directly
+  // from R2 binding — no DB query, no KV writes, minimal CPU.
+  // Old and new clients both benefit. R2 reads are free (Class B).
+  const bucket = c.env.FEED_BUCKET;
+  if (bucket) {
+    try {
+      const obj = await bucket.get('feed/events.json');
+      if (obj) {
+        return new Response(obj.body, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60',
+            'X-Source': 'r2',
+          },
+        });
+      }
+    } catch {
+      // R2 read failed, fall through to DB query
+    }
+  }
+
+  // ── Fallback: DB query (only if R2 is empty/unavailable) ───────────────
   const cache = caches.default;
   const cacheKey = normalizeEventsCacheKey(c.req.raw);
 
